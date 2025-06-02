@@ -1,0 +1,41 @@
+{
+  "name": "discobot-darwin",
+  "description": "Mac laptop running macOS",
+  "hostname": "discobot",
+  "os": "darwin",
+  "arch": "arm64",
+  "package_managers": {
+    "homebrew": {
+      "enabled": true,
+      "file": "Brewfile"
+    }
+  },
+  "configs": [
+    "zsh",
+    "bat",
+    "lazygit",
+    "yabai",
+    "skhd",
+    "sketchybar",
+    "ghostty",
+    "yazi",
+    "btop",
+    "borders"
+  ],
+  "dotfiles": [".zshrc", ".gitconfig", ".editorconfig"],
+  "themes": [],
+  "scripts": {
+    "pre_install": ["prepare.sh"],
+    "post_install": [
+      "macos_defaults.sh",
+      "workspace.sh",
+      "permissions.sh",
+      "services.sh",
+      "finalize.sh"
+    ]
+  },
+  "environment": {
+    "BROWSER": "open",
+    "TERMINAL": "ghostty"
+  }
+}

@@ -1,0 +1,14 @@
+#!/usr/bin/env zx
+const link = argv._[0];
+const dotsrc = "/Users/ali/labs/dotfiles/";
+const home = "/Users/ali/";
+
+try {
+  await $`cp -R ${home}${link} ${dotsrc}${link}`;
+  await $`trash ${home}${link}`;
+} catch (error) {
+  console.log("warning: cannot stat");
+}
+await $`ln -s ${dotsrc}${link} ${home}${link}`;
+
+console.log(`${link} is linked!`);

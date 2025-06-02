@@ -1,0 +1,9 @@
+.local/bin/**
+.local/bin/*
+!.local/bin/scripts
+*.zcomp*
+.DS_Store
+.android/avd
+.android/cache
+.config/ncspot/userstate.cbor
+.config/ranger/plugins/ranger_devicons

@@ -1,0 +1,236 @@
+/* MAIN ELEMENTS */
+@define-color base            #232136;
+@define-color surface         #2a273f;
+@define-color overlay         #393552;
+
+@define-color muted           #6e6a86;
+@define-color subtle          #908caa;
+@define-color text            #e0def4;
+
+@define-color love            #eb6f92;
+@define-color gold            #f6c177;
+@define-color rose            #ea9a97;
+@define-color pine            #3e8fb0;
+@define-color foam            #9ccfd8;
+@define-color iris            #c4a7e7;
+
+@define-color highlightLow    #2a283e;
+@define-color highlightMed    #44415a;
+@define-color highlightHigh   #56526e;
+
+* {
+  border: none;
+  border-radius: 0;
+  font-family: "OperatorMono NerdFont", "RobotoMono Nerd Font";
+  font-size: 14px;
+  min-height: 0;
+  box-shadow: none;
+  text-shadow: none;
+}
+
+window {
+  background: transparent;
+  color: #f8f8f2;
+}
+
+/* CONTAINERS */
+
+.modules-left,
+.modules-center,
+.modules-right {
+  margin: 6px 0 0 0;
+}
+
+/* WORKSPACES */
+
+#workspaces {
+  margin: 0 0 0 6px;
+  background: @surface;
+  border: 1px solid @overlay;
+  border-radius: 5px;
+}
+
+#workspaces button,
+#custom-scratchpad {
+  color: @text;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+#workspaces button:first-child {
+  border-top-left-radius: 5px;
+  border-bottom-left-radius: 5px;
+}
+
+#workspaces button:last-child {
+  border-top-right-radius: 5px;
+  border-bottom-right-radius: 5px;
+}
+
+#workspaces button.visible {
+  background-color: #be95ff;
+  color: #333;
+}
+
+#workspaces button.focused,
+#workspaces button.active {
+  background-color: @iris;
+  color: @surface;
+}
+
+#workspaces button.urgent {
+  color: @text;
+  background: @love;
+}
+
+/* Modules */
+#custom-bluetooth,
+#custom-clock,
+#network,
+#pulseaudio,
+#idle_inhibitor,
+#custom-pacman,
+#tray,
+#window,
+#mode,
+#submap,
+#custom-wf-recorder,
+#custom-backlight,
+#temperature,
+#battery,
+#cpu {
+  min-width: 20px;
+  font-size: 14px;
+  margin-left: 6px;
+  padding: 0 6px;
+}
+
+/* TRAY LIKE */
+
+#custom-backlight,
+#custom-bluetooth,
+#network,
+#idle_inhibitor,
+#custom-pacman {
+  background: @surface;
+  border-top: 1px solid @overlay;
+  border-bottom: 1px solid @overlay;
+  margin-left: 0;
+  padding: 0 3px;
+  color: @text;
+}
+
+#custom-backlight {
+  border-top-left-radius: 5px;
+  border-bottom-left-radius: 5px;
+  border-left: 1px solid @overlay;
+  margin-left: 8px;
+}
+
+#idle_inhibitor {
+  border-top-right-radius: 5px;
+  border-bottom-right-radius: 5px;
+  border-right: 1px solid @overlay;
+}
+
+/* STAND ALONE */
+#custom-clock,
+#pulseaudio,
+#battery,
+#mode,
+#submap,
+#custom-wf-recorder,
+#window,
+#tray {
+  border-radius: 5px;
+  color: @text;
+}
+
+#custom-clock {
+  background: @surface;
+  border: 1px solid @overlay;
+  margin-left: 0;
+}
+
+#pulseaudio {
+  background: @surface;
+  border: 1px solid @overlay;
+  color: @text;
+}
+
+#battery {
+  background: @surface;
+  border: 1px solid @overlay;
+  color: @text;
+}
+
+#mode,
+#submap,
+#custom-wf-recorder {
+  background: @surface;
+  border: 1px solid @overlay;
+  margin-left: 16px;
+  font-style: italic;
+  color: @rose;
+}
+
+#window {
+  background: @surface;
+  border: 1px solid @overlay;
+  color: #f8f8f2;
+}
+
+/* Stats */
+#cpu,
+#temperature{
+  margin-left: 0;
+  background: @surface;
+  border: 1px solid @overlay;
+}
+
+#temperature {
+  border-top-right-radius: 5px;
+  border-bottom-right-radius: 5px;
+  color: @foam;
+}
+
+#cpu {
+  min-width: 0;
+  margin-left: 8px;
+  border-top-left-radius: 5px;
+  border-bottom-left-radius: 5px;
+  padding-left: 6px;
+  color: @foam;
+}
+
+#cpu.warning,
+#temperature.warning,
+#disk.warning,
+#memory.warning,
+#battery.warning {
+  color: @gold;
+}
+
+#cpu.critical,
+#temperature.critical,
+#disk.critical,
+#memory.critical,
+#battery.critical {
+  color: @love;
+}
+
+/* TRAY */
+#tray {
+  background: @surface;
+  border: 1px solid @overlay;  
+  margin-left: 8px;
+}
+
+/* STATES */
+.warning {
+  color: @gold;
+}
+
+.critical {
+  color: @love;
+}

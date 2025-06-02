@@ -1,0 +1,211 @@
+[
+  {
+    "layer": "top",
+    "height": 34,
+    "position": "top",
+    "margin": "0px 12px 0px 12px",
+    "modules-left": [
+      "custom/clock",
+      "hyprland/workspaces",
+      "custom/scratchpad",
+      "hyprland/submap",
+      "custom/wf-recorder"
+    ],
+    "modules-center": ["hyprland/window"],
+    "modules-right": [
+      "cpu",
+      "temperature",
+      "custom/backlight",
+      "custom/bluetooth",
+      "custom/pacman",
+      "network",
+      "idle_inhibitor",
+      "pulseaudio",
+      "battery",
+      "tray"
+    ],
+
+    "hyprland/workspaces": {
+      "on-click": true
+    },
+
+    "hyprland/window": {
+      "max-length": 32
+    },
+
+    // STATS
+    "custom/clock": {
+      "exec": "date +' %d %b  %I:%M%P'",
+      "format": "{}",
+      "interval": 10
+    },
+
+    "disk": {
+      "interval": 30,
+      "format": "󰋊 {percentage_used}%",
+      "states": {
+        "warning": 70,
+        "critical": 90
+      }
+    },
+
+    "cpu": {
+      "interval": 5,
+      "format": "󱐌 {usage}%",
+      "states": {
+        "warning": 50,
+        "critical": 90
+      },
+      "on-click": "hyprctl dispatch exec 'kitty --class floating_shell' btop"
+    },
+
+    "memory": {
+      "interval": 5,
+      "format": "󰍛 {}%",
+      "states": {
+        "warning": 70,
+        "critical": 90
+      },
+      "on-click": "swaymsg exec \\$term htop"
+    },
+
+    "temperature": {
+      "hwmon-path": "/sys/class/hwmon/hwmon1/temp1_input",
+      "critical-threshold": 90,
+      "interval": 5,
+      "format": "{icon} {temperatureC}",
+      "format-icons": ["", "", ""],
+      "tooltip": false,
+      "on-click": "hyprctl dispatch exec 'kitty --class floating_shell_portrait' watch sensors"
+    },
+
+    // TRAY
+    "network": {
+      "interval": 5,
+      "format-wifi": "",
+      "format-ethernet": "",
+      "format-disconnected": "睊 dc",
+      "format-icons": {
+        "wifi": ["", "", ""]
+      },
+      "tooltip-format": "{ifname} ({essid}): {ipaddr}",
+      "on-click": "hyprctl dispatch exec 'kitty --class floating_shell_portrait' nmtui"
+    },
+
+    "idle_inhibitor": {
+      "format": "{icon}",
+      "format-icons": {
+        "activated": "零",
+        "deactivated": "鈴"
+      }
+    },
+
+    "custom/backlight": {
+      "format": "{icon}",
+      "format-icons": ["", "", ""],
+      "on-click": "brightnessctl s 30%",
+      "on-scroll-up": "brightnessctl s 1-",
+      "on-scroll-down": "brightnessctl s +1"
+    },
+
+    "custom/bluetooth": {
+      "format": "",
+      "on-click": "blueberry",
+      "tooltip-format": "{}"
+    },
+    // standalone
+    "pulseaudio": {
+      "scroll-step": 5,
+      "format": "{icon}  {volume}%{format_source}",
+      "format-muted": "婢",
+      "format-source": "",
+      "format-source-muted": " ",
+      "format-icons": {
+        "headphone": "",
+        "headset": "",
+        "default": ["奄", "奔", "墳"]
+      },
+      "tooltip-format": "{icon}  {volume}% {format_source}",
+      "on-click": "hyprctl dispatch exec pavucontrol"
+    },
+
+    "tray": {
+      "icon-size": 16,
+      "spacing": 16
+    },
+
+    "battery": {
+      "format": "{icon} {capacity}%",
+      "format-alt": "{icon} {time}",
+      "format-icons": ["", "", "", "", ""],
+      "format-charging": "󱐥 {capacity}%",
+      "interval": 15,
+      "states": {
+        "warning": 25,
+        "critical": 10
+      },
+      "tooltip": true
+    },
+
+    // CUSTOM
+    "custom/tablet": {
+      "exec": "/home/ali/.config/waybar/modules/tablet",
+      "return-type": "json",
+      "signal": 4,
+      "interval": "once",
+      "on-click": "/home/ali/.config/waybar/modules/tablet toggle"
+    },
+
+    "custom/hdd": {
+      "exec": "/home/ali/.config/waybar/modules/storage.sh",
+      "return-type": "json",
+      "signal": 4,
+      "interval": 10
+    },
+
+    "custom/droid": {
+      "exec": "/home/ali/.local/bin/waydroid-container.mjs",
+      "return-type": "json",
+      "format": "jk{}",
+      "on-click": "systemctl stop waydroid-container.service",
+      "on-click-right": "systemctl start waydroid-container.service",
+      "interval": 5
+    },
+
+    "custom/pacman": {
+      "format": " {}",
+      "interval": 86400,
+      "exec-if": "[ $(pamac checkupdates -q | wc -l) -gt 0 ]",
+      "exec": "pamac checkupdates -q | wc -l",
+      "on-click": "pamac-manager --updates; pkill -RTMIN+4 waybar",
+      "signal": 4
+    },
+
+    "custom/wf-recorder": {
+      "interval": "once",
+      "return-type": "json",
+      "format": "{}",
+      "tooltip-format": "{tooltip}",
+      "exec": "echo '{\"class\": \"recording\",\"text\":\"雷\",\"tooltip\":\"press $mod+Esc to stop recording\"}'",
+      "exec-if": "pgrep wf-recorder",
+      "on-click": "killall -s SIGINT wf-recorder",
+      "signal": 8
+    },
+
+    "custom/playerctl": {
+      "interval": "once",
+      "return-type": "json",
+      "format": "{icon} {}",
+      "format-icons": {
+        "Playing": "",
+        "Paused": ""
+      },
+      "exec": "playerctl metadata --format '{\"alt\": \"{{status}}\", \"text\": \"{{markup_escape(title)}} - {{markup_escape(artist)}}\" }'",
+      "on-click": "playerctl play-pause; pkill -RTMIN+5 waybar",
+      "on-click-right": "playerctl next; pkill -RTMIN+5 waybar",
+      "on-scroll-up": "playerctl position 10+; pkill -RTMIN+5 waybar",
+      "on-scroll-down": "playerctl position 10-; pkill -RTMIN+5 waybar",
+      "signal": 5
+    }
+  }
+]

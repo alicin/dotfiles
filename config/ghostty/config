@@ -1,0 +1,7 @@
+window-padding-x = 16
+window-padding-y = 8
+window-padding-balance = true
+theme = ayu_light
+font-family = "OperatorMono Nerd Font"
+confirm-close-surface = false
+font-size = 15

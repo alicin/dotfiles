@@ -1,0 +1,15 @@
+set $mode_system (l)ock, (e)xit, (r)eset, (p)oweroff, (s)uspend
+
+mode "$mode_system" {
+    bindsym l exec $locking, mode "default"
+    bindsym e exit
+    bindsym r exec --no-startup-id $reboot, mode "default"
+    bindsym p exec systemctl poweroff
+    bindsym s exec systemctl suspend
+
+    # return to default mode
+    bindsym Return mode "default"
+    bindsym Escape mode "default"
+}
+
+bindsym $mod+Shift+e mode "$mode_system"

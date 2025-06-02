@@ -1,0 +1,33 @@
+{
+  "name": "mcu-win",
+  "description": "Desktop workstation running Windows",
+  "hostname": "MCU-WIN",
+  "os": "windows",
+  "arch": "x86_64",
+  "package_managers": {
+    "winget": {
+      "enabled": true,
+      "file": "winget.txt"
+    },
+    "scoop": {
+      "enabled": true,
+      "file": "scoop.txt"
+    }
+  },
+  "configs": ["git", "vscode", "powershell"],
+  "dotfiles": ["gitconfig"],
+  "themes": ["fonts"],
+  "scripts": {
+    "pre_install": ["setup_windows_features.ps1"],
+    "post_install": ["setup_windows_defaults.ps1", "setup_wsl.ps1"]
+  },
+  "environment": {
+    "BROWSER": "msedge",
+    "TERMINAL": "wt"
+  },
+  "features": {
+    "wsl": true,
+    "gaming": true,
+    "virtualization": true
+  }
+}

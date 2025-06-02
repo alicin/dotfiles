@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xbel version="1.0"
+      xmlns:bookmark="http://www.freedesktop.org/standards/desktop-bookmarks"
+      xmlns:mime="http://www.freedesktop.org/standards/shared-mime-info"
+>
+  <bookmark href="sftp://ali@192.168.1.107/" added="2024-11-12T13:14:46.608027Z" modified="2024-11-12T13:14:46.608032Z" visited="2024-11-12T13:14:46.608028Z">
+    <title>/ on 192.168.1.107</title>
+    <info>
+      <metadata owner="http://freedesktop.org">
+        <bookmark:applications>
+          <bookmark:application name="org.gnome.Nautilus" exec="&apos;org.gnome.Nautilus %u&apos;" modified="2024-11-12T13:14:46.608030Z" count="1"/>
+        </bookmark:applications>
+      </metadata>
+    </info>
+  </bookmark>
+  <bookmark href="sftp://192.168.1.103/" added="2025-01-09T19:09:22.599046Z" modified="2025-01-09T19:09:22.599049Z" visited="2025-01-09T19:09:22.599047Z">
+    <title>/ on 192.168.1.103</title>
+    <info>
+      <metadata owner="http://freedesktop.org">
+        <bookmark:applications>
+          <bookmark:application name="org.gnome.Nautilus" exec="&apos;org.gnome.Nautilus %u&apos;" modified="2025-01-09T19:09:22.599048Z" count="1"/>
+        </bookmark:applications>
+      </metadata>
+    </info>
+  </bookmark>
+  <bookmark href="sftp://ali@192.168.1.113/" added="2025-01-14T17:37:47.731871Z" modified="2025-01-14T17:37:47.731874Z" visited="2025-01-14T17:37:47.731872Z">
+    <title>/ on 192.168.1.113</title>
+    <info>
+      <metadata owner="http://freedesktop.org">
+        <bookmark:applications>
+          <bookmark:application name="org.gnome.Nautilus" exec="&apos;org.gnome.Nautilus %u&apos;" modified="2025-01-14T17:37:47.731873Z" count="1"/>
+        </bookmark:applications>
+      </metadata>
+    </info>
+  </bookmark>
+  <bookmark href="sftp://192.168.1.114/" added="2025-03-15T13:31:29.833955Z" modified="2025-03-15T13:31:29.833958Z" visited="2025-03-15T13:31:29.833956Z">
+    <title>/ on 192.168.1.114</title>
+    <info>
+      <metadata owner="http://freedesktop.org">
+        <bookmark:applications>
+          <bookmark:application name="org.gnome.Nautilus" exec="&apos;org.gnome.Nautilus %u&apos;" modified="2025-03-15T13:31:29.833957Z" count="1"/>
+        </bookmark:applications>
+      </metadata>
+    </info>
+  </bookmark>
+</xbel>

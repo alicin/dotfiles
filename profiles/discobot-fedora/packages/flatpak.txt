@@ -1,0 +1,4 @@
+com.discordapp.Discord
+com.spotify.Client
+org.gimp.GIMP
+com.obsproject.Studio 

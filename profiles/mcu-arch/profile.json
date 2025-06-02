@@ -1,0 +1,52 @@
+{
+  "name": "mcu-arch",
+  "description": "Desktop workstation running Arch Linux",
+  "hostname": "mcu",
+  "os": "arch",
+  "arch": "x86_64",
+  "package_managers": {
+    "pacman": {
+      "enabled": true,
+      "file": "pacman.txt"
+    },
+    "yay": {
+      "enabled": true,
+      "file": "aur.txt"
+    }
+  },
+  "configs": [
+    "zsh",
+    "git",
+    "bat",
+    "btop",
+    "nvim",
+    "lazygit",
+    "ranger",
+    "yazi",
+    "hypr",
+    "waybar",
+    "dunst",
+    "wofi",
+    "ncspot",
+    "richweather",
+    "vscode",
+    "uwsm"
+  ],
+  "dotfiles": ["zshrc", "gitconfig", "editorconfig", "p10k.zsh"],
+  "themes": ["fonts", "wallpapers", "icons", "gtk-3.0", "gtk-4.0"],
+  "scripts": {
+    "pre_install": ["setup_arch_aur.sh"],
+    "post_install": ["setup_arch_services.sh", "setup_gaming.sh"]
+  },
+  "environment": {
+    "BROWSER": "firefox",
+    "TERMINAL": "kitty",
+    "XDG_SESSION_TYPE": "wayland",
+    "WLR_NO_HARDWARE_CURSORS": "1"
+  },
+  "features": {
+    "gaming": true,
+    "virtualization": true,
+    "media_creation": true
+  }
+}

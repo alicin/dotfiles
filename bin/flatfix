@@ -1,0 +1,19 @@
+#!/bin/sh
+
+flatpak -u override --filesystem=xdg-config/gtk-3.0
+flatpak -u override --filesystem=xdg-config/gtk-4.0
+
+user_confdir="${XDG_CONFIG_HOME:-$HOME/.config}"
+for dir in ${HOME}/.var/app/*; do
+    flat_confdir3="${dir}/config/gtk-3.0"
+    flat_confdir4="${dir}/config/gtk-4.0"
+    mkdir -p "$flat_confdir3"
+    mkdir -p "$flat_confdir4"
+
+    ln -s "${user_confdir}/gtk-3.0/settings.ini" "${flat_confdir3}"/
+    ln -s "${user_confdir}/gtk-3.0/gtk.css" "${flat_confdir3}"/
+    ln -s "${user_confdir}/gtk-4.0/settings.ini" "${flat_confdir4}"/
+    ln -s "${user_confdir}/gtk-4.0/gtk.css" "${flat_confdir4}"/
+done
+
+for dir in ${HOME}/.var/app/*; do flatpak run --command=bash<<<"gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'" "${dir##*/}"; done

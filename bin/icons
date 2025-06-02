@@ -1,0 +1,28 @@
+#!/bin/zsh
+
+cp ~/labs/dotfiles/.icons/bnet__default.icns /Applications/Battle.net.app/Contents/Resources/default.icns
+touch /Applications/Battle.net.app
+
+cp /Users/ali/labs/dotfiles/.icons/ScrollReverser.icns '/Applications/Scroll Reverser.app/Contents/Resources/ScrollReverser.icns'
+touch '/Applications/Scroll Reverser.app'
+
+cp /Users/ali/labs/dotfiles/.icons/sourcetree__sourcetree.icns '/Applications/Sourcetree.app/Contents/Resources/sourcetree.icns'
+touch '/Applications/Sourcetree.app'
+
+cp /Users/ali/labs/dotfiles/.icons/sourcetree__sourcetree.icns '/Applications/Sourcetree.app/Contents/Resources/sourcetree.icns'
+touch '/Applications/Sourcetree.app'
+
+cp /Users/ali/labs/dotfiles/.icons/steam__Steam.icns '/Applications/Steam.app/Contents/Resources/Steam.icns'
+touch '/Applications/Steam.app'
+
+cp /Users/ali/labs/dotfiles/.icons/steamlink__icon.icns '/Applications/Steam Link.app/Contents/Resources/icon.icns'
+touch '/Applications/Steam Link.app'
+
+cp /Users/ali/labs/dotfiles/.icons/superduper__AppIcon.icns '/Applications/SuperDuper!.app/Contents/Resources/AppIcon.icns'
+touch '/Applications/SuperDuper!.app'
+
+cp /Users/ali/labs/dotfiles/.icons/utm__AppIcon-macOS.icns '/Applications/UTM.app/Contents/Resources/AppIcon-macOS.icns'
+touch '/Applications/UTM.app'
+
+cp /Users/ali/labs/dotfiles/.icons/wow__wow_icon.icns '/Applications/World of Warcraft/_classic_era_/World of Warcraft Classic.app/Contents/Resources/wow.icns'
+touch '/Applications/World of Warcraft/_classic_era_/World of Warcraft Classic.app/Contents/Resources/wow.icns'

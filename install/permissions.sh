@@ -1,0 +1,1 @@
+chmod +x ~/labs/dotfiles/bin/*

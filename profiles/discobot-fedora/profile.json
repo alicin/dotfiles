@@ -1,0 +1,51 @@
+{
+  "name": "discobot-fedora",
+  "description": "Mac laptop running Fedora Linux",
+  "hostname": "discobot-fedora.local",
+  "os": "fedora",
+  "arch": "aarch64",
+  "package_managers": {
+    "dnf": {
+      "enabled": true,
+      "file": "dnf.txt"
+    },
+    "flatpak": {
+      "enabled": true,
+      "file": "flatpak.txt"
+    },
+    "homebrew": {
+      "enabled": true,
+      "file": "Brewfile"
+    }
+  },
+  "configs": [
+    "atuin",
+    "zsh",
+    "git",
+    "bat",
+    "btop",
+    "lazygit",
+    "hypr",
+    "waybar",
+    "dunst",
+    "wofi",
+    "ghostty",
+    "gtk-3.0",
+    "gtk-4.0",
+    "posting",
+    "rclone",
+    "yazi",
+    "uwsm"
+  ],
+  "dotfiles": ["zshrc", "gitconfig", "editorconfig", "p10k.zsh"],
+  "themes": ["fonts", "wallpapers", "gtk-3.0", "gtk-4.0"],
+  "scripts": {
+    "pre_install": ["setup_fedora_repos.sh"],
+    "post_install": ["setup_fedora_services.sh"]
+  },
+  "environment": {
+    "BROWSER": "firefox",
+    "TERMINAL": "ghostty",
+    "XDG_SESSION_TYPE": "wayland"
+  }
+}
