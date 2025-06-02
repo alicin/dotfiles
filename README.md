@@ -21,33 +21,33 @@ This dotfiles system is organized around **profiles** that represent specific co
 ### Auto-detection (Recommended)
 
 ```bash
-./profile-install.sh --auto
+./install.sh --auto
 ```
 
 ### Manual Profile Selection
 
 ```bash
 # List available profiles
-./profile-install.sh --list
+./install.sh --list
 
 # Install specific profile
-./profile-install.sh discobot-darwin
+./install.sh discobot-darwin
 
 # Dry run to see what would be installed
-./profile-install.sh mcu-arch --dry-run
+./install.sh mcu-arch --dry-run
 ```
 
 ### Partial Installation
 
 ```bash
 # Install packages only
-./profile-install.sh discobot-darwin --packages-only
+./install.sh discobot-darwin --packages-only
 
 # Link configurations only
-./profile-install.sh discobot-darwin --configs-only
+./install.sh discobot-darwin --configs-only
 
 # Run scripts only
-./profile-install.sh discobot-darwin --scripts-only
+./install.sh discobot-darwin --scripts-only
 ```
 
 ## Project Structure
@@ -63,7 +63,8 @@ dotfiles/
 │   │   ├── profile.json
 │   │   └── packages/
 │   │       ├── dnf.txt         # DNF packages
-│   │       └── flatpak.txt     # Flatpak applications
+│   │       ├── flatpak.txt     # Flatpak applications
+│   │       └── Brewfile        # Homebrew packages
 │   ├── mcu-arch/               # Arch desktop profile
 │   │   ├── profile.json
 │   │   └── packages/
@@ -76,20 +77,48 @@ dotfiles/
 │   │       └── scoop.txt       # Scoop packages
 │   └── m4rv1n-arch/            # Arch tablet profile
 ├── scripts/                    # Shared installation scripts
-│   ├── setup_macos_defaults.sh
-│   ├── setup_arch_aur.sh
-│   ├── setup_arch_services.sh
-│   ├── setup_fedora_repos.sh
-│   ├── setup_fedora_services.sh
-│   ├── setup_gaming.sh
-│   ├── setup_tablet_specifics.sh
-│   ├── setup_windows_features.ps1
-│   ├── setup_windows_defaults.ps1
-│   └── setup_wsl.ps1
-├── config/                     # Shared configuration files
-├── dotfiles/                   # Shared dotfiles
-├── themes/                     # Themes and assets
-├── lib/                        # Utility libraries
+│   ├── prepare.sh              # Pre-installation setup
+│   ├── macos_defaults.sh       # macOS system defaults
+│   ├── workspace.sh            # Workspace setup
+│   ├── permissions.sh          # File permissions
+│   ├── services.sh             # System services
+│   ├── finalize.sh             # Post-installation cleanup
+│   ├── minisforum-finalize.sh  # Mini PC specific setup
+│   └── python_venv.sh          # Python virtual environment
+├── config/                     # Configuration files organized by application
+│   ├── zsh/                    # ZSH configuration
+│   ├── hypr/                   # Hyprland window manager
+│   ├── waybar/                 # Status bar for Wayland
+│   ├── ghostty/                # Terminal emulator
+│   ├── yabai/                  # macOS window manager
+│   ├── sketchybar/             # macOS status bar
+│   ├── skhd/                   # macOS hotkey daemon
+│   ├── lazygit/                # Git TUI
+│   ├── yazi/                   # File manager
+│   ├── btop/                   # System monitor
+│   ├── bat/                    # Cat alternative
+│   ├── borders/                # Window borders (macOS)
+│   ├── dunst/                  # Notification daemon
+│   ├── wofi/                   # Application launcher
+│   ├── sway/                   # Wayland compositor
+│   ├── swaylock/               # Screen locker
+│   ├── gtk-3.0/                # GTK 3 theming
+│   ├── gtk-4.0/                # GTK 4 theming
+│   ├── atuin/                  # Shell history
+│   ├── posting/                # HTTP client
+│   ├── vscode/                 # VS Code themes
+│   └── virt-manager/           # Virtual machine manager
+├── dotfiles/                   # Dotfiles to be linked to home directory
+├── themes/                     # Themes and visual assets
+│   ├── fonts/                  # Font files
+│   ├── wallpapers/             # Desktop wallpapers
+│   ├── icons/                  # Application icons
+│   └── gtk/                    # GTK themes
+├── bin/                        # Utility scripts and binaries
+├── lib/                        # Utility libraries for the installer
+├── helpers/                    # OS-specific helper scripts
+├── install/                    # Legacy installation scripts
+├── system/                     # System configuration files
 └── install.sh                  # Main installer script
 ```
 
@@ -102,24 +131,40 @@ Each profile is defined by a `profile.json` file with the following structure:
   "name": "profile-name",
   "description": "Profile description",
   "hostname": "expected-hostname",
-  "os": "macos|arch|fedora|windows",
+  "os": "darwin|arch|fedora|windows",
   "arch": "arm64|x86_64|aarch64",
   "package_managers": {
     "homebrew": {
       "enabled": true,
       "file": "Brewfile"
+    },
+    "pacman": {
+      "enabled": true,
+      "file": "pacman.txt"
+    },
+    "yay": {
+      "enabled": true,
+      "file": "aur.txt"
+    },
+    "dnf": {
+      "enabled": true,
+      "file": "dnf.txt"
+    },
+    "flatpak": {
+      "enabled": true,
+      "file": "flatpak.txt"
     }
   },
-  "configs": ["zsh", "git", "nvim"],
-  "dotfiles": ["zshrc", "gitconfig"],
-  "themes": ["fonts", "wallpapers"],
+  "configs": ["zsh", "git", "hypr", "waybar"],
+  "dotfiles": [".zshrc", ".gitconfig", ".editorconfig"],
+  "themes": ["fonts", "wallpapers", "icons"],
   "scripts": {
-    "pre_install": [],
-    "post_install": ["setup_defaults.sh"]
+    "pre_install": ["prepare.sh"],
+    "post_install": ["macos_defaults.sh", "finalize.sh"]
   },
   "environment": {
     "BROWSER": "firefox",
-    "TERMINAL": "kitty"
+    "TERMINAL": "ghostty"
   },
   "features": {
     "gaming": true,
@@ -134,7 +179,7 @@ The system supports multiple package managers per profile:
 
 - **macOS**: Homebrew (`Brewfile`)
 - **Arch Linux**: pacman (`pacman.txt`) + AUR via yay (`aur.txt`)
-- **Fedora**: DNF (`dnf.txt`) + Flatpak (`flatpak.txt`)
+- **Fedora**: DNF (`dnf.txt`) + Flatpak (`flatpak.txt`) + Homebrew (`Brewfile`)
 - **Windows**: Winget (`winget.txt`) + Scoop (`scoop.txt`)
 
 ## Configuration Management
@@ -142,7 +187,7 @@ The system supports multiple package managers per profile:
 Configurations are organized in three categories:
 
 1. **Dotfiles**: Files linked to `~/.*` (e.g., `.zshrc`, `.gitconfig`)
-2. **Configs**: Directories linked to `~/.config/*` (e.g., `nvim`, `hypr`)
+2. **Configs**: Directories linked to `~/.config/*` (e.g., `hypr`, `waybar`, `ghostty`)
 3. **Themes**: Asset directories like fonts, wallpapers, icons
 
 ## Scripts
@@ -151,12 +196,14 @@ Profile scripts are stored in the main `scripts/` directory and can be shared ac
 
 **Available Scripts:**
 
-- **macOS**: `setup_macos_defaults.sh` - Configure macOS system defaults
-- **Arch Linux**: `setup_arch_aur.sh`, `setup_arch_services.sh` - AUR setup and system services
-- **Fedora**: `setup_fedora_repos.sh`, `setup_fedora_services.sh` - Repository and service configuration
-- **Gaming**: `setup_gaming.sh` - Gaming environment setup (cross-platform)
-- **Tablet**: `setup_tablet_specifics.sh` - Tablet-specific optimizations
-- **Windows**: `setup_windows_features.ps1`, `setup_windows_defaults.ps1`, `setup_wsl.ps1` - Windows configuration
+- **prepare.sh** - Pre-installation setup and preparation
+- **macos_defaults.sh** - Configure macOS system defaults and preferences
+- **workspace.sh** - Set up workspace directories and structure
+- **permissions.sh** - Configure file and directory permissions
+- **services.sh** - Enable and configure system services
+- **finalize.sh** - Post-installation cleanup and finalization
+- **minisforum-finalize.sh** - Mini PC specific setup and configuration
+- **python_venv.sh** - Python virtual environment setup
 
 Scripts run at different stages:
 
@@ -168,7 +215,7 @@ Scripts support both Bash (`.sh`) and PowerShell (`.ps1`) formats and are automa
 ## Command Line Options
 
 ```bash
-Usage: ./profile-install.sh [profile] [options]
+Usage: ./install.sh [profile] [options]
 
 Options:
   -h, --help           Show help
@@ -190,33 +237,26 @@ Options:
 4. Add any custom scripts under `scripts/`
 5. Test with `--dry-run` before running
 
-## Migration from Legacy System
-
-The original `install.sh` is still available but deprecated. To migrate:
-
-1. Use the new `profile-install.sh` instead
-2. Machine-specific configurations are now in profiles
-3. Package lists are organized by profile and package manager
-
 ## Dependencies
 
 - `jq` for JSON parsing
 - `git` for repository management
+- `tree` for directory structure display
 - Platform-specific package managers (brew, pacman, dnf, etc.)
 
 ## Examples
 
 ```bash
 # Auto-detect and install current machine's profile
-./profile-install.sh --auto --force
+./install.sh --auto --force
 
 # Install desktop workstation profile with dry-run first
-./profile-install.sh mcu-arch --dry-run
-./profile-install.sh mcu-arch
+./install.sh mcu-arch --dry-run
+./install.sh mcu-arch
 
 # Update only configurations for laptop
-./profile-install.sh discobot-darwin --configs-only
+./install.sh discobot-darwin --configs-only
 
 # Install packages for Windows profile
-./profile-install.sh mcu-win --packages-only
+./install.sh mcu-win --packages-only
 ```
