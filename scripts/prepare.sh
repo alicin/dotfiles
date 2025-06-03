@@ -11,6 +11,7 @@ if is_fedora; then
     sudo dnf install -y zsh
     sudo chsh -s /bin/zsh $USER
     /bin/zsh
+    touch ~/.zshrc
 fi
 
 if is_arch; then
@@ -18,6 +19,7 @@ if is_arch; then
     sudo pacman -S --noconfirm zsh
     sudo chsh -s /bin/zsh $USER
     /bin/zsh
+    touch ~/.zshrc
 fi
 
 
