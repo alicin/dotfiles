@@ -9,13 +9,13 @@ if is_fedora; then
     sudo dnf update -y
     sudo dnf upgrade -y
     sudo dnf install -y zsh
-    chsh -s /bin/zsh
+    sudo chsh -s /bin/zsh $USER
 fi
 
 if is_arch; then
     sudo pacman -Syu --noconfirm
     sudo pacman -S --noconfirm zsh
-    chsh -s /bin/zsh
+    sudo chsh -s /bin/zsh $USER
 fi
 
 
