@@ -4,34 +4,17 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/../lib/os-detection.sh"
 
-# ZSH
-if is_fedora; then
-    sudo dnf update -y
-    sudo dnf upgrade -y
-    sudo dnf install -y zsh
-    sudo chsh -s /bin/zsh $USER
-    touch ~/.zshrc
-    # Switch to zsh for the rest of the script
-    exec zsh "$0" "$@"
-fi
-
-if is_arch; then
-    sudo pacman -Syu --noconfirm
-    sudo pacman -S --noconfirm zsh
-    sudo chsh -s /bin/zsh $USER
-    touch ~/.zshrc
-    # Switch to zsh for the rest of the script
-    exec zsh "$0" "$@"
-fi
-
-
 # brew
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
 
 # nvm
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-source ~/.zshrc
+
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+
 nvm install 20
 
 # pnpm
