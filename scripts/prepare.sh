@@ -10,16 +10,18 @@ if is_fedora; then
     sudo dnf upgrade -y
     sudo dnf install -y zsh
     sudo chsh -s /bin/zsh $USER
-    /bin/zsh
     touch ~/.zshrc
+    # Switch to zsh for the rest of the script
+    exec zsh "$0" "$@"
 fi
 
 if is_arch; then
     sudo pacman -Syu --noconfirm
     sudo pacman -S --noconfirm zsh
     sudo chsh -s /bin/zsh $USER
-    /bin/zsh
     touch ~/.zshrc
+    # Switch to zsh for the rest of the script
+    exec zsh "$0" "$@"
 fi
 
 
