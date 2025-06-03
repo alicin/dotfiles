@@ -105,7 +105,7 @@ install_profile_packages() {
                     
                     # Install only the packages that aren't already installed
                     if [[ ${#packages_to_install[@]} -gt 0 ]]; then
-                        sudo dnf install -y "${packages_to_install[@]}"
+                        sudo dnf install -y --skip-unavailable "${packages_to_install[@]}"
                     else
                         log_substep "All packages already installed"
                     fi
@@ -118,6 +118,7 @@ install_profile_packages() {
                 local flatpak_file="$profile_dir/packages/$(get_package_manager_file "flatpak")"
                 if [[ -f "$flatpak_file" ]]; then
                     log_step "Installing Flatpak applications (skipping already installed)"
+                    flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
                     while IFS= read -r app; do
                         [[ -z "$app" || "$app" =~ ^# ]] && continue
                         if ! flatpak list | grep -q "$app"; then
