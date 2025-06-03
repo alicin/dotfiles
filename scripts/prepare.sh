@@ -54,7 +54,7 @@ if is_fedora; then
     sudo dnf install -y https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm
 
     # Enable Solopasha repositories
-    sudo dnf enable solopasha/hyprland 
+    sudo dnf copr enable solopasha/hyprland -y
 
     # update packages
     sudo dnf update -y && sudo dnf upgrade -y
