@@ -27,6 +27,7 @@ fi
 
 if is_linux; then
     sudo timedatectl set-timezone Europe/Istanbul
+    touch ~/.zshrc
 fi
 
 if is_fedora; then
