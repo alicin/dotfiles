@@ -4,6 +4,21 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/../lib/os-detection.sh"
 
+# ZSH
+if is_fedora; then
+    sudo dnf update -y
+    sudo dnf upgrade -y
+    sudo dnf install -y zsh
+    chsh -s /bin/zsh
+fi
+
+if is_arch; then
+    sudo pacman -Syu --noconfirm
+    sudo pacman -S --noconfirm zsh
+    chsh -s /bin/zsh
+fi
+
+
 # brew
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 

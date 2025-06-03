@@ -48,6 +48,7 @@ yabai -m rule --add app="^WhatsApp$" manage=off
 yabai -m rule --add title="^WhatsApp$" manage=off
 yabai -m rule --add app="^ChatGPT$" manage=off
 yabai -m rule --add app="^Podcasts$" manage=off
+yabai -m rule --add title="^Create a Virtual Machine$" manage=off
 
 yabai -m config external_bar all:34:0
 yabai -m config window_shadow float

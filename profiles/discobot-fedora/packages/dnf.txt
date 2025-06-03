@@ -15,11 +15,8 @@ tuigreet
 grim
 slurp
 wf-recorder
-polkit-gnome
 bat
-neofetch
 btop
-yazi
 zsh
 chromium
 gnome-tweaks

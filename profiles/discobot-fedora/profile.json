@@ -21,7 +21,6 @@
   "configs": [
     "atuin",
     "zsh",
-    "git",
     "bat",
     "btop",
     "lazygit",
@@ -30,18 +29,20 @@
     "dunst",
     "wofi",
     "ghostty",
-    "gtk-3.0",
-    "gtk-4.0",
     "posting",
-    "rclone",
     "yazi",
     "uwsm"
   ],
-  "dotfiles": ["zshrc", "gitconfig", "editorconfig", "p10k.zsh"],
-  "themes": ["fonts", "wallpapers", "gtk-3.0", "gtk-4.0"],
+  "dotfiles": [".zshrc", ".gitconfig", ".editorconfig"],
+  "themes": ["fonts", "wallpapers"],
   "scripts": {
-    "pre_install": ["setup_fedora_repos.sh"],
-    "post_install": ["setup_fedora_services.sh"]
+    "pre_install": ["prepare.sh"],
+    "post_install": [
+      "workspace.sh",
+      "permissions.sh",
+      "services.sh",
+      "finalize.sh"
+    ]
   },
   "environment": {
     "BROWSER": "firefox",
