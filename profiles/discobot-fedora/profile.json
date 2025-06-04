@@ -31,7 +31,12 @@
     "ghostty",
     "posting",
     "yazi",
-    "uwsm"
+    "uwsm",
+    "code-flags.conf",
+    "electron-flags.conf",
+    "electron13-flags.conf",
+    "electron25-flags.conf",
+    "mimeapps.list"
   ],
   "dotfiles": [".zshrc", ".gitconfig", ".editorconfig"],
   "themes": ["fonts", "wallpapers"],
