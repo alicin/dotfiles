@@ -53,13 +53,12 @@ if is_linux; then
         echo "Setting up waydroid..."
         sudo waydroid init -s GAPPS -f
 
-    fi
-
+>
     if is_arm; then
 
         echo "Setting up keyboard..."
         touch hid_apple.conf
-        echo "options hid_apple fnmode=0" > hid_apple.conf
+        echo "options hid_apple fnmode=2" > hid_apple.conf
         sudo mv hid_apple.conf /etc/modprobe.d/hid_apple.conf
         
         echo "Setting up GRUB for notch display..."
@@ -68,6 +67,12 @@ if is_linux; then
         
         echo "Setting up waydroid..."
         sudo waydroid init -s GAPPS -f -c https://ota.waydro.id/system -v https://ota.waydro.id/vendor
+        
+        echo "Setting up widevine..."
+        sudo widevine-install 
+
+        echo "Regenerating initramfs..."
+        sudo dracut --regenerate-all --force 
 
     fi
 

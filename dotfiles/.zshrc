@@ -44,22 +44,23 @@ export NVM_DIR="$HOME/.nvm"
 # Add RVM to PATH for scripting. Make sure this is the last PATH variable change.
 export PATH="$PATH:$HOME/.rvm/bin"
 
-# pnpm
-export PNPM_HOME="/Users/ali/Library/pnpm"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
-# pnpm end
 
 # Added by LM Studio CLI (lms)
 export PATH="$PATH:/Users/ali/.lmstudio/bin"
 
 # The following lines have been added by Docker Desktop to enable Docker CLI completions.
-fpath=(/Users/ali/.docker/completions $fpath)
-autoload -Uz compinit
-compinit
+
+if [[ "$(uname)" == "Darwin" ]]; then
+  fpath=(/Users/ali/.docker/completions $fpath)
+  autoload -Uz compinit
+  compinit
+fi
 # End of Docker CLI completions
 
 eval $(thefuck --alias)
 eval "$(starship init zsh)"
+
+
+if [[ "$(uname)" == "Linux" ]]; then
+  eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+fi

@@ -1,6 +1,7 @@
 # BACKENDS
 export SDL_VIDEODRIVER=wayland
 export CLUTTER_BACKEND=wayland
+export GSK_RENDERER=ngl
 
 # QT
 export QT_QPA_PLATFORM=wayland;xcb
