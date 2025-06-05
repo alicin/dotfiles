@@ -7,7 +7,7 @@
   "menus.transition": "crossfade",
   "menus.transitionTime": 300,
   "scalingPriority": "gdk",
-  "theme.bar.scaling": 80,
+  "theme.bar.scaling": 85,
   "theme.bar.floating": true,
   "theme.bar.location": "top",
   "bar.autoHide": "never",
