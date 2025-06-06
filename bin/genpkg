@@ -31,7 +31,7 @@ if [ -z "$PROFILE_NAME" ]; then
     exit 1
 fi
 
-PROFILE_DIR="profiles/$PROFILE_NAME"
+PROFILE_DIR="$HOME/labs/dotfiles/profiles/$PROFILE_NAME"
 PROFILE_JSON="$PROFILE_DIR/profile.json"
 PACKAGES_DIR="$PROFILE_DIR/packages"
 
@@ -126,15 +126,21 @@ if is_package_manager_enabled "dnf"; then
     DNF_FILE=$(get_package_manager_file "dnf")
     if command_exists dnf; then
         if [ "$DRY_RUN" = true ]; then
-            echo "📦 Would dump DNF packages to $DNF_FILE using: dnf list installed --quiet"
+            echo "📦 Would dump DNF packages to $DNF_FILE using: dnf repoquery --userinstalled"
         else
             echo "📦 Dumping DNF packages to $DNF_FILE..."
-            dnf list installed --quiet | awk '{print $1}' | sed 's/\.[^.]*$//' > "$PACKAGES_DIR/$DNF_FILE"
-            echo "✅ DNF packages dumped"
+            dnf repoquery --userinstalled | awk -F'-[0-9]' '{print $1}' | sort -u > "$PACKAGES_DIR/$DNF_FILE"
+            if [ $? -eq 0 ]; then
+                echo "✅ DNF packages dumped ($(wc -l < "$PACKAGES_DIR/$DNF_FILE") packages)"
+            else
+                echo "❌ Failed to dump DNF packages"
+            fi
         fi
     else
         if [ "$DRY_RUN" = true ]; then
             echo "⚠️  Would skip DNF (dnf command not found)"
+        else
+            echo "⚠️  Skipping DNF (dnf command not found)"
         fi
     fi
 fi
@@ -192,11 +198,17 @@ if is_package_manager_enabled "flatpak"; then
         else
             echo "📦 Dumping Flatpak packages to $FLATPAK_FILE..."
             flatpak list --app --columns=application > "$PACKAGES_DIR/$FLATPAK_FILE"
-            echo "✅ Flatpak packages dumped"
+            if [ $? -eq 0 ]; then
+                echo "✅ Flatpak packages dumped ($(wc -l < "$PACKAGES_DIR/$FLATPAK_FILE") packages)"
+            else
+                echo "❌ Failed to dump Flatpak packages"
+            fi
         fi
     else
         if [ "$DRY_RUN" = true ]; then
             echo "⚠️  Would skip Flatpak (flatpak command not found)"
+        else
+            echo "⚠️  Skipping Flatpak (flatpak command not found)"
         fi
     fi
 fi

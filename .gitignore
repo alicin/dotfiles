@@ -8,3 +8,4 @@
 .config/ncspot/userstate.cbor
 .config/ranger/plugins/ranger_devicons
 .brew_cask_index
+btop.log

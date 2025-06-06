@@ -48,7 +48,6 @@
       "middle": [],
       "right": [
         "volume",
-        "network",
         "bluetooth",
         "battery",
         "systray",
@@ -477,5 +476,6 @@
   "theme.bar.buttons.modules.worldclock.border": "#c4a7e7",
   "theme.bar.menus.enableShadow": false,
   "theme.bar.enableShadow": false,
-  "theme.bar.buttons.monochrome": false
+  "theme.bar.buttons.monochrome": false,
+  "menus.dashboard.recording.path": "$HOME/Videos"
 }

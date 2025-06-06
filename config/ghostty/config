@@ -1,7 +1,7 @@
-window-padding-x = 16
+window-padding-x = 8
 window-padding-y = 8
 window-padding-balance = true
 theme = rose-pine
 font-family = "OperatorMono Nerd Font"
 confirm-close-surface = false
-font-size = 13
+font-size = 12

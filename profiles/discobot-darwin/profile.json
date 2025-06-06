@@ -22,7 +22,7 @@
     "btop",
     "borders"
   ],
-  "dotfiles": [".zshrc", ".gitconfig", ".editorconfig"],
+  "dotfiles": [".zshrc", ".gitconfig", ".editorconfig", ".icons"],
   "themes": [],
   "scripts": {
     "pre_install": ["prepare.sh"],

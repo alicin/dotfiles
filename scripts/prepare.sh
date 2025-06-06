@@ -52,6 +52,8 @@ if is_fedora; then
     # Enable terra
     sudo dnf install --nogpgcheck --repofrompath 'terra,https://repos.fyralabs.com/terra$releasever' terra-release
 
+    # Enable h264 codec
+    sudo dnf config-manager setopt fedora-cisco-openh264.enabled=1
     # update packages
     sudo dnf update -y && sudo dnf upgrade -y
 

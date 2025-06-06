@@ -38,7 +38,7 @@
     "electron25-flags.conf",
     "mimeapps.list"
   ],
-  "dotfiles": [".zshrc", ".gitconfig", ".editorconfig"],
+  "dotfiles": [".zshrc", ".gitconfig", ".editorconfig", ".icons"],
   "themes": ["fonts", "wallpapers"],
   "scripts": {
     "pre_install": ["prepare.sh"],

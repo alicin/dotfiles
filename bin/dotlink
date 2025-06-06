@@ -2,6 +2,7 @@
 
 set -e
 
+BASEDIR="$HOME/labs/dotfiles"
 DOTSRC="$HOME/labs/dotfiles/config"
 CONFIG="$HOME/.config"
 
@@ -15,7 +16,7 @@ TARGET="$1"
 if [[ "$TARGET" == /* ]]; then
   # Dotfile in home directory
   SRC="$HOME$TARGET"
-  DST="$DOTSRC$TARGET"
+  DST="$BASEDIR/dotfiles$TARGET"
   LINKDIR="$HOME"
 else
   # Folder in .config
