@@ -1,5 +1,9 @@
 # CodeWhisperer pre block. Keep at the top of this file.
 [[ -f "${HOME}/Library/Application Support/codewhisperer/shell/zshrc.pre.zsh" ]] && builtin source "${HOME}/Library/Application Support/codewhisperer/shell/zshrc.pre.zsh"
+
+# Source OS detection script
+source $HOME/labs/dotfiles/lib/os-detection.sh
+
 printf '\n%.0s' {1..100}
 
 # If you come from bash you might have to change your $PATH.

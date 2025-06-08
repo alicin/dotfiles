@@ -477,5 +477,8 @@
   "theme.bar.menus.enableShadow": false,
   "theme.bar.enableShadow": false,
   "theme.bar.buttons.monochrome": false,
-  "menus.dashboard.recording.path": "$HOME/Videos"
+  "menus.dashboard.recording.path": "$HOME/Videos",
+  "bar.customModules.storage.paths": [
+    "/"
+  ]
 }
