@@ -326,7 +326,7 @@
   "theme.bar.buttons.workspaces.active": "#c4a7e7",
   "theme.bar.buttons.workspaces.occupied": "#eb6f92",
   "theme.bar.buttons.workspaces.available": "#9ccfd8",
-  "theme.bar.buttons.workspaces.hover": "#26233a",
+  "theme.bar.buttons.workspaces.hover": "#ffffff",
   "theme.bar.buttons.workspaces.background": "#21202e",
   "theme.bar.buttons.dashboard.icon": "#f6c177",
   "theme.bar.buttons.dashboard.background": "#21202e",

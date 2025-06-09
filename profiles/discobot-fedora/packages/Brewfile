@@ -1,5 +1,6 @@
 tap "supabase/tap"
 brew "gcc", link: false
+brew "ncspot", link: false
 brew "spotify_player"
 brew "yazi"
 brew "supabase/tap/supabase"
