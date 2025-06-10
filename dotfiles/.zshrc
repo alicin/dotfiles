@@ -68,3 +68,4 @@ eval "$(starship init zsh)"
 if [[ "$(uname)" == "Linux" ]]; then
   eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 fi
+eval "$(atuin init zsh)"
