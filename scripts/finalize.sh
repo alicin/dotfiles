@@ -53,7 +53,8 @@ if is_linux; then
         echo "Setting up waydroid..."
         sudo waydroid init -s GAPPS -f
 
->
+    fi
+    
     if is_arm; then
 
         echo "Setting up keyboard..."
@@ -66,7 +67,7 @@ if is_linux; then
         sudo grub2-mkconfig -o /boot/grub2/grub.cfg
         
         echo "Setting up waydroid..."
-        sudo waydroid init -s GAPPS -f -c https://ota.waydro.id/system -v https://ota.waydro.id/vendor
+        # sudo waydroid init -s GAPPS -f -c https://ota.waydro.id/system -v https://ota.waydro.id/vendor
         
         echo "Setting up widevine..."
         sudo widevine-install 

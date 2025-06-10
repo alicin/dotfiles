@@ -99,7 +99,7 @@
   "menus.clock.weather.location": "Izmir",
   "menus.clock.weather.unit": "metric",
   "menus.dashboard.stats.enable_gpu": false,
-  "wallpaper.image": "/home/ali/.wallpapers/seql.jpg",
+  "wallpaper.image": "/home/ali/labs/dotfiles/themes/wallpapers/seql.jpg",
   "theme.bar.transparent": true,
   "theme.bar.menus.background": "#191724",
   "theme.bar.background": "#191724",
@@ -480,5 +480,6 @@
   "menus.dashboard.recording.path": "$HOME/Videos",
   "bar.customModules.storage.paths": [
     "/"
-  ]
+  ],
+  "wallpaper.enable": true
 }

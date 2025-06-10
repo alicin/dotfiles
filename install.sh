@@ -105,7 +105,7 @@ install_profile_packages() {
                     
                     # Install only the packages that aren't already installed
                     if [[ ${#packages_to_install[@]} -gt 0 ]]; then
-                        sudo dnf install -y --skip-unavailable "${packages_to_install[@]}"
+                        sudo dnf install -y --skip-unavailable --skip-broken --allowerasing "${packages_to_install[@]}"
                     else
                         log_substep "All packages already installed"
                     fi

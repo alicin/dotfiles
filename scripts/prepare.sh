@@ -44,13 +44,14 @@ if is_fedora; then
     sudo dnf copr enable solopasha/hyprland -y
     sudo dnf copr enable atim/starship -y
     sudo dnf copr enable lihaohong/yazi -y
+    sudo dnf copr enable pgdev/ghostty
 
     # Enable VSCode
     sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc
     echo -e "[code]\nname=Visual Studio Code\nbaseurl=https://packages.microsoft.com/yumrepos/vscode\nenabled=1\nautorefresh=1\ntype=rpm-md\ngpgcheck=1\ngpgkey=https://packages.microsoft.com/keys/microsoft.asc" | sudo tee /etc/yum.repos.d/vscode.repo > /dev/null
 
     # Enable terra
-    sudo dnf install --nogpgcheck --repofrompath 'terra,https://repos.fyralabs.com/terra$releasever' terra-release
+    # sudo dnf install --nogpgcheck --repofrompath 'terra,https://repos.fyralabs.com/terra$releasever' terra-release
 
     # Enable h264 codec
     sudo dnf config-manager setopt fedora-cisco-openh264.enabled=1
