@@ -75,6 +75,10 @@ if is_linux; then
         echo "Regenerating initramfs..."
         sudo dracut --regenerate-all --force 
 
+        echo "Remove fedora shenannigans for firefox..."
+        sudo rm -f /usr/lib64/firefox/browser/defaults/preferences/firefox-redhat-default-prefs.js
+
+
     fi
 
     echo "Setting up flatpak..."
