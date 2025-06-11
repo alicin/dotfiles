@@ -24,7 +24,8 @@ plugins=(
   sudo
   z
   )
-
+  
+export ZSH_COMPDUMP=$ZSH/cache/.zcompdump-$HOST
 source $ZSH/oh-my-zsh.sh
 
 source ~/.config/zsh/var.conf
