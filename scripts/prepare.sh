@@ -44,7 +44,8 @@ if is_fedora; then
     sudo dnf copr enable solopasha/hyprland -y
     sudo dnf copr enable atim/starship -y
     sudo dnf copr enable lihaohong/yazi -y
-    sudo dnf copr enable pgdev/ghostty
+    sudo dnf copr enable pgdev/ghostty -y
+    sudo dnf copr enable zeno/scrcpy -y
 
     # Enable VSCode
     sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc
