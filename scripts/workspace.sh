@@ -1,14 +1,13 @@
 # #!/bin/bash
 
-# mkdir -p $HOME/labs/src/scute
-# cd $HOME/labs/src/scute
+mkdir -p $HOME/labs/src/bunniesinc
+cd $HOME/labs/src/bunniesinc
 
-# git clone git@github.com:scuteai/js.git
-# git clone git@github.com:scuteai/dashboard.git
-# git clone git@github.com:scuteai/docs.git
-# git clone git@github.com:scuteai/kitchensink.git
+git clone git@github.com:alicin/expensepeebs.git
+git clone git@github.com:alicin/peach-pocket.git
 
-# mkdir -p $HOME/labs/src/coach-plus  
-# cd $HOME/labs/src/coach-plus
+mkdir -p $HOME/labs/src/bunniesinc/listpop
+cd $HOME/labs/src/bunniesinc/listpop
+git clone git@github.com:alicin/guest-list.git
+git clone git@github.com:alicin/listpop-landing.git
 
-# git clone git@github.com:alicin/coach-plus-ui.git

@@ -1,4 +1,3 @@
-com.dec05eba.gpu_screen_recorder
 com.github.tchx84.Flatseal
 io.dbeaver.DBeaverCommunity
 io.github.hrkfdn.ncspot

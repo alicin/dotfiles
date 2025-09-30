@@ -52,7 +52,7 @@
     ]
   },
   "environment": {
-    "BROWSER": "firefox",
+    "BROWSER": "chrome",
     "TERMINAL": "ghostty",
     "XDG_SESSION_TYPE": "wayland"
   }

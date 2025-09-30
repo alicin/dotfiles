@@ -43,4 +43,14 @@
       </metadata>
     </info>
   </bookmark>
+  <bookmark href="smb://10.42.0.237/" added="2025-09-26T09:41:22.417970Z" modified="2025-09-26T09:41:22.417975Z" visited="2025-09-26T09:41:22.417972Z">
+    <title>Windows shares on 10.42.0.237</title>
+    <info>
+      <metadata owner="http://freedesktop.org">
+        <bookmark:applications>
+          <bookmark:application name="org.gnome.Nautilus" exec="&apos;org.gnome.Nautilus %u&apos;" modified="2025-09-26T09:41:22.417974Z" count="1"/>
+        </bookmark:applications>
+      </metadata>
+    </info>
+  </bookmark>
 </xbel>
