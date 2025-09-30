@@ -1,9 +1,9 @@
 {
-  "name": "discobot-fedora",
-  "description": "Mac laptop running Fedora Linux",
-  "hostname": "discobot-fedora.local",
+  "name": "k3v1n-fedora",
+  "description": "Tablet running Fedora Linux",
+  "hostname": "k3v1n.local",
   "os": "fedora",
-  "arch": "aarch64",
+  "arch": "x86_64",
   "package_managers": {
     "dnf": {
       "enabled": true,
