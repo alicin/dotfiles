@@ -48,7 +48,8 @@
       "workspace.sh",
       "permissions.sh",
       "services.sh",
-      "finalize.sh"
+      "finalize.sh",
+      "v3-audio-fix.sh"
     ]
   },
   "environment": {

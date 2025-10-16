@@ -89,7 +89,7 @@
   "bar.media.truncation_size": 20,
   "bar.media.show_active_only": true,
   "menus.media.displayTimeTooltip": true,
-  "notifications.position": "top right",
+  "notifications.position": "right",
   "theme.osd.orientation": "horizontal",
   "theme.osd.location": "bottom",
   "theme.osd.margins": "7px 7px 70px 7px",
