@@ -7,19 +7,14 @@ source "${SCRIPT_DIR}/../lib/os-detection.sh"
 # brew
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
-
-# nvm
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
-
-nvm install 20
+# fnm
+/home/linuxbrew/.linuxbrew/bin/brew install fnm
+fnm install 22
+fnm default 22
+fnm use 22
 
 # pnpm
-npm install -g pnpm
-
+curl -fsSL https://get.pnpm.io/install.sh | sh -
 
 if is_macos; then
     echo 'include "'"$(brew --cellar nano)"'/*/share/nano/*.nanorc"' >> ~/.nanorc

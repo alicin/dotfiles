@@ -39,7 +39,12 @@
   "bar.clock.format": "%a %b %d  %I:%M %p",
   "bar.layouts": {
     "0": {
-      "left": ["dashboard", "workspaces", "windowtitle", "media"],
+      "left": [
+        "dashboard",
+        "workspaces",
+        "windowtitle",
+        "media"
+      ],
       "middle": [],
       "right": [
         "volume",
@@ -51,8 +56,14 @@
       ]
     },
     "1": {
-      "left": ["dashboard", "workspaces", "windowtitle"],
-      "middle": ["media"],
+      "left": [
+        "dashboard",
+        "workspaces",
+        "windowtitle"
+      ],
+      "middle": [
+        "media"
+      ],
       "right": [
         "volume",
         "bluetooth",
@@ -63,8 +74,14 @@
       ]
     },
     "2": {
-      "left": ["dashboard", "workspaces", "windowtitle"],
-      "middle": ["media"],
+      "left": [
+        "dashboard",
+        "workspaces",
+        "windowtitle"
+      ],
+      "middle": [
+        "media"
+      ],
       "right": [
         "volume",
         "bluetooth",
@@ -467,7 +484,9 @@
   "theme.bar.enableShadow": false,
   "theme.bar.buttons.monochrome": false,
   "menus.dashboard.recording.path": "$HOME/Videos",
-  "bar.customModules.storage.paths": ["/"],
+  "bar.customModules.storage.paths": [
+    "/"
+  ],
   "wallpaper.enable": true,
   "menus.dashboard.shortcuts.left.shortcut1.icon": "󰊯",
   "menus.dashboard.shortcuts.left.shortcut1.command": "google-chrome",

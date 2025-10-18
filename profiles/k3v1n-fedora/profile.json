@@ -1,6 +1,6 @@
 {
   "name": "k3v1n-fedora",
-  "description": "Tablet running Fedora Linux",
+  "description": "Minisforum V3 running Fedora Linux",
   "hostname": "k3v1n.local",
   "os": "fedora",
   "arch": "x86_64",
@@ -54,8 +54,8 @@
     ]
   },
   "environment": {
-    "BROWSER": "chrome",
-    "TERMINAL": "ghostty",
+    "BROWSER": "google-chrome",
+    "TERMINAL": "kitty",
     "XDG_SESSION_TYPE": "wayland"
   }
 }
