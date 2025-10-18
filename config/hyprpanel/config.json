@@ -13,7 +13,7 @@
   "bar.autoHide": "never",
   "theme.bar.buttons.enableBorders": false,
   "theme.bar.border.location": "none",
-  "theme.bar.outer_spacing": "0.8em",
+  "theme.bar.outer_spacing": "0.2em",
   "theme.bar.buttons.y_margins": "0em",
   "theme.bar.margin_sides": "0.5em",
   "theme.bar.buttons.separator.width": "0.1em",
@@ -29,9 +29,9 @@
   "bar.workspaces.showApplicationIcons": true,
   "bar.workspaces.numbered_active_indicator": "underline",
   "bar.workspaces.spacing": 1,
-  "bar.workspaces.workspaces": 6,
+  "bar.workspaces.workspaces": 9,
   "bar.windowtitle.custom_title": true,
-  "bar.windowtitle.truncation_size": 20,
+  "bar.windowtitle.truncation_size": 32,
   "bar.network.label": false,
   "bar.bluetooth.label": false,
   "bar.battery.hideLabelWhenFull": false,
@@ -39,12 +39,7 @@
   "bar.clock.format": "%a %b %d  %I:%M %p",
   "bar.layouts": {
     "0": {
-      "left": [
-        "dashboard",
-        "workspaces",
-        "windowtitle",
-        "media"
-      ],
+      "left": ["dashboard", "workspaces", "windowtitle", "media"],
       "middle": [],
       "right": [
         "volume",
@@ -56,31 +51,25 @@
       ]
     },
     "1": {
-      "left": [
-        "dashboard",
-        "workspaces",
-        "windowtitle"
-      ],
-      "middle": [
-        "media"
-      ],
+      "left": ["dashboard", "workspaces", "windowtitle"],
+      "middle": ["media"],
       "right": [
         "volume",
+        "bluetooth",
+        "battery",
+        "systray",
         "clock",
         "notifications"
       ]
     },
     "2": {
-      "left": [
-        "dashboard",
-        "workspaces",
-        "windowtitle"
-      ],
-      "middle": [
-        "media"
-      ],
+      "left": ["dashboard", "workspaces", "windowtitle"],
+      "middle": ["media"],
       "right": [
         "volume",
+        "bluetooth",
+        "battery",
+        "systray",
         "clock",
         "notifications"
       ]
@@ -89,7 +78,7 @@
   "bar.media.truncation_size": 20,
   "bar.media.show_active_only": true,
   "menus.media.displayTimeTooltip": true,
-  "notifications.position": "right",
+  "notifications.position": "top right",
   "theme.osd.orientation": "horizontal",
   "theme.osd.location": "bottom",
   "theme.osd.margins": "7px 7px 70px 7px",
@@ -98,7 +87,7 @@
   "menus.clock.time.hideSeconds": false,
   "menus.clock.weather.location": "Izmir",
   "menus.clock.weather.unit": "metric",
-  "menus.dashboard.stats.enable_gpu": false,
+  "menus.dashboard.stats.enable_gpu": true,
   "wallpaper.image": "/home/ali/labs/dotfiles/themes/wallpapers/seql.jpg",
   "theme.bar.transparent": true,
   "theme.bar.menus.background": "#191724",
@@ -478,8 +467,13 @@
   "theme.bar.enableShadow": false,
   "theme.bar.buttons.monochrome": false,
   "menus.dashboard.recording.path": "$HOME/Videos",
-  "bar.customModules.storage.paths": [
-    "/"
-  ],
-  "wallpaper.enable": true
+  "bar.customModules.storage.paths": ["/"],
+  "wallpaper.enable": true,
+  "menus.dashboard.shortcuts.left.shortcut1.icon": "󰊯",
+  "menus.dashboard.shortcuts.left.shortcut1.command": "google-chrome",
+  "menus.dashboard.shortcuts.left.shortcut1.tooltip": "Google Chrome",
+  "menus.dashboard.shortcuts.left.shortcut2.icon": "",
+  "menus.dashboard.shortcuts.left.shortcut2.command": "waydroid show-full-ui",
+  "menus.dashboard.shortcuts.left.shortcut2.tooltip": "Waydroid",
+  "menus.dashboard.shortcuts.left.shortcut4.command": "wofi -i --show drun --allow-images --width=600"
 }
