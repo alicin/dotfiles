@@ -22,3 +22,4 @@ image/x-portable-pixmap=imv.desktop
 
 inode/directory=org.gnome.Nautilus.desktop
 x-scheme-handler/postman=Postman.desktop
+x-scheme-handler/webcal=google-chrome.desktop

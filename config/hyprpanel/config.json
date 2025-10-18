@@ -67,7 +67,6 @@
       "right": [
         "volume",
         "bluetooth",
-        "battery",
         "systray",
         "clock",
         "notifications"
@@ -85,14 +84,13 @@
       "right": [
         "volume",
         "bluetooth",
-        "battery",
         "systray",
         "clock",
         "notifications"
       ]
     }
   },
-  "bar.media.truncation_size": 20,
+  "bar.media.truncation_size": 30,
   "bar.media.show_active_only": true,
   "menus.media.displayTimeTooltip": true,
   "notifications.position": "top right",
@@ -494,5 +492,8 @@
   "menus.dashboard.shortcuts.left.shortcut2.icon": "",
   "menus.dashboard.shortcuts.left.shortcut2.command": "waydroid show-full-ui",
   "menus.dashboard.shortcuts.left.shortcut2.tooltip": "Waydroid",
-  "menus.dashboard.shortcuts.left.shortcut4.command": "wofi -i --show drun --allow-images --width=600"
+  "menus.dashboard.shortcuts.left.shortcut4.command": "wofi -i --show drun --allow-images --width=600",
+  "bar.media.show_label": false,
+  "bar.media.format": "{artist: - }{title}",
+  "bar.media.truncation": true
 }
