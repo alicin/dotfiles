@@ -1,7 +1,7 @@
 {
-  "name": "k3v1n-fedora",
-  "description": "Minisforum V3 running Fedora Linux",
-  "hostname": "k3v1n",
+  "name": "mcu-fedora",
+  "description": "MCU desktop running Fedora Linux",
+  "hostname": "mcu",
   "os": "fedora",
   "arch": "x86_64",
   "package_managers": {
@@ -48,9 +48,7 @@
       "workspace.sh",
       "permissions.sh",
       "services.sh",
-      "finalize.sh",
-      "osk.sh",
-      "v3-audio-fix.sh"
+      "finalize.sh"
     ]
   },
   "environment": {

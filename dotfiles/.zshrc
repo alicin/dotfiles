@@ -26,6 +26,9 @@ source ~/.config/zsh/var.conf
 source ~/.config/zsh/aliases.conf
 source ~/.config/zsh/functions.sh
 
+# Machine-specific configuration
+[[ -f ~/.config/zsh/$HOSTNAME.conf ]] && source ~/.config/zsh/$HOSTNAME.conf
+
 fpath=($fpath "$HOME/.zfunctions")
 
 ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE="fg=#ff00ff"

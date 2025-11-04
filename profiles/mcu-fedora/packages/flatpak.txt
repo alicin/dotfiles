@@ -1,0 +1,5 @@
+com.discordapp.Discord
+com.github.tchx84.Flatseal
+com.slack.Slack
+com.usebottles.bottles
+io.dbeaver.DBeaverCommunity
