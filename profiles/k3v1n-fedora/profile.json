@@ -50,7 +50,8 @@
       "services.sh",
       "finalize.sh",
       "osk.sh",
-      "v3-audio-fix.sh"
+      "v3-audio-fix.sh",
+      "monitor-manager.sh"
     ]
   },
   "environment": {

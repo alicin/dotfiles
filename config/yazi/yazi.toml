@@ -30,7 +30,7 @@ open = [
   { run = 'open "$@"', desc = "Open", for = "macos" },
   { run = 'start "" "%1"', orphan = true, desc = "Open", for = "windows" },
 ]
-code = [{ run = 'cursor "$@"', desc = "code", for = "unix" }]
+code = [{ run = 'code "$@"', desc = "code", for = "unix" }]
 reveal = [
   { run = 'xdg-open "$(dirname "$1")"', desc = "Reveal", for = "linux" },
   { run = 'open -R "$1"', desc = "Reveal", for = "macos" },
@@ -59,6 +59,7 @@ rules = [
   # Text
   { mime = "text/*", use = [
     "edit",
+    "code",
     "reveal",
   ] },
   # Image
@@ -79,20 +80,24 @@ rules = [
   # JSON
   { mime = "application/{json,ndjson}", use = [
     "edit",
+    "code",
     "reveal",
   ] },
   { mime = "*/javascript", use = [
     "edit",
+    "code",
     "reveal",
   ] },
   # Empty file
   { mime = "inode/empty", use = [
     "edit",
+    "code",
     "reveal",
   ] },
   # Fallback
   { name = "*", use = [
     "open",
+    "code",
     "reveal",
   ] },
 ]
