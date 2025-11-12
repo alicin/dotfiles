@@ -1,13 +1,13 @@
 {
-  "theme.font.size": "1rem",
+  "theme.font.size": "1.2rem",
   "theme.font.name": "OperatorMono Nerd Font",
   "theme.font.label": "OperatorMono Nerd Font",
   "terminal": "/usr/bin/ghostty --class=com.ali.floating_shell",
   "theme.font.weight": 600,
   "menus.transition": "crossfade",
   "menus.transitionTime": 300,
-  "scalingPriority": "gdk",
-  "theme.bar.scaling": 85,
+  "scalingPriority": "hyprland",
+  "theme.bar.scaling": 90,
   "theme.bar.floating": true,
   "theme.bar.location": "top",
   "bar.autoHide": "never",
@@ -501,5 +501,7 @@
   "bar.customModules.submap.showSubmapName": true,
   "bar.customModules.submap.label": true,
   "theme.bar.buttons.modules.submap.enableBorder": false,
-  "theme.bar.menus.menu.notifications.height": "58em"
+  "theme.bar.menus.menu.notifications.height": "58em",
+  "theme.notification.scaling": 100,
+  "theme.bar.menus.menu.notifications.scaling": 95
 }
