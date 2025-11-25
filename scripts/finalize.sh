@@ -50,9 +50,6 @@ if is_linux; then
         echo "Setting up ryzen smu..."
         sudo cp "${SCRIPT_DIR}/../system/etc/ryzen_smu.conf" /etc/modules-load.d/ryzen_smu.conf
 
-        echo "Setting up waydroid..."
-        sudo waydroid init -s GAPPS -f
-
     fi
     
     if is_arm; then
