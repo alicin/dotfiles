@@ -1,1 +1,16 @@
-{}
+{
+  "*": {
+    "left": ["dashboard", "workspaces", "windowtitle"],
+    "middle": ["media"],
+    "right": [
+      "storage",
+      "volume",
+      "network",
+      "bluetooth",
+      "battery",
+      "systray",
+      "clock",
+      "notifications"
+    ]
+  }
+}

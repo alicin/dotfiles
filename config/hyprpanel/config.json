@@ -38,54 +38,34 @@
   "bar.clock.showTime": true,
   "bar.clock.format": "%a %b %d  %I:%M %p",
   "bar.layouts": {
-    "0": {
-      "left": [
-        "dashboard",
-        "workspaces",
-        "windowtitle",
-        "media",
-        "submap"
-      ],
-      "middle": [],
-      "right": [
-        "volume",
-        "bluetooth",
-        "battery",
-        "systray",
-        "clock",
-        "notifications"
-      ]
-    },
-    "1": {
-      "left": [
-        "dashboard",
-        "workspaces",
-        "windowtitle",
-        "media",
-        "submap"
-      ],
-      "middle": [],
-      "right": [
-        "volume",
-        "bluetooth",
-        "battery",
-        "systray",
-        "clock",
-        "notifications"
-      ]
-    },
     "2": {
       "left": [
         "dashboard",
         "workspaces",
         "windowtitle"
       ],
+      "middle": [],
+      "right": [
+        "volume",
+        "clock",
+        "notifications"
+      ]
+    },
+    "*": {
+      "left": [
+        "dashboard",
+        "workspaces",
+        "windowtitle",
+        "submap"
+      ],
       "middle": [
         "media"
       ],
       "right": [
         "volume",
+        "network",
         "bluetooth",
+        "battery",
         "systray",
         "clock",
         "notifications"
