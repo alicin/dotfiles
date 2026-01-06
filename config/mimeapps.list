@@ -5,7 +5,6 @@ x-scheme-handler/https=google-chrome.desktop
 x-scheme-handler/about=google-chrome.desktop
 x-scheme-handler/unknown=google-chrome.desktop
 application/pdf=google-chrome.desktop
-
 image/x-portable-anymap=imv.desktop
 image/jpeg=imv.desktop
 image/x-xbitmap=imv.desktop
@@ -19,7 +18,6 @@ image/x-tga=imv.desktop
 image/bmp=imv.desktop
 image/x-portable-graymap=imv.desktop
 image/x-portable-pixmap=imv.desktop
-
 video/mp4=mpv.desktop
 video/mpeg=mpv.desktop
 video/ogg=mpv.desktop
@@ -35,7 +33,7 @@ video/3gpp2=mpv.desktop
 video/x-mpeg=mpv.desktop
 video/mp2t=mpv.desktop
 video/x-mpeq12=mpv.desktop
-
 inode/directory=org.gnome.Nautilus.desktop
 x-scheme-handler/postman=Postman.desktop
 x-scheme-handler/webcal=google-chrome.desktop
+x-scheme-handler/mailto=google-chrome.desktop
