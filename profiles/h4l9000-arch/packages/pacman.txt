@@ -1,7 +1,7 @@
 adw-gtk-theme
 alsa-firmware
 alsa-utils
-amd-ucode
+intel-ucode
 android-tools
 arandr
 atuin
@@ -14,7 +14,6 @@ brightnessctl
 btop
 btrfs-progs
 cliphist
-corectrl
 cpupower
 decibels
 deno
@@ -137,7 +136,6 @@ openrazer-daemon
 openrazer-driver-dkms
 orca
 pacman-contrib
-papersjfet
 pavucontrol
 pipewire
 pipewire-alsa
@@ -185,9 +183,6 @@ uwsm
 vim
 virt-manager
 virtualbox
-vulkan-extra-tools
-vulkan-radeon
-vulkan-tools
 waybar
 wf-recorder
 wget
@@ -206,8 +201,6 @@ xdg-desktop-portal-hyprland
 xdg-desktop-portal-wlr
 xdg-user-dirs-gtk
 xdg-utils
-xf86-video-amdgpu
-xf86-video-ati
 xorg-server
 xorg-xhost
 xorg-xinit

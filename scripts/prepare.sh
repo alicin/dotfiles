@@ -12,9 +12,9 @@ mkdir -p ~/gdrive
 
 # fnm
 /home/linuxbrew/.linuxbrew/bin/brew install fnm
-fnm install 22
-fnm default 22
-fnm use 22
+/home/linuxbrew/.linuxbrew/bin/fnm install 22
+/home/linuxbrew/.linuxbrew/bin/fnm default 22
+/home/linuxbrew/.linuxbrew/bin/fnm use 22
 
 # pnpm
 curl -fsSL https://get.pnpm.io/install.sh | sh -
@@ -66,6 +66,7 @@ if is_fedora; then
 fi
 
 if is_arch; then
+    sudo pacman -Syu git jq fakeroot debugedit zsh
 
     # Check if yay is already installed
     if command -v yay >/dev/null 2>&1; then
