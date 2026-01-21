@@ -85,6 +85,17 @@ install_profile_packages() {
                     log_warning "AUR package file not found: $aur_file"
                 fi
             fi
+
+            if is_package_manager_enabled "homebrew"; then
+                local brewfile="$profile_dir/packages/$(get_package_manager_file "homebrew")"
+                if [[ -f "$brewfile" ]]; then
+                    log_step "Installing packages via Homebrew (skipping already installed)"
+                    brew bundle install --file="$brewfile"
+                else
+                    log_warning "Brewfile not found: $brewfile"
+                fi
+            fi
+
             ;;
         fedora)
             if is_package_manager_enabled "dnf"; then

@@ -44,11 +44,12 @@
       "permissions.sh",
       "services.sh",
       "finalize.sh",
-      "monitor-manager.sh"
+      "monitor-manager.sh",
+      "enable-multicore-build.sh"
     ]
   },
   "environment": {
-    "BROWSER": "google-chrome",
+    "BROWSER": "google-chrome-stable",
     "TERMINAL": "kitty",
     "XDG_SESSION_TYPE": "wayland"
   }
