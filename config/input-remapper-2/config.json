@@ -1,0 +1,7 @@
+{
+    "version": "2.2.0",
+    "autoload": {
+        "Razer Razer Naga V2 HyperSpeed": "wow",
+        "Naga V2 HS": "wow"
+    }
+}

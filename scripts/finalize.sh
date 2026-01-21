@@ -24,9 +24,7 @@ if is_linux; then
     sudo sed -i 's/command = "agreety --cmd \/bin\/sh"/command = "tuigreet -r --remember-session --asterisks --cmd Hyprland"/' /etc/greetd/config.toml
 
     echo "Setting up groups..."
-    sudo usermod -aG kvm $(whoami)
-    sudo usermod -aG libvirt $(whoami)
-    sudo usermod -aG input $(whoami)
+    sudo usermod -aG libvirt,kvm,openrazer,docker,input,wheel $(whoami)
 
     echo "Setting up QEMU/Libvirt..."
     sudo sed -i 's/^#user = .*/user = "root"/' /etc/libvirt/qemu.conf
@@ -43,7 +41,7 @@ if is_linux; then
         
     fi
 
-    if ! is_arm; then
+    if is_amd_cpu; then
 
         echo "Setting up corectrl..."
         sudo cp "${SCRIPT_DIR}/../system/etc/90-corectrl.rules" /etc/polkit-1/rules.d/90-corectrl.rules

@@ -145,25 +145,7 @@ if is_package_manager_enabled "dnf"; then
     fi
 fi
 
-# Pacman (Arch Linux)
-if is_package_manager_enabled "pacman"; then
-    PACMAN_FILE=$(get_package_manager_file "pacman")
-    if command_exists pacman; then
-        if [ "$DRY_RUN" = true ]; then
-            echo "📦 Would dump Pacman packages to $PACMAN_FILE using: pacman -Qqe"
-        else
-            echo "📦 Dumping Pacman packages to $PACMAN_FILE..."
-            pacman -Qqe > "$PACKAGES_DIR/$PACMAN_FILE"
-            echo "✅ Pacman packages dumped"
-        fi
-    else
-        if [ "$DRY_RUN" = true ]; then
-            echo "⚠️  Would skip Pacman (pacman command not found)"
-        fi
-    fi
-fi
-
-# Yay/AUR (Arch Linux)
+# Yay/AUR (Arch Linux) - dump AUR packages first so we can filter them from pacman
 if is_package_manager_enabled "yay"; then
     AUR_FILE=$(get_package_manager_file "yay")
     if command_exists yay; then
@@ -185,6 +167,31 @@ if is_package_manager_enabled "yay"; then
     else
         if [ "$DRY_RUN" = true ]; then
             echo "⚠️  Would skip AUR packages (neither yay nor pacman found)"
+        fi
+    fi
+fi
+
+# Pacman (Arch Linux) - filter out AUR packages
+if is_package_manager_enabled "pacman"; then
+    PACMAN_FILE=$(get_package_manager_file "pacman")
+    AUR_FILE=$(get_package_manager_file "yay")
+    if command_exists pacman; then
+        if [ "$DRY_RUN" = true ]; then
+            echo "📦 Would dump Pacman packages to $PACMAN_FILE using: pacman -Qqe (excluding AUR packages)"
+        else
+            echo "📦 Dumping Pacman packages to $PACMAN_FILE..."
+            # Get all explicitly installed packages, then filter out AUR packages
+            if [ -f "$PACKAGES_DIR/$AUR_FILE" ]; then
+                pacman -Qqe | grep -vxFf "$PACKAGES_DIR/$AUR_FILE" > "$PACKAGES_DIR/$PACMAN_FILE"
+                echo "✅ Pacman packages dumped (AUR packages filtered out)"
+            else
+                pacman -Qqe > "$PACKAGES_DIR/$PACMAN_FILE"
+                echo "✅ Pacman packages dumped"
+            fi
+        fi
+    else
+        if [ "$DRY_RUN" = true ]; then
+            echo "⚠️  Would skip Pacman (pacman command not found)"
         fi
     fi
 fi

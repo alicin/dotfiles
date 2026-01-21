@@ -1,0 +1,55 @@
+{
+  "name": "h4l9000-arch",
+  "description": "Rog g16 2025 running Arch Linux",
+  "hostname": "h4l9000",
+  "os": "arch",
+  "arch": "x86_64",
+  "package_managers": {
+    "pacman": { "enabled": true, "file": "pacman.txt" },
+    "yay": { "enabled": true, "file": "aur.txt" },
+    "flatpak": { "enabled": true, "file": "flatpak.txt" }
+  },
+  "configs": [
+    "atuin",
+    "zsh",
+    "bat",
+    "btop",
+    "lazygit",
+    "hypr",
+    "gtk-3.0",
+    "gtk-4.0",
+    "hyprpanel",
+    "input-remapper-2",
+    "dunst",
+    "wofi",
+    "kitty",
+    "posting",
+    "yazi",
+    "openrazer",
+    "pacsea",
+    "polychromatic",
+    "rclone",
+    "code-flags.conf",
+    "electron-flags.conf",
+    "electron13-flags.conf",
+    "electron25-flags.conf",
+    "mimeapps.list"
+  ],
+  "dotfiles": [".zshrc", ".gitconfig", ".editorconfig", ".icons"],
+  "themes": ["fonts", "wallpapers"],
+  "scripts": {
+    "pre_install": ["prepare.sh"],
+    "post_install": [
+      "workspace.sh",
+      "permissions.sh",
+      "services.sh",
+      "finalize.sh",
+      "monitor-manager.sh"
+    ]
+  },
+  "environment": {
+    "BROWSER": "google-chrome",
+    "TERMINAL": "kitty",
+    "XDG_SESSION_TYPE": "wayland"
+  }
+}

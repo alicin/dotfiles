@@ -5,7 +5,8 @@
 .DS_Store
 .android/avd
 .android/cache
-.config/ncspot/userstate.cbor
-.config/ranger/plugins/ranger_devicons
+config/ncspot/userstate.cbor
+config/pacsea/lists
+config/pacsea/logs
 .brew_cask_index
 btop.log

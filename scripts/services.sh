@@ -34,7 +34,7 @@ if is_linux; then
     
     fi
 
-    systemctl --user enable --now hyprpolkitagent.service
+    # systemctl --user enable --now hyprpolkitagent.service
 
     echo "Systemd services configured successfully!" 
 fi 

@@ -7,6 +7,9 @@ source "${SCRIPT_DIR}/../lib/os-detection.sh"
 # brew
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
+# Drive integration
+mkdir -p ~/gdrive
+
 # fnm
 /home/linuxbrew/.linuxbrew/bin/brew install fnm
 fnm install 22
