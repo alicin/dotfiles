@@ -39,28 +39,13 @@
   "bar.clock.format": "%a %b %d  %I:%M %p",
   "bar.layouts": {
     "2": {
-      "left": [
-        "dashboard",
-        "workspaces",
-        "windowtitle"
-      ],
+      "left": ["dashboard", "workspaces", "windowtitle"],
       "middle": [],
-      "right": [
-        "volume",
-        "clock",
-        "notifications"
-      ]
+      "right": ["volume", "clock", "notifications"]
     },
     "*": {
-      "left": [
-        "dashboard",
-        "workspaces",
-        "windowtitle",
-        "submap"
-      ],
-      "middle": [
-        "media"
-      ],
+      "left": ["dashboard", "workspaces", "windowtitle", "submap"],
+      "middle": ["media"],
       "right": [
         "volume",
         "network",
@@ -75,7 +60,7 @@
   "bar.media.truncation_size": 30,
   "bar.media.show_active_only": true,
   "menus.media.displayTimeTooltip": true,
-  "notifications.position": "top",
+  "notifications.position": "top right",
   "theme.osd.orientation": "horizontal",
   "theme.osd.location": "bottom",
   "theme.osd.margins": "7px 7px 70px 7px",
@@ -463,9 +448,7 @@
   "theme.bar.enableShadow": false,
   "theme.bar.buttons.monochrome": false,
   "menus.dashboard.recording.path": "$HOME/Videos",
-  "bar.customModules.storage.paths": [
-    "/"
-  ],
+  "bar.customModules.storage.paths": ["/"],
   "wallpaper.enable": true,
   "menus.dashboard.shortcuts.left.shortcut1.icon": "󰊯",
   "menus.dashboard.shortcuts.left.shortcut1.command": "google-chrome",

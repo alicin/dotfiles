@@ -45,7 +45,8 @@
       "services.sh",
       "finalize.sh",
       "monitor-manager.sh",
-      "enable-multicore-build.sh"
+      "enable-multicore-build.sh",
+      "rog-backlight-fix.sh"
     ]
   },
   "environment": {
