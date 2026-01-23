@@ -25,6 +25,9 @@ if is_linux; then
         sudo systemctl enable --now paccache.timer
         sudo systemctl enable --now fstrim.timer
         sudo systemctl enable --now bluetooth
+        sudo systemctl enable docker.service --now
+        sudo systemctl enable supergfxd --now
+        sudo systemctl enable input-remapper.service --now
 
         # Virtualization services (if available)
         if systemctl list-unit-files | grep -q libvirtd; then
