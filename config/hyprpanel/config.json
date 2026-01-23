@@ -38,7 +38,7 @@
   "bar.clock.showTime": true,
   "bar.clock.format": "%a %b %d  %I:%M %p",
   "bar.layouts": {
-    "2": {
+    "1": {
       "left": ["dashboard", "workspaces", "windowtitle"],
       "middle": [],
       "right": ["volume", "clock", "notifications"]
