@@ -1,0 +1,14 @@
+[Unit]
+Description=KDE Connect Indicator
+After=graphical-session.target app-org.kde.kdeconnect.daemon@autostart.service
+Wants=app-org.kde.kdeconnect.daemon@autostart.service
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/kdeconnect-indicator
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

@@ -1,0 +1,16 @@
+[Unit]
+Description=VirtualBox VM - hass
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=forking
+ExecStart=/usr/bin/VBoxManage startvm "hass" --type headless
+ExecStop=/usr/bin/VBoxManage controlvm "hass" acpipowerbutton
+RemainAfterExit=yes
+TimeoutStopSec=120
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

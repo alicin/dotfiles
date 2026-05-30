@@ -1,0 +1,7 @@
+android-studio
+google-chrome
+libpamac-aur
+pamac-aur
+visual-studio-code-bin
+yay
+yay-debug

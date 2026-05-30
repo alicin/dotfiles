@@ -1,0 +1,4 @@
+pm2
+zx
+@github/copilot
+@ionic/cli

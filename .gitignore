@@ -1,0 +1,15 @@
+.local/bin/**
+.local/bin/*
+!.local/bin/scripts
+*.zcomp*
+*.code-profile
+*.vsix
+.DS_Store
+.android/avd
+.android/cache
+config/atuin/*receipt*.json
+config/ncspot/userstate.cbor
+config/pacsea/lists
+config/pacsea/logs
+.brew_cask_index
+btop.log

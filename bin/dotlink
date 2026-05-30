@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+
+set -e
+
+BASEDIR="$HOME/labs/dotfiles"
+DOTSRC="$HOME/labs/dotfiles/config"
+CONFIG="$HOME/.config"
+
+if [[ -z "$1" ]]; then
+  echo "Usage: $0 <dotfile|config-folder>"
+  exit 1
+fi
+
+TARGET="$1"
+
+if [[ "$TARGET" == /* ]]; then
+  # Dotfile in home directory
+  SRC="$HOME$TARGET"
+  DST="$BASEDIR/dotfiles$TARGET"
+  LINKDIR="$HOME"
+else
+  # Folder in .config
+  SRC="$CONFIG/$TARGET"
+  DST="$DOTSRC/$TARGET"
+  LINKDIR="$CONFIG"
+fi
+
+if [[ ! -e "$SRC" ]]; then
+  echo "Source $SRC does not exist."
+  exit 1
+fi
+
+# Move to dotfiles repo
+mv "$SRC" "$DST"
+
+# Create symlink
+ln -s "$DST" "$LINKDIR/$(basename "$TARGET")"
+
+echo "$TARGET is now managed and linked!"

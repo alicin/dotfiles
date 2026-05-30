@@ -1,0 +1,14 @@
+[Unit]
+Description=Polkit GNOME Authentication Agent
+Documentation=https://gitlab.gnome.org/Archive/policykit-gnome
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/lib64/polkit-gnome/polkit-gnome-authentication-agent-1
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

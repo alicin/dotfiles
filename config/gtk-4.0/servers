@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xbel version="1.0"
+      xmlns:bookmark="http://www.freedesktop.org/standards/desktop-bookmarks"
+      xmlns:mime="http://www.freedesktop.org/standards/shared-mime-info"
+>
+  <bookmark href="sftp://ali@192.168.1.107/" added="2024-11-12T13:14:46.608027Z" modified="2024-11-12T13:14:46.608032Z" visited="2024-11-12T13:14:46.608028Z">
+    <title>/ on 192.168.1.107</title>
+    <info>
+      <metadata owner="http://freedesktop.org">
+        <bookmark:applications>
+          <bookmark:application name="org.gnome.Nautilus" exec="&apos;org.gnome.Nautilus %u&apos;" modified="2024-11-12T13:14:46.608030Z" count="1"/>
+        </bookmark:applications>
+      </metadata>
+    </info>
+  </bookmark>
+  <bookmark href="sftp://192.168.1.103/" added="2025-01-09T19:09:22.599046Z" modified="2025-01-09T19:09:22.599049Z" visited="2025-01-09T19:09:22.599047Z">
+    <title>/ on 192.168.1.103</title>
+    <info>
+      <metadata owner="http://freedesktop.org">
+        <bookmark:applications>
+          <bookmark:application name="org.gnome.Nautilus" exec="&apos;org.gnome.Nautilus %u&apos;" modified="2025-01-09T19:09:22.599048Z" count="1"/>
+        </bookmark:applications>
+      </metadata>
+    </info>
+  </bookmark>
+  <bookmark href="sftp://ali@192.168.1.113/" added="2025-01-14T17:37:47.731871Z" modified="2025-01-14T17:37:47.731874Z" visited="2025-01-14T17:37:47.731872Z">
+    <title>/ on 192.168.1.113</title>
+    <info>
+      <metadata owner="http://freedesktop.org">
+        <bookmark:applications>
+          <bookmark:application name="org.gnome.Nautilus" exec="&apos;org.gnome.Nautilus %u&apos;" modified="2025-01-14T17:37:47.731873Z" count="1"/>
+        </bookmark:applications>
+      </metadata>
+    </info>
+  </bookmark>
+  <bookmark href="sftp://192.168.1.114/" added="2025-03-15T13:31:29.833955Z" modified="2025-03-15T13:31:29.833958Z" visited="2025-03-15T13:31:29.833956Z">
+    <title>/ on 192.168.1.114</title>
+    <info>
+      <metadata owner="http://freedesktop.org">
+        <bookmark:applications>
+          <bookmark:application name="org.gnome.Nautilus" exec="&apos;org.gnome.Nautilus %u&apos;" modified="2025-03-15T13:31:29.833957Z" count="1"/>
+        </bookmark:applications>
+      </metadata>
+    </info>
+  </bookmark>
+  <bookmark href="smb://10.42.0.237/" added="2025-09-26T09:41:22.417970Z" modified="2025-09-26T09:41:22.417975Z" visited="2025-09-26T09:41:22.417972Z">
+    <title>Windows shares on 10.42.0.237</title>
+    <info>
+      <metadata owner="http://freedesktop.org">
+        <bookmark:applications>
+          <bookmark:application name="org.gnome.Nautilus" exec="&apos;org.gnome.Nautilus %u&apos;" modified="2025-09-26T09:41:22.417974Z" count="1"/>
+        </bookmark:applications>
+      </metadata>
+    </info>
+  </bookmark>
+  <bookmark href="sftp://ali@192.168.68.101/" added="2026-03-07T09:53:00.203782Z" modified="2026-03-07T09:53:00.203785Z" visited="2026-03-07T09:53:00.203783Z">
+    <title>/ on 192.168.68.101</title>
+    <info>
+      <metadata owner="http://freedesktop.org">
+        <bookmark:applications>
+          <bookmark:application name="org.gnome.Nautilus" exec="&apos;org.gnome.Nautilus %u&apos;" modified="2026-03-07T09:53:00.203783Z" count="1"/>
+        </bookmark:applications>
+      </metadata>
+    </info>
+  </bookmark>
+  <bookmark href="sftp://ali@192.168.68.107/" added="2026-03-16T14:57:39.543272Z" modified="2026-03-16T14:57:39.543281Z" visited="2026-03-16T14:57:39.543275Z">
+    <title>/ on 192.168.68.107</title>
+    <info>
+      <metadata owner="http://freedesktop.org">
+        <bookmark:applications>
+          <bookmark:application name="org.gnome.Nautilus" exec="&apos;org.gnome.Nautilus %u&apos;" modified="2026-03-16T14:57:39.543278Z" count="1"/>
+        </bookmark:applications>
+      </metadata>
+    </info>
+  </bookmark>
+  <bookmark href="sftp://deck@192.168.68.115/" added="2026-04-10T12:09:44.077173Z" modified="2026-04-10T12:09:44.077176Z" visited="2026-04-10T12:09:44.077175Z">
+    <title>/ on 192.168.68.115</title>
+    <info>
+      <metadata owner="http://freedesktop.org">
+        <bookmark:applications>
+          <bookmark:application name="org.gnome.Nautilus" exec="&apos;org.gnome.Nautilus %u&apos;" modified="2026-04-10T12:09:44.077175Z" count="1"/>
+        </bookmark:applications>
+      </metadata>
+    </info>
+  </bookmark>
+  <bookmark href="smb://192.168.68.115/emulation/" added="2026-04-13T17:11:01.568254Z" modified="2026-04-13T17:11:01.568257Z" visited="2026-04-13T17:11:01.568255Z">
+    <title>emulation on 192.168.68.115</title>
+    <info>
+      <metadata owner="http://freedesktop.org">
+        <bookmark:applications>
+          <bookmark:application name="org.gnome.Nautilus" exec="&apos;org.gnome.Nautilus %u&apos;" modified="2026-04-13T17:11:01.568256Z" count="1"/>
+        </bookmark:applications>
+      </metadata>
+    </info>
+  </bookmark>
+  <bookmark href="smb://192.168.68.115/" added="2026-04-13T17:11:27.245618Z" modified="2026-04-13T17:11:27.245621Z" visited="2026-04-13T17:11:27.245619Z">
+    <title>Windows shares on 192.168.68.115</title>
+    <info>
+      <metadata owner="http://freedesktop.org">
+        <bookmark:applications>
+          <bookmark:application name="org.gnome.Nautilus" exec="&apos;org.gnome.Nautilus %u&apos;" modified="2026-04-13T17:11:27.245620Z" count="1"/>
+        </bookmark:applications>
+      </metadata>
+    </info>
+  </bookmark>
+</xbel>

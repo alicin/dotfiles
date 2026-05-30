@@ -1,0 +1,54 @@
+{
+  "name": "mcu-arch",
+  "description": "Desktop workstation running Arch Linux",
+  "hostname": "mcu",
+  "os": "arch",
+  "arch": "x86_64",
+  "package_managers": {
+    "pacman": {
+      "enabled": true,
+      "file": "pacman.txt"
+    },
+    "yay": {
+      "enabled": true,
+      "file": "aur.txt"
+    },
+    "npm": { "enabled": true, "file": "npm.txt" }
+  },
+  "configs": [
+    "zsh",
+    "bat",
+    "btop",
+    "lazygit",
+    "yazi",
+    "vscode",
+    "gtk-3.0",
+    "gtk-4.0",
+    "input-remapper-2",
+    "kitty",
+    "gogcli",
+    "rclone",
+    "code-flags.conf",
+    "electron-flags.conf",
+    "electron13-flags.conf",
+    "electron25-flags.conf",
+    "mimeapps.list"
+  ],
+  "dotfiles": [".zshrc", ".gitconfig", ".editorconfig"],
+  "themes": ["fonts", "wallpapers"],
+  "scripts": {
+    "pre_install": ["prepare.sh"],
+    "post_install": [
+      "workspace.sh",
+      "permissions.sh",
+      "services.sh",
+      "finalize.sh",
+      "enable-multicore-build.sh"
+    ]
+  },
+  "environment": {
+    "BROWSER": "google-chrome-stable",
+    "TERMINAL": "kitty",
+    "XDG_SESSION_TYPE": "wayland"
+  }
+}

@@ -1,0 +1,19 @@
+set $mode_screenshot  (P)ick (O)utput + Shift for  + Ctrl for 
+
+mode "$mode_screenshot" {
+    # output = currently active output
+    $bindsym o mode "default", exec $screenshot_screen_clipboard
+    $bindsym Shift+o mode "default", exec $screenshot_screen_file
+    $bindsym Shift+Ctrl+o mode "default", exec $screenshot_screen_upload
+
+    # pick the region to screenshot
+    $bindsym p mode "default", exec $screenshot_selection_clipboard
+    $bindsym Shift+p mode "default", exec $screenshot_selection_file
+    $bindsym Shift+Ctrl+p mode "default", exec $screenshot_selection_upload
+
+    # Return to default mode.
+    $bindsym Escape mode "default"
+}
+
+## Launch // Screenshot Mode ##
+$bindsym $mod+Shift+s mode "$mode_screenshot"

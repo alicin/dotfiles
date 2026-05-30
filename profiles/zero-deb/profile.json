@@ -1,0 +1,39 @@
+{
+  "name": "zero-deb",
+  "description": "Debian home server",
+  "hostname": "mudur",
+  "os": "debian",
+  "arch": "x86_64",
+  "package_managers": {
+    "apt": { "enabled": true, "file": "apt.txt" },
+    "homebrew": { "enabled": true, "file": "Brewfile" },
+    "npm": { "enabled": true, "file": "npm.txt" }
+  },
+  "configs": [
+    "atuin",
+    "zsh",
+    "bat",
+    "btop",
+    "lazygit",
+    "yazi",
+    "gogcli",
+    "rclone",
+    "code-flags.conf",
+    "electron-flags.conf",
+    "electron13-flags.conf",
+    "electron25-flags.conf",
+    "mimeapps.list"
+  ],
+  "dotfiles": [".zshrc", ".gitconfig", ".editorconfig"],
+  "themes": ["fonts", "wallpapers"],
+  "scripts": {
+    "pre_install": ["prepare.sh"],
+    "post_install": [
+      "zero-config.sh",
+      "workspace.sh",
+      "permissions.sh",
+      "services.sh",
+      "finalize.sh"
+    ]
+  }
+}

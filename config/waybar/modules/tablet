@@ -1,0 +1,24 @@
+#!/bin/sh
+
+marker="$HOME/.cache/waybar-tablet"
+
+show() {
+    if [ -e "$marker" ]; then
+        printf '{"text": "  ", "class": "on"}\n'
+    else
+        printf '{"text": "  ", "class": "off"}\n'
+    fi
+}
+
+toggle() {
+    if [ -e "$marker" ]; then
+        squeekboard
+        rm -f "$marker"
+    else
+        killall squeekboard
+        touch "$marker"
+    fi
+    pkill -RTMIN+4 -x swaybar
+}
+
+[ $# -gt 0 ] && toggle || show

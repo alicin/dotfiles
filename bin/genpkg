@@ -1,0 +1,291 @@
+#!/bin/bash
+
+# Profile-based package dumping script
+# Usage: genpkg [--dry-run|-n] <profile_name>
+# Example: genpkg discobot-darwin
+# Example: genpkg --dry-run discobot-darwin
+
+DRY_RUN=false
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --dry-run|-n)
+            DRY_RUN=true
+            shift
+            ;;
+        *)
+            PROFILE_NAME="$1"
+            shift
+            ;;
+    esac
+done
+
+if [ -z "$PROFILE_NAME" ]; then
+    echo "Usage: $0 [--dry-run|-n] <profile_name>"
+    echo "Available profiles:"
+    ls -1 profiles/ | grep -v '^\.' 2>/dev/null || echo "  No profiles found"
+    echo ""
+    echo "Options:"
+    echo "  --dry-run, -n    Show what would be done without executing"
+    exit 1
+fi
+
+PROFILE_DIR="$HOME/labs/dotfiles/profiles/$PROFILE_NAME"
+PROFILE_JSON="$PROFILE_DIR/profile.json"
+PACKAGES_DIR="$PROFILE_DIR/packages"
+
+# Check if profile exists
+if [ ! -f "$PROFILE_JSON" ]; then
+    echo "Error: Profile '$PROFILE_NAME' not found"
+    echo "Expected profile file: $PROFILE_JSON"
+    exit 1
+fi
+
+if [ "$DRY_RUN" = true ]; then
+    echo "🔍 DRY RUN: Showing what would be done for profile: $PROFILE_NAME"
+else
+    echo "🔄 Dumping packages for profile: $PROFILE_NAME"
+fi
+
+# Create packages directory if it doesn't exist
+if [ "$DRY_RUN" = true ]; then
+    echo "📁 Would create directory: $PACKAGES_DIR (if not exists)"
+else
+    mkdir -p "$PACKAGES_DIR"
+fi
+
+# Only remove files that genpkg will regenerate (not manually maintained files like npm.txt)
+if [ "$DRY_RUN" = true ]; then
+    echo "🧹 Would clear regeneratable package files in: $PACKAGES_DIR"
+else
+    echo "🧹 Clearing regeneratable package files..."
+fi
+
+# Function to check if command exists
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+# Function to check if package manager is enabled in profile
+is_package_manager_enabled() {
+    local pm="$1"
+    # Use jq to check if package manager is enabled, fallback to grep if jq not available
+    if command_exists jq; then
+        jq -r ".package_managers.$pm.enabled // false" "$PROFILE_JSON" 2>/dev/null | grep -q "true"
+    else
+        grep -q "\"$pm\"" "$PROFILE_JSON" 2>/dev/null
+    fi
+}
+
+# Function to get package manager filename from profile
+get_package_manager_file() {
+    local pm="$1"
+    if command_exists jq; then
+        jq -r ".package_managers.$pm.file // \"$pm.txt\"" "$PROFILE_JSON" 2>/dev/null
+    else
+        # Fallback to default naming
+        case "$pm" in
+            "homebrew") echo "Brewfile" ;;
+            "dnf") echo "dnf.txt" ;;
+            "pacman") echo "pacman.txt" ;;
+            "yay") echo "aur.txt" ;;
+            "flatpak") echo "flatpak.txt" ;;
+            *) echo "$pm.txt" ;;
+        esac
+    fi
+}
+
+# Homebrew
+if is_package_manager_enabled "homebrew"; then
+    BREWFILE=$(get_package_manager_file "homebrew")
+    if command_exists brew; then
+        if [ "$DRY_RUN" = true ]; then
+            echo "📦 Would dump Homebrew packages to $BREWFILE using: brew bundle dump --force"
+        else
+            echo "📦 Dumping Homebrew packages to $BREWFILE..."
+            cd "$PACKAGES_DIR" && brew bundle dump --force
+            echo "✅ Homebrew packages dumped"
+        fi
+    else
+        if [ "$DRY_RUN" = true ]; then
+            echo "⚠️  Would skip Homebrew (brew command not found)"
+        else
+            echo "⚠️  Skipping Homebrew (brew command not found)"
+        fi
+    fi
+fi
+
+# APT (Debian/Ubuntu)
+if is_package_manager_enabled "apt"; then
+    APT_FILE=$(get_package_manager_file "apt")
+    if command_exists apt-mark; then
+        if [ "$DRY_RUN" = true ]; then
+            echo "📦 Would dump APT packages to $APT_FILE using: apt-mark showmanual"
+        else
+            echo "📦 Dumping APT packages to $APT_FILE (user-installed only, excluding base Debian packages)..."
+            comm -23 <(apt-mark showmanual | sort) <(dpkg-query -W -f='${Package}\t${Priority}\n' | grep -E 'required|important|standard' | cut -f1 | sort) > "$PACKAGES_DIR/$APT_FILE"
+            if [ $? -eq 0 ]; then
+                echo "✅ APT packages dumped ($(wc -l < "$PACKAGES_DIR/$APT_FILE") packages)"
+            else
+                echo "❌ Failed to dump APT packages"
+            fi
+        fi
+    else
+        if [ "$DRY_RUN" = true ]; then
+            echo "⚠️  Would skip APT (apt-mark command not found)"
+        else
+            echo "⚠️  Skipping APT (apt-mark command not found)"
+        fi
+    fi
+fi
+
+# DNF (Fedora)
+if is_package_manager_enabled "dnf"; then
+    DNF_FILE=$(get_package_manager_file "dnf")
+    if command_exists dnf; then
+        if [ "$DRY_RUN" = true ]; then
+            echo "📦 Would dump DNF packages to $DNF_FILE using: dnf repoquery --userinstalled"
+        else
+            echo "📦 Dumping DNF packages to $DNF_FILE..."
+            dnf repoquery --userinstalled | awk -F'-[0-9]' '{print $1}' | sort -u > "$PACKAGES_DIR/$DNF_FILE"
+            if [ $? -eq 0 ]; then
+                echo "✅ DNF packages dumped ($(wc -l < "$PACKAGES_DIR/$DNF_FILE") packages)"
+            else
+                echo "❌ Failed to dump DNF packages"
+            fi
+        fi
+    else
+        if [ "$DRY_RUN" = true ]; then
+            echo "⚠️  Would skip DNF (dnf command not found)"
+        else
+            echo "⚠️  Skipping DNF (dnf command not found)"
+        fi
+    fi
+fi
+
+# Yay/AUR (Arch Linux) - dump AUR packages first so we can filter them from pacman
+if is_package_manager_enabled "yay"; then
+    AUR_FILE=$(get_package_manager_file "yay")
+    if command_exists yay; then
+        if [ "$DRY_RUN" = true ]; then
+            echo "📦 Would dump AUR packages (yay) to $AUR_FILE using: yay -Qqm"
+        else
+            echo "📦 Dumping AUR packages (yay) to $AUR_FILE..."
+            yay -Qqm > "$PACKAGES_DIR/$AUR_FILE"
+            echo "✅ AUR packages (yay) dumped"
+        fi
+    elif command_exists pacman; then
+        if [ "$DRY_RUN" = true ]; then
+            echo "📦 Would dump AUR packages (pacman) to $AUR_FILE using: pacman -Qqm"
+        else
+            echo "📦 Dumping AUR packages (pacman) to $AUR_FILE..."
+            pacman -Qqm > "$PACKAGES_DIR/$AUR_FILE"
+            echo "✅ AUR packages (pacman) dumped"
+        fi
+    else
+        if [ "$DRY_RUN" = true ]; then
+            echo "⚠️  Would skip AUR packages (neither yay nor pacman found)"
+        fi
+    fi
+fi
+
+# Pacman (Arch Linux) - filter out AUR packages
+if is_package_manager_enabled "pacman"; then
+    PACMAN_FILE=$(get_package_manager_file "pacman")
+    AUR_FILE=$(get_package_manager_file "yay")
+    if command_exists pacman; then
+        if [ "$DRY_RUN" = true ]; then
+            echo "📦 Would dump Pacman packages to $PACMAN_FILE using: pacman -Qqe (excluding AUR packages)"
+        else
+            echo "📦 Dumping Pacman packages to $PACMAN_FILE..."
+            # Get all explicitly installed packages, then filter out AUR packages
+            if [ -f "$PACKAGES_DIR/$AUR_FILE" ]; then
+                pacman -Qqe | grep -vxFf "$PACKAGES_DIR/$AUR_FILE" > "$PACKAGES_DIR/$PACMAN_FILE"
+                echo "✅ Pacman packages dumped (AUR packages filtered out)"
+            else
+                pacman -Qqe > "$PACKAGES_DIR/$PACMAN_FILE"
+                echo "✅ Pacman packages dumped"
+            fi
+        fi
+    else
+        if [ "$DRY_RUN" = true ]; then
+            echo "⚠️  Would skip Pacman (pacman command not found)"
+        fi
+    fi
+fi
+
+# Flatpak
+if is_package_manager_enabled "flatpak"; then
+    FLATPAK_FILE=$(get_package_manager_file "flatpak")
+    if command_exists flatpak; then
+        if [ "$DRY_RUN" = true ]; then
+            echo "📦 Would dump Flatpak packages to $FLATPAK_FILE using: flatpak list --app --columns=application"
+        else
+            echo "📦 Dumping Flatpak packages to $FLATPAK_FILE..."
+            flatpak list --app --columns=application > "$PACKAGES_DIR/$FLATPAK_FILE"
+            if [ $? -eq 0 ]; then
+                echo "✅ Flatpak packages dumped ($(wc -l < "$PACKAGES_DIR/$FLATPAK_FILE") packages)"
+            else
+                echo "❌ Failed to dump Flatpak packages"
+            fi
+        fi
+    else
+        if [ "$DRY_RUN" = true ]; then
+            echo "⚠️  Would skip Flatpak (flatpak command not found)"
+        else
+            echo "⚠️  Skipping Flatpak (flatpak command not found)"
+        fi
+    fi
+fi
+
+# npm global packages (via pnpm)
+if is_package_manager_enabled "npm"; then
+    NPM_FILE=$(get_package_manager_file "npm")
+    if command_exists pnpm; then
+        if [ "$DRY_RUN" = true ]; then
+            echo "📦 Would dump global npm packages to $NPM_FILE using: pnpm list -g"
+        else
+            echo "📦 Dumping global npm packages to $NPM_FILE..."
+            pnpm list -g --depth=0 2>/dev/null | tail -n +2 | awk '{print $1}' | grep -v '^$' | sort -u > "$PACKAGES_DIR/$NPM_FILE"
+            if [ $? -eq 0 ]; then
+                echo "✅ npm packages dumped ($(wc -l < "$PACKAGES_DIR/$NPM_FILE") packages)"
+            else
+                echo "❌ Failed to dump npm packages"
+            fi
+        fi
+    elif command_exists npm; then
+        if [ "$DRY_RUN" = true ]; then
+            echo "📦 Would dump global npm packages to $NPM_FILE using: npm list -g"
+        else
+            echo "📦 Dumping global npm packages to $NPM_FILE..."
+            npm list -g --depth=0 2>/dev/null | tail -n +2 | sed 's/[├└─┬│ ]*//g' | awk -F@ '{print $1}' | grep -v '^$' | sort -u > "$PACKAGES_DIR/$NPM_FILE"
+            if [ $? -eq 0 ]; then
+                echo "✅ npm packages dumped ($(wc -l < "$PACKAGES_DIR/$NPM_FILE") packages)"
+            else
+                echo "❌ Failed to dump npm packages"
+            fi
+        fi
+    else
+        if [ "$DRY_RUN" = true ]; then
+            echo "⚠️  Would skip npm (neither pnpm nor npm found)"
+        else
+            echo "⚠️  Skipping npm (neither pnpm nor npm found)"
+        fi
+    fi
+fi
+
+# Show summary
+echo ""
+if [ "$DRY_RUN" = true ]; then
+    echo "🔍 DRY RUN complete for profile: $PROFILE_NAME"
+    echo "📁 Package files would be saved to: $PACKAGES_DIR"
+    echo "💡 Run without --dry-run to actually execute the commands"
+else
+    echo "🎉 Package dump complete for profile: $PROFILE_NAME"
+    echo "📁 Package files saved to: $PACKAGES_DIR"
+    if [ -d "$PACKAGES_DIR" ]; then
+        echo "📋 Generated files:"
+        ls -la "$PACKAGES_DIR" | grep -v '^d' | awk '{print "   " $9 " (" $5 " bytes)"}'
+    fi
+fi
