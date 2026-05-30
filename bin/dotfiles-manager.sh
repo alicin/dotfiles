@@ -175,7 +175,7 @@ verify_installation() {
     fi
     
     # Check oh-my-zsh
-    if [[ -d "${HOME}/.oh-my-zsh" ]]; then
+    if [[ -d "${ZSH:-${HOME}/.local/share/oh-my-zsh}" ]]; then
         log_substep "✓ oh-my-zsh installed"
     else
         log_substep "! oh-my-zsh not found"
