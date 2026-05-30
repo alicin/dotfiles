@@ -1,4 +1,4 @@
--- Default cross-host workspace assignments (was monitors.conf).
+-- Default cross-host workspace assignments.
 -- Per-host monitor + workspace overrides live in lua/hosts/<hostname>.lua.
 
 local desktop_monitor = "desc:XXX XYZTIUM 0x950114D8"

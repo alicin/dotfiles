@@ -1,4 +1,4 @@
--- Autostart (was startup.conf).
+-- Autostart.
 -- See https://wiki.hypr.land/Configuring/Basics/Autostart/
 --
 -- Note: hl.exec_cmd() only spawns a process when called inside an event

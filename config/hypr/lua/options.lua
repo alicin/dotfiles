@@ -1,4 +1,4 @@
--- Hyprland keyword options (was settings.conf, io.conf input/touchpad, theme.conf decoration).
+-- Hyprland keyword options.
 -- One unified hl.config() call.
 
 local theme = require("lua.theme")

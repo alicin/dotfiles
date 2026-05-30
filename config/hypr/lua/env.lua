@@ -1,4 +1,4 @@
--- Environment variables (was env.conf).
+-- Environment variables.
 -- See https://wiki.hypr.land/Configuring/Advanced-and-Cool/Environment-variables/
 
 -- Apps.

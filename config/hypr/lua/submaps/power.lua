@@ -1,4 +1,4 @@
--- Power submap: lock / exit / reboot / poweroff / suspend (was submaps/power.conf).
+-- Power submap: lock / exit / reboot / poweroff / suspend.
 -- The 2nd arg "reset" to define_submap auto-returns to the global submap after
 -- any dispatch, so we no longer need duplicate `, submap, reset` lines.
 

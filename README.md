@@ -298,7 +298,7 @@ Manual steps to complete after a successful install. These require user interact
 
 ### Workstations (Arch / Fedora)
 
-- [ ] **Hyprland** — Verify monitor config in `~/.config/hypr/monitors.conf`
+- [ ] **Hyprland** — Verify monitor config in `~/.config/hypr/lua/hosts/$HOSTNAME.lua`
 - [ ] **Flatpak apps** — Open each app once to initialize config dirs, then re-run `flatfix`
 
 ### Debian (zero-deb)

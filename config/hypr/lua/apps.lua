@@ -1,4 +1,4 @@
--- Application & command strings (was the APPS / SERVICES / POWER sections of variables.conf).
+-- Application & command strings shared by binds, startup, and host modules.
 -- Returned as a table so consumers can `local apps = require("lua.apps")` and use `apps.term`.
 
 local M = {}

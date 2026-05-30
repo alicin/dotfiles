@@ -1,4 +1,4 @@
--- Window rules (was rules.conf).
+-- Window rules.
 -- See https://wiki.hypr.land/Configuring/Basics/Window-Rules/
 
 -- ── Float everything by default; tiled exceptions come further down ──────────

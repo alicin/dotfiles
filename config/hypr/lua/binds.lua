@@ -1,4 +1,4 @@
--- Keybinds, mouse binds, and gestures (was binds.conf).
+-- Keybinds, mouse binds, and gestures.
 -- See https://wiki.hypr.land/Configuring/Basics/Binds/
 --     https://wiki.hypr.land/Configuring/Basics/Dispatchers/
 

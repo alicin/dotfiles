@@ -1,4 +1,4 @@
--- Color palette (Rosé Pine Dawn). Was the color block at the bottom of variables.conf.
+-- Color palette (Rosé Pine Dawn).
 -- Values are legacy 0xAARRGGBB strings, which Hyprland accepts in color fields.
 
 return {

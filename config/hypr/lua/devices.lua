@@ -1,4 +1,4 @@
--- Per-device input config (was the `device` blocks in io.conf).
+-- Per-device input config.
 -- See https://wiki.hypr.land/Configuring/Advanced-and-Cool/Devices/
 
 hl.device({
