@@ -1,4 +1,4 @@
-typeset -U fpath
+typeset -gU fpath
 
 for dir in /usr/share/zsh/site-functions /usr/share/zsh/vendor-completions /usr/share/zsh/functions/*(/N); do
   fpath=("$dir" $fpath)

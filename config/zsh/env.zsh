@@ -1,7 +1,28 @@
 export DOTFILESSRC="${DOTFILESSRC:-$HOME/labs/dotfiles}"
 
-export EDITOR="${EDITOR:-nano}"
-export PAGER="${PAGER:-more}"
+# Pick the first installed command from a preference list.
+_first_cmd() {
+  local cmd
+  for cmd in "$@"; do
+    if command -v "$cmd" >/dev/null 2>&1; then
+      printf '%s' "$cmd"
+      return 0
+    fi
+  done
+  return 1
+}
+
+export EDITOR="${EDITOR:-$(_first_cmd micro nano code nvim vim vi)}"
+export VISUAL="${VISUAL:-$(_first_cmd code nvim micro)}"
+export PAGER="${PAGER:-$(_first_cmd less more)}"
+
+if [[ "$(uname)" != "Darwin" ]]; then
+  # macOS resolves these via `open`/LaunchServices, so only set on Linux/BSD.
+  export BROWSER="${BROWSER:-$(_first_cmd google-chrome google-chrome-stable firefox chromium)}"
+  export TERMINAL="${TERMINAL:-$(_first_cmd kitty ghostty foot)}"
+fi
+
+unfunction _first_cmd
 
 export BUN_INSTALL="${BUN_INSTALL:-$HOME/.local/share/bun}"
 export CARGO_HOME="${CARGO_HOME:-$HOME/.local/share/cargo}"

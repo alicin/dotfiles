@@ -41,6 +41,8 @@ hl.bind(M2S .. " + S", dsp.exec_cmd("hyprctl keyword xwayland:force_zero_scaling
 hl.bind(MS .. " + S", dsp.exec_cmd(apps.grab))
 hl.bind(MS .. " + R", dsp.exec_cmd(apps.record))
 hl.bind(MS .. " + M", dsp.exec_cmd(apps.toggle_edp))
+hl.bind(MS .. " + N", dsp.exec_cmd(apps.toggle_edp_refresh))
+hl.bind(MS .. " + n", dsp.exec_cmd(apps.toggle_edp_refresh))
 
 -- ── Launchers ────────────────────────────────────────────────────────────────
 hl.bind(M  .. " + Return",  dsp.exec_cmd(apps.term))

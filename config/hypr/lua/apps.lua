@@ -57,9 +57,10 @@ M.clipboard      = "cliphist list | " .. M.dmenu .. " | cliphist decode | wl-cop
 M.clipboard_del  = "cliphist list | " .. M.dmenu .. " | cliphist delete"
 
 -- Monitor / screenshot scripts.
-M.toggle_edp = "/home/ali/labs/dotfiles/bin/toggle-edp.sh"
-M.grab       = "/home/ali/labs/dotfiles/scripts/grab.sh"
-M.record     = "/home/ali/labs/dotfiles/scripts/record.sh"
+M.toggle_edp         = "/home/ali/labs/dotfiles/bin/toggle-edp.sh"
+M.toggle_edp_refresh = "/home/ali/labs/dotfiles/bin/toggle-edp-refresh.sh"
+M.grab               = "/home/ali/labs/dotfiles/scripts/grab.sh"
+M.record             = "/home/ali/labs/dotfiles/scripts/record.sh"
 
 -- Lock / idle daemons (singleton: only spawn if not already running).
 M.locking = "pidof hyprlock || hyprlock"
