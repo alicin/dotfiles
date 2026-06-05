@@ -33,9 +33,11 @@ hl.env("XDG_SESSION_TYPE",    "wayland")
 hl.env("XDG_SESSION_DESKTOP", "Hyprland")
 
 -- Cursor theme.
-hl.env("HYPRCURSOR_THEME", "rosepine")
+-- Keep Hyprland (hyprcursor), XWayland/libXcursor, GTK, and Qt apps at a readable size.
+hl.env("HYPRCURSOR_THEME", "rose-pine-hyprcursor")
+hl.env("HYPRCURSOR_SIZE",  "32")
 hl.env("XCURSOR_THEME",    "BreezeX-RosePine-Linux")
-hl.env("XCURSOR_SIZE",     "12")
+hl.env("XCURSOR_SIZE",     "32")
 
 -- Multi-GPU device order.
 hl.env("AQ_DRM_DEVICES", "/dev/dri/card1:/dev/dri/card0")
