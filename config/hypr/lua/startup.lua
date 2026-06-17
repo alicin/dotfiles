@@ -20,9 +20,11 @@ hl.on("hyprland.start", function()
   hl.exec_cmd("hyprpaper")
 
   -- GTK theming.
-  hl.exec_cmd([[gsettings set org.gnome.desktop.interface gtk-theme "adw-gtk3"]])         -- GTK3
-  hl.exec_cmd([[gsettings set org.gnome.desktop.interface color-scheme "prefer-light"]])  -- GTK4
-  hl.exec_cmd([[gsettings set org.gnome.desktop.interface icon-theme 'rose-pine-icons']])
+  -- GNOME Tweaks writes dconf/gsettings, but bare Hyprland sessions can launch
+  -- GTK apps without the portal/xsettings bridge that applies those values.
+  -- Mirror Tweaks values into GTK's settings.ini files instead of hardcoding
+  -- theme/icon/font here.
+  hl.exec_cmd("/home/ali/.local/bin/sync-gnome-tweaks-to-gtk")
 
   -- Daemons / one-shots.
   hl.exec_cmd(apps.idle)
