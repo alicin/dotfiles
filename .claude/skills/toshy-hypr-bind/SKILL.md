@@ -73,6 +73,35 @@ Run `wev -f wl_keyboard:key` (Wayland), click the window, press the physical com
 `sym:` (e.g. `Control_R`, `Alt_L`) and `mods:` lines. This is the ground truth Hyprland binds
 on. Use it to validate the map or to handle a non-Windows keyboard type / changed Toshy prefs.
 
+## Making macOS shortcuts work *inside* a specific app (Toshy keymap, not Hyprland)
+
+If an app "has no Cmd shortcuts," it's usually NOT a detection failure — Toshy's catch-all
+"General GUI" keymap rewrites Cmd combos into ones the app ignores (common with apps that only
+take single-key binds, e.g. imv: `q`/`x`/`i`/`o`/arrows). Fix = an app-specific Toshy keymap
+that maps the Cmd combos onto the app's native keys. App keymaps are evaluated before
+"General GUI", so they win.
+
+1. Find the app's window class: `hyprctl clients -j | python3 -c "import json,sys;[print(c['class']) for c in json.load(sys.stdin)]"` (or Toshy's diagnostic: double-tap physical Cmd+Opt+Shift+I).
+2. Find the app's native keybinds (e.g. imv's are in `/etc/imv_config`).
+3. Edit `~/.config/toshy/toshy_config.py` **only inside a `SLICE_MARK_START/END` block**
+   (edits outside are lost on Toshy upgrade). The `user_apps` slice is for app keymaps.
+   In Toshy's internal combo notation `RC` = Cmd, `Alt` = Option, `C("q")` = a bare `q`. Pattern:
+   ```python
+   hmp_is_foo = matchProps(clas="^foo$")
+   keymap("foo app", {
+       C("RC-q"):   C("q"),     # Cmd+Q -> the app's quit key
+       C("RC-equal"): C("i"),   # Cmd+= -> zoom in
+   }, when = lambda ctx:
+       cnfg.screen_has_focus and ctx_ovl_macos_globals and hmp_is_foo(ctx) )
+   ```
+4. Validate + reload: `python3 -m py_compile ~/.config/toshy/toshy_config.py && systemctl --user restart toshy-config.service`.
+5. Verify it came back up (Python block-buffers stdout, so the journal may look stuck after
+   "SharedDeviceContext initialized" even when fine — check the real signal instead):
+   `grep -q XWayKeyz /proc/bus/input/devices && echo grabbed` and `systemctl --user show toshy-config.service -p NRestarts` (should stay 0, no Traceback in the journal).
+
+Note `~/.config/toshy/toshy_config.py` is NOT in the dotfiles repo; the `user_apps` slice is the
+only upgrade-safe place to keep these.
+
 ## Notes
 - The config is Lua (`config/hypr/lua/`), loaded by Hyprland's native Lua support; the `hl`
   API is documented in `/usr/share/hypr/stubs/hl.meta.lua`.
