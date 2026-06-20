@@ -64,6 +64,8 @@ M.toggle_edp         = "/home/ali/labs/dotfiles/bin/toggle-edp.sh"
 M.toggle_edp_refresh = "/home/ali/labs/dotfiles/bin/toggle-edp-refresh.sh"
 M.grab               = "/home/ali/labs/dotfiles/scripts/grab.sh"
 M.record             = "/home/ali/labs/dotfiles/scripts/record.sh"
+M.screenshot_area    = "/home/ali/labs/dotfiles/scripts/screenshot.sh"
+M.record_toggle      = "/home/ali/labs/dotfiles/scripts/screen_record.sh toggle"
 
 -- Lock / idle daemons (singleton: only spawn if not already running).
 M.locking = "pidof hyprlock || hyprlock"

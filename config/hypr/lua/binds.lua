@@ -14,6 +14,8 @@ local MC      = mod .. " + CTRL"
 local MA      = mod .. " + " .. mod2
 local M2      = mod2
 local M2S     = mod2 .. " + SHIFT"
+local C       = "CTRL"
+local CS      = "CTRL + SHIFT"
 local CA      = "CTRL + " .. mod2
 
 local dsp = hl.dsp
@@ -41,6 +43,10 @@ hl.bind(M2S .. " + S", dsp.exec_cmd("hyprctl keyword xwayland:force_zero_scaling
 -- ── Screenshot / record / monitor toggle ─────────────────────────────────────
 hl.bind(MS .. " + S", dsp.exec_cmd(apps.grab))
 hl.bind(MS .. " + R", dsp.exec_cmd(apps.record))
+-- macOS-style: Cmd+Shift+4 area screenshot, Cmd+Shift+5 toggle area recording.
+-- Cmd = physical Alt, which Toshy re-emits as Ctrl.
+hl.bind(CS .. " + 4", dsp.exec_cmd(apps.screenshot_area))
+hl.bind(CS .. " + 5", dsp.exec_cmd(apps.record_toggle))
 hl.bind(MS .. " + M", dsp.exec_cmd(apps.toggle_edp))
 hl.bind(MS .. " + N", dsp.exec_cmd(apps.toggle_edp_refresh))
 hl.bind(MS .. " + n", dsp.exec_cmd(apps.toggle_edp_refresh))
@@ -56,8 +62,9 @@ hl.bind(MS .. " + D",       dsp.exec_cmd("discord --enable-features=UseOzonePlat
 -- Clipboard history. Under Toshy, physical Cmd (the Alt key) is re-emitted as
 -- Right Control, so "Cmd + Shift + V" reaches Hyprland as CTRL + SHIFT + V.
 -- Physical Super is remapped away entirely, so MS (SUPER+SHIFT) never matches.
-hl.bind("CTRL + SHIFT + V", dsp.exec_cmd(apps.clipboard))
-hl.bind(MS .. " + P",       dsp.exec_cmd(apps.colorpicker))
+hl.bind(CS .. " + V", dsp.exec_cmd(apps.clipboard))
+-- Colorpicker on physical Cmd+Shift+P (Cmd = Alt -> Ctrl under Toshy).
+hl.bind(CS .. " + P", dsp.exec_cmd(apps.colorpicker))
 -- Original had `$modR, d` — `$modR` is an undefined variable in the old config
 -- and almost certainly a typo for `$mod`. Translating as plain mod here.
 hl.bind(M  .. " + D",       dsp.exec_cmd(apps.menu))
@@ -68,6 +75,9 @@ hl.bind(M  .. " + Tab",     dsp.exec_cmd(apps.overview))
 hl.bind(CA .. " + Delete", dsp.exit())
 hl.bind(M  .. " + Q",      dsp.window.close())
 hl.bind(MS .. " + Q",      dsp.window.kill())              -- was forcekillactive
+-- Cmd+Q closes the focused window. Toshy's General GUI keymap rewrites Cmd+Q
+-- (physical Alt+Q) to Alt+F4, so we bind Alt+F4 rather than CTRL+Q here.
+hl.bind("ALT + F4",        dsp.window.close())
 hl.bind(M  .. " + Space",  dsp.window.float({ action = "toggle" }))
 hl.bind(M  .. " + F",      dsp.window.fullscreen({ action = "toggle" }))
 hl.bind(MS .. " + F",      dsp.window.fullscreen({ action = "toggle" }))  -- duplicate kept for parity
