@@ -76,11 +76,11 @@ hl.bind(CA .. " + Delete", dsp.exit())
 hl.bind(M  .. " + Q",      dsp.window.close())              -- also Cmd+Q: Toshy maps Cmd+Q -> Super+Q (see user_apps slice in toshy_config.py). Avoids the Alt+F4 clash with workspace 9.
 hl.bind(MS .. " + Q",      dsp.window.kill())              -- was forcekillactive
 hl.bind(M  .. " + Space",  dsp.window.float({ action = "toggle" }))
+-- Cmd+F fullscreen / Cmd+Shift+F float. Toshy routes physical Cmd+F -> Super+F and
+-- Cmd+Shift+F -> Super+Shift+F (user_apps slice), bypassing its terminal/GUI "Find"
+-- remaps (e.g. terminal Cmd+F -> Ctrl+Shift+F). So these bind to SUPER.
 hl.bind(M  .. " + F",      dsp.window.fullscreen({ action = "toggle" }))
-hl.bind(MS .. " + F",      dsp.window.fullscreen({ action = "toggle" }))  -- duplicate kept for parity
--- macOS-style: Cmd+F fullscreen, Cmd+Shift+F float toggle (Cmd = physical Alt -> Ctrl).
-hl.bind(C  .. " + F",      dsp.window.fullscreen({ action = "toggle" }))
-hl.bind(CS .. " + F",      dsp.window.float({ action = "toggle" }))
+hl.bind(MS .. " + F",      dsp.window.float({ action = "toggle" }))
 hl.bind(M  .. " + P",      dsp.layout("togglesplit"))
 
 -- ── Focus ────────────────────────────────────────────────────────────────────
