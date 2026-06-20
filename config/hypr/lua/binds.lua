@@ -73,11 +73,8 @@ hl.bind(M  .. " + Tab",     dsp.exec_cmd(apps.overview))
 
 -- ── Window / session ─────────────────────────────────────────────────────────
 hl.bind(CA .. " + Delete", dsp.exit())
-hl.bind(M  .. " + Q",      dsp.window.close())
+hl.bind(M  .. " + Q",      dsp.window.close())              -- also Cmd+Q: Toshy maps Cmd+Q -> Super+Q (see user_apps slice in toshy_config.py). Avoids the Alt+F4 clash with workspace 9.
 hl.bind(MS .. " + Q",      dsp.window.kill())              -- was forcekillactive
--- Cmd+Q closes the focused window. Toshy's General GUI keymap rewrites Cmd+Q
--- (physical Alt+Q) to Alt+F4, so we bind Alt+F4 rather than CTRL+Q here.
-hl.bind("ALT + F4",        dsp.window.close())
 hl.bind(M  .. " + Space",  dsp.window.float({ action = "toggle" }))
 hl.bind(M  .. " + F",      dsp.window.fullscreen({ action = "toggle" }))
 hl.bind(MS .. " + F",      dsp.window.fullscreen({ action = "toggle" }))  -- duplicate kept for parity

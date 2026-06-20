@@ -4044,6 +4044,17 @@ keymap("imv image viewer", {
     ctx_ovl_macos_globals and
     hmp_is_imv(ctx) )
 
+# Cmd+Q -> close window, the Hyprland way. The General GUI keymap turns Cmd+Q
+# into Alt+F4, but in this Hyprland setup Alt+F4 is "switch to workspace 9"
+# (physical Super/Win+F4), so Cmd+Q was jumping workspaces. Emit Super+Q instead,
+# which Hyprland binds to window.close (Super+Q). This sits after app keymaps like
+# imv (so their own Cmd+Q wins) and before "General GUI" (so it overrides Alt+F4).
+keymap("User override - Cmd+Q is Super+Q (Hyprland close)", {
+    C("RC-Q"):                  C("Super-Q"),                   # Cmd+Q -> Super+Q -> Hyprland window.close
+}, when = lambda ctx:
+    cnfg.screen_has_focus and
+    not ctx_app_is_remote )
+
 ###  SLICE_MARK_END: user_apps  ###  EDITS OUTSIDE THESE MARKS WILL BE LOST ON UPGRADE
 ###################################################################################################
 
