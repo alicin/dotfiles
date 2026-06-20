@@ -44,8 +44,11 @@ x-scheme-handler/discord-455712169795780630=discord-455712169795780630.desktop
 x-scheme-handler/discord-424004941485572097=discord-424004941485572097.desktop
 x-scheme-handler/claude-cli=claude-code-url-handler.desktop
 x-scheme-handler/slack=slack.desktop
+x-scheme-handler/jetbrains=jetbrainsd.desktop
+text/x-python=org.gnome.TextEditor.desktop
 
 [Added Associations]
 application/json=org.gnome.TextEditor.desktop;
 application/x-trash=org.gnome.TextEditor.desktop;
 application/zip=xarchiver.desktop;org.gnome.FileRoller.desktop;
+text/x-python=org.gnome.TextEditor.desktop;

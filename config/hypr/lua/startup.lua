@@ -28,7 +28,13 @@ hl.on("hyprland.start", function()
 
   -- Daemons / one-shots.
   hl.exec_cmd(apps.idle)
-  hl.exec_cmd("dbus-update-activation-environment --systemd DISPLAY WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE XDG_CURRENT_DESKTOP")
+
+  -- When Hyprland is launched by UWSM, finalize the compositor startup and
+  -- export late compositor-provided variables into systemd/DBus activation.
+  hl.exec_cmd("uwsm check is-active && uwsm finalize XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE HYPRLAND_INSTANCE_SIGNATURE || true")
+
+  -- Harmless fallback for non-UWSM launches.
+  hl.exec_cmd("dbus-update-activation-environment --systemd DISPLAY WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE")
   hl.exec_cmd("wl-paste --type text  --watch cliphist store")
   hl.exec_cmd("wl-paste --type image --watch cliphist store")
 

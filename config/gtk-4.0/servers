@@ -103,4 +103,14 @@
       </metadata>
     </info>
   </bookmark>
+  <bookmark href="sftp://nullsector/" added="2026-06-20T19:55:07.098672Z" modified="2026-06-20T19:55:07.098676Z" visited="2026-06-20T19:55:07.098673Z">
+    <title>/ on nullsector</title>
+    <info>
+      <metadata owner="http://freedesktop.org">
+        <bookmark:applications>
+          <bookmark:application name="org.gnome.Nautilus" exec="&apos;org.gnome.Nautilus %u&apos;" modified="2026-06-20T19:55:07.098674Z" count="1"/>
+        </bookmark:applications>
+      </metadata>
+    </info>
+  </bookmark>
 </xbel>

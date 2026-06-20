@@ -18,7 +18,10 @@ if is_linux; then
         sudo systemctl enable greetd
         sudo mkdir -p /usr/lib/systemd/system/greetd.service.d/
         sudo cp "${SCRIPT_DIR}/../system/etc/00-nobleed.conf" /usr/lib/systemd/system/greetd.service.d/00-nobleed.conf
-        sudo sed -i 's/command = "agreety --cmd \/bin\/sh"/command = "tuigreet -r --remember-session --asterisks --cmd Hyprland"/' /etc/greetd/config.toml
+        sudo sed -i \
+            -e 's/command = "agreety --cmd \/bin\/sh"/command = "tuigreet -r --remember-session --asterisks --cmd '\''uwsm start -e -D Hyprland hyprland.desktop'\''"/' \
+            -e 's/command = "tuigreet -r --remember-session --asterisks --cmd Hyprland"/command = "tuigreet -r --remember-session --asterisks --cmd '\''uwsm start -e -D Hyprland hyprland.desktop'\''"/' \
+            /etc/greetd/config.toml
     fi
 
     echo "Setting up groups..."
@@ -95,6 +98,9 @@ if is_linux; then
     if command -v flatpak >/dev/null 2>&1 && [[ -d "${HOME}/.var/app" ]] && ls "${HOME}/.var/app/"* >/dev/null 2>&1; then
         source "${SCRIPT_DIR}/../bin/flatfix" || true
     fi
+
+    echo "Setting up GNOME/Toshy shortcuts..."
+    bash "${SCRIPT_DIR}/gnome-toshy-shortcuts.sh"
 
     echo "Setting up zsh..."
     sudo chsh -s /usr/bin/zsh "$(whoami)"

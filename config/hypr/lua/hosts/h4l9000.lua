@@ -35,7 +35,6 @@ hl.workspace_rule({ workspace = "12", monitor = edp, persistent = true })
 -- ── Autostart ───────────────────────────────────────────────────────────────
 hl.on("hyprland.start", function()
   hl.exec_cmd("/usr/bin/rog-control-center")
-  hl.exec_cmd("/usr/bin/kdeconnect-indicator")
 end)
 
 -- ── Host-specific binds ─────────────────────────────────────────────────────

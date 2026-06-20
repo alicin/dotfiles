@@ -1,28 +1,43 @@
-# BACKENDS
-export SDL_VIDEODRIVER=wayland
-export CLUTTER_BACKEND=wayland
-export GSK_RENDERER=ngl
+# UWSM session environment for Hyprland.
+# Sourced by uwsm before starting the compositor, then exported to the
+# systemd --user and D-Bus activation environments.
 
-# QT
-export QT_QPA_PLATFORM=wayland;xcb
-export QT_AUTO_SCREEN_SCALE_FACTOR=1
-export QT_SCALE_FACTOR=1
-export QT_WAYLAND_DISABLE_WINDOWDECORATION=1
-export QT_QPA_PLATFORMTHEME=qt5ct
+# Apps.
+export TERMINAL="kitty"
+export EDITOR="code"
+export FILE_BROWSER="yazi"
+export BROWSER="google-chrome-stable"
+export MOZ_ENABLE_WAYLAND="1"
 
-# GDK
-export GDK_SCALE=1
-export GDK_BACKEND=wayland,x11,*
+# Backends.
+export SDL_VIDEODRIVER="wayland"
+export CLUTTER_BACKEND="wayland"
 
-# ELECTRON
-export ELECTRON_OZONE_PLATFORM_HINT=wayland
+# Qt.
+export QT_QPA_PLATFORM="wayland;xcb"
+export QT_AUTO_SCREEN_SCALE_FACTOR="1"
+export QT_SCALE_FACTOR="1"
+export QT_WAYLAND_DISABLE_WINDOWDECORATION="1"
+export QT_QPA_PLATFORMTHEME="qt5ct"
 
-# XDG
-export XDG_CURRENT_DESKTOP=Hyprland
-export XDG_SESSION_TYPE=wayland
-export XDG_SESSION_DESKTOP=Hyprland
+# GDK / GTK.
+export GDK_SCALE="1"
+export GDK_BACKEND="wayland,x11,*"
+export GSK_RENDERER="ngl"
 
-# THEME
-export HYPRCURSOR_THEME=rosepine
-export XCURSOR_THEME=BreezeX-RosePine-Linux
-export XCURSOR_SIZE=12
+# Electron.
+export ELECTRON_OZONE_PLATFORM_HINT="wayland"
+
+# XDG.
+export XDG_CURRENT_DESKTOP="Hyprland"
+export XDG_SESSION_TYPE="wayland"
+export XDG_SESSION_DESKTOP="Hyprland"
+
+# Cursor theme.
+export HYPRCURSOR_THEME="rose-pine-hyprcursor"
+export HYPRCURSOR_SIZE="32"
+export XCURSOR_THEME="BreezeX-RosePine-Linux"
+export XCURSOR_SIZE="32"
+
+# Multi-GPU device order.
+export AQ_DRM_DEVICES="/dev/dri/card1:/dev/dri/card0"
