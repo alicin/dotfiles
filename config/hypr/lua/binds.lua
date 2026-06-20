@@ -78,6 +78,9 @@ hl.bind(MS .. " + Q",      dsp.window.kill())              -- was forcekillactiv
 hl.bind(M  .. " + Space",  dsp.window.float({ action = "toggle" }))
 hl.bind(M  .. " + F",      dsp.window.fullscreen({ action = "toggle" }))
 hl.bind(MS .. " + F",      dsp.window.fullscreen({ action = "toggle" }))  -- duplicate kept for parity
+-- macOS-style: Cmd+F fullscreen, Cmd+Shift+F float toggle (Cmd = physical Alt -> Ctrl).
+hl.bind(C  .. " + F",      dsp.window.fullscreen({ action = "toggle" }))
+hl.bind(CS .. " + F",      dsp.window.float({ action = "toggle" }))
 hl.bind(M  .. " + P",      dsp.layout("togglesplit"))
 
 -- ── Focus ────────────────────────────────────────────────────────────────────
@@ -131,8 +134,10 @@ hl.bind(MA .. " + l", dsp.window.move({ x = 20, y = 0,   relative = true }), { r
 hl.bind(MA .. " + h", dsp.window.move({ x = -20, y = 0,  relative = true }), { repeating = true })
 
 -- ── Mouse: drag / resize floating windows ────────────────────────────────────
-hl.bind(M .. " + mouse:272", dsp.window.drag(),   { mouse = true })
-hl.bind(M .. " + mouse:273", dsp.window.resize(), { mouse = true })
+-- Physical Super + drag. Toshy re-emits physical Super as ALT, so these bind to
+-- ALT, not SUPER (which never reaches Hyprland from the physical Super key).
+hl.bind(mod2 .. " + mouse:272", dsp.window.drag(),   { mouse = true })
+hl.bind(mod2 .. " + mouse:273", dsp.window.resize(), { mouse = true })
 
 -- ── Gestures ─────────────────────────────────────────────────────────────────
 hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
