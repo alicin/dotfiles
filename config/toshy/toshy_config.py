@@ -4048,19 +4048,13 @@ keymap("imv image viewer", {
     ctx_ovl_macos_globals and
     hmp_is_imv(ctx) )
 
-# Hyprland global shortcuts routed through Super+<key>, which Hyprland binds
-# directly. This bypasses Toshy's General GUI / terminal keymaps that would
-# otherwise rewrite these into app combos:
-#   - Cmd+Q -> Alt+F4 (which is Hyprland's "workspace 9" -> jumped workspaces)
-#   - Cmd+F -> Ctrl+F / terminal Ctrl+Shift+F (Find) -> hit the float bind
-#   - Cmd+Shift+V picker would collide with terminal Cmd+V (-> Ctrl+Shift+V paste)
-# Sits after app keymaps like imv (so their own combos win) and before the
-# General GUI / terminal keymaps (so it overrides their defaults).
+# Cmd+Q -> close window, the Hyprland way. The General GUI keymap turns Cmd+Q into
+# Alt+F4, but Alt+F4 is Hyprland's "workspace 9" bind, so Cmd+Q jumped workspaces.
+# Emit Super+Q instead, which Hyprland binds to window.close. (Fullscreen, float and
+# clipboard moved to the physical Super/Win key = ALT, so they no longer need routing
+# here and Cmd+F / Cmd+Shift+F / Cmd+Shift+V now reach apps normally.)
 keymap("User overrides - Hyprland global shortcuts", {
-    C("RC-Q"):                  C("Super-Q"),                   # Cmd+Q       -> Super+Q       -> window.close
-    C("RC-F"):                  C("Super-F"),                   # Cmd+F       -> Super+F       -> fullscreen
-    C("Shift-RC-F"):            C("Super-Shift-F"),             # Cmd+Shift+F -> Super+Shift+F -> float toggle
-    C("Shift-RC-V"):            C("Super-Shift-V"),             # Cmd+Shift+V -> Super+Shift+V -> clipboard picker
+    C("RC-Q"):                  C("Super-Q"),                   # Cmd+Q -> Super+Q -> window.close
 }, when = lambda ctx:
     cnfg.screen_has_focus and
     not ctx_app_is_remote )

@@ -49,7 +49,6 @@ hl.bind(CS .. " + 4", dsp.exec_cmd(apps.screenshot_area))
 hl.bind(CS .. " + 5", dsp.exec_cmd(apps.record_toggle))
 hl.bind(MS .. " + M", dsp.exec_cmd(apps.toggle_edp))
 hl.bind(MS .. " + N", dsp.exec_cmd(apps.toggle_edp_refresh))
-hl.bind(MS .. " + n", dsp.exec_cmd(apps.toggle_edp_refresh))
 
 -- ── Launchers ────────────────────────────────────────────────────────────────
 hl.bind(M  .. " + Return",  dsp.exec_cmd(apps.term))
@@ -59,13 +58,11 @@ hl.bind(MS .. " + Return",  dsp.exec_cmd(apps.term_float))
 hl.bind(MA .. " + Return",  dsp.exec_cmd(apps.term_float_portrait))
 hl.bind(M2S .. " + Return", dsp.exec_cmd(apps.editor .. " --enable-features=UseOzonePlatform,WaylandWindowDecorations --ozone-platform=wayland"))
 hl.bind(MS .. " + D",       dsp.exec_cmd("discord --enable-features=UseOzonePlatform,WaylandWindowDecorations --ozone-platform=wayland"))
--- Clipboard history picker. Bound to SUPER+SHIFT+V, not CTRL+SHIFT+V: in a
--- terminal Toshy rewrites Cmd+V (paste) to Ctrl+Shift+V, which would otherwise
--- hit this and pop the picker instead of pasting. Toshy routes Cmd+Shift+V ->
--- Super+Shift+V (user_apps slice), so the picker fires without that clash.
-hl.bind(MS .. " + V", dsp.exec_cmd(apps.clipboard))
--- Colorpicker on physical Cmd+Shift+P (Cmd = Alt -> Ctrl under Toshy).
-hl.bind(CS .. " + P", dsp.exec_cmd(apps.colorpicker))
+-- Clipboard history picker on physical Super+V. Toshy emits the physical Super/Win
+-- key as ALT, so this binds to ALT+V. Cmd+V (physical Alt) stays paste in apps/terminals.
+hl.bind(M2 .. " + V", dsp.exec_cmd(apps.clipboard))
+-- Colorpicker on physical Super+Shift+P (physical Super/Win -> ALT). Frees Cmd+Shift+P for apps.
+hl.bind(M2S .. " + P", dsp.exec_cmd(apps.colorpicker))
 -- Original had `$modR, d` — `$modR` is an undefined variable in the old config
 -- and almost certainly a typo for `$mod`. Translating as plain mod here.
 hl.bind(M  .. " + D",       dsp.exec_cmd(apps.menu))
@@ -76,12 +73,10 @@ hl.bind(M  .. " + Tab",     dsp.exec_cmd(apps.overview))
 hl.bind(CA .. " + Delete", dsp.exit())
 hl.bind(M  .. " + Q",      dsp.window.close())              -- also Cmd+Q: Toshy maps Cmd+Q -> Super+Q (see user_apps slice in toshy_config.py). Avoids the Alt+F4 clash with workspace 9.
 hl.bind(MS .. " + Q",      dsp.window.kill())              -- was forcekillactive
-hl.bind(M  .. " + Space",  dsp.window.float({ action = "toggle" }))
--- Cmd+F fullscreen / Cmd+Shift+F float. Toshy routes physical Cmd+F -> Super+F and
--- Cmd+Shift+F -> Super+Shift+F (user_apps slice), bypassing its terminal/GUI "Find"
--- remaps (e.g. terminal Cmd+F -> Ctrl+Shift+F). So these bind to SUPER.
-hl.bind(M  .. " + F",      dsp.window.fullscreen({ action = "toggle" }))
-hl.bind(MS .. " + F",      dsp.window.float({ action = "toggle" }))
+-- Fullscreen + float/tile toggle on the physical Super/Win key (Toshy emits it as
+-- ALT). Frees Cmd+F / Cmd+Shift+F to reach apps (Find) again.
+hl.bind(M2 .. " + F",      dsp.window.fullscreen({ action = "toggle" }))
+hl.bind(M2 .. " + Space",  dsp.window.float({ action = "toggle" }))
 hl.bind(M  .. " + P",      dsp.layout("togglesplit"))
 
 -- ── Focus ────────────────────────────────────────────────────────────────────

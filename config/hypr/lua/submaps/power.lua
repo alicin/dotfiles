@@ -3,9 +3,10 @@
 -- any dispatch, so we no longer need duplicate `, submap, reset` lines.
 
 local apps = require("lua.apps")
-local mod  = "SUPER"
 
-hl.bind(mod .. " + SHIFT + E", hl.dsp.submap("power"),
+-- Enter on physical Super+Escape. Toshy emits the physical Super/Win key as ALT,
+-- so this binds to ALT+Escape. (Super+Shift+E is the monitor "setup-external" bind.)
+hl.bind("ALT + escape", hl.dsp.submap("power"),
   { description = "Enter power submap: (l)ock (e)xit (r)eset (p)oweroff (s)uspend" })
 
 hl.define_submap("power", "reset", function()
