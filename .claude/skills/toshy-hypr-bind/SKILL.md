@@ -54,6 +54,11 @@ Caveat: Hyprland's modmask can't distinguish Left vs Right Ctrl, so a `CTRL+...`
 catches a literal Left-Ctrl press inside a terminal (where Left Ctrl stays Ctrl). Usually
 harmless because the user pastes with Cmd; mention it if relevant.
 
+The `Cmd → CTRL` row above works for app-style shortcuts (clipboard, colorpicker, screenshots)
+but is the WRONG approach for **window-management** actions (close/fullscreen/float/maximize):
+Toshy's keymaps rewrite many Cmd combos before Hyprland sees them, and the result is
+context-dependent. For those, use the "route via Super" pattern below instead.
+
 ## Procedure to add/fix a bind
 
 1. Identify the **physical** combo the user wants.
@@ -99,8 +104,65 @@ that maps the Cmd combos onto the app's native keys. App keymaps are evaluated b
    "SharedDeviceContext initialized" even when fine — check the real signal instead):
    `grep -q XWayKeyz /proc/bus/input/devices && echo grabbed` and `systemctl --user show toshy-config.service -p NRestarts` (should stay 0, no Traceback in the journal).
 
-Note `~/.config/toshy/toshy_config.py` is NOT in the dotfiles repo; the `user_apps` slice is the
-only upgrade-safe place to keep these.
+`toshy_config.py` and `toshy_user_preferences.sqlite` ARE tracked in the dotfiles repo at
+`config/toshy/` (symlinked into `~/.config/toshy/`); see `config/toshy/README.md`. Only the
+`SLICE_MARK` blocks are user edits — keep changes inside them. A Toshy upgrade may replace the
+file and orphan the symlink; if `ls -l ~/.config/toshy/toshy_config.py` is no longer a symlink,
+re-link it (command in that README).
+
+## Window-management shortcuts: route via Super+<key> (the robust pattern)
+
+For WM actions, do NOT bind the naive `Cmd→Ctrl` translation. Toshy's "General GUI" / terminal
+keymaps rewrite many Cmd combos, and the result collides or varies by context. Observed:
+- **Cmd+Q → Alt+F4** (General GUI default). But `Alt+F4` is the Hyprland bind for *workspace 9*
+  (physical Super/Win+F4), so Cmd+Q jumped workspaces.
+- **Cmd+F → Ctrl+F** in GUI apps but **Ctrl+Shift+F** (Find) in terminals. So a `CTRL+F`/
+  `CTRL+SHIFT+F` bind fired inconsistently (Alt+F floated only in terminals).
+
+Fix = sidestep all of that by emitting a literal `Super+<key>` from Toshy and binding that in
+Hyprland (Toshy can emit Super even though it remaps the physical Super key away on input):
+
+1. In `toshy_config.py`, in the **`user_apps` slice**, add ONE override keymap, placed *after*
+   app-specific keymaps (so e.g. imv's own Cmd+Q still wins) and *before* "General GUI":
+   ```python
+   keymap("User overrides - window management (Hyprland)", {
+       C("RC-Q"):        C("Super-Q"),        # Cmd+Q       -> close
+       C("RC-F"):        C("Super-F"),        # Cmd+F       -> fullscreen
+       C("Shift-RC-F"):  C("Super-Shift-F"),  # Cmd+Shift+F -> float
+   }, when = lambda ctx:
+       cnfg.screen_has_focus and not ctx_app_is_remote )
+   ```
+2. Bind the Super combos in `config/hypr/lua/binds.lua` (`M`=SUPER, `MS`=SUPER+SHIFT):
+   `hl.bind(M .. " + Q", dsp.window.close())`, `hl.bind(M .. " + F", ...fullscreen)`, etc.
+3. Restart Toshy + reload Hyprland (see verify steps above).
+
+Tradeoff: this makes Cmd+<key> a global WM action everywhere (e.g. Cmd+F no longer reaches apps
+as Find). That's usually what's wanted for these; flag it to the user.
+
+## Modifier + mouse-drag: first click misses (xwaykeyz suspend)
+
+Symptom: physical Super+drag fails on the *first* click after pressing Super, but works on
+later clicks while Super stays held; release+re-press and the first click misses again. Not
+focus-related.
+
+Cause: xwaykeyz **suspends** a remapped modifier (Super→Alt) on press and only flushes it to
+the compositor when a key-combo resolves or after `timeouts.suspend`. Mouse clicks aren't seen
+by the keymapper (it grabs keyboards only), so they don't flush it — the first drag sees no Alt
+held. Fix: lower `timeouts.suspend` in the **`keymapper_api` slice** of `toshy_config.py` from
+`1` to `0.1` (its comment literally suggests 0.1 for pointer devices), then restart Toshy.
+
+Two related must-dos for Super+mouse drag:
+- Bind the **emitted** modifier: physical Super → `ALT`, so `hl.bind("ALT + mouse:272", dsp.window.drag(), {mouse=true})` (272=LMB move, 273=RMB resize).
+- For *tiled* windows to actually move (not just swap-on-release), set Hyprland
+  `dwindle:precise_mouse_move = true` (in `config/hypr/lua/options.lua`).
+
+## Editable (upgrade-safe) slices in toshy_config.py
+
+All live between `### SLICE_MARK_START: <name> ###` / `... END ###` markers; edits outside them
+are lost on Toshy upgrade. The ones we use:
+- `keymapper_api` — `timeouts()`, `throttle_delays()`, diagnostic keys.
+- `user_custom_modmaps` — change which physical key maps to which modifier.
+- `user_apps` — app-specific keymaps and the window-management override keymap.
 
 ## Notes
 - The config is Lua (`config/hypr/lua/`), loaded by Hyprland's native Lua support; the `hl`
