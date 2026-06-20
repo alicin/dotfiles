@@ -137,6 +137,19 @@ start)
 stop)
     stopRecording
     ;;
+toggle)
+    # macOS Cmd+Shift+5 style: first press selects a region and starts
+    # recording; second press stops and saves it.
+    if checkRecording; then
+        stopRecording
+    else
+        startRecording "$1" region "$HOME/Videos" >/dev/null
+        notify-send "Recording started" "Region — press the shortcut again to stop." \
+            -i video-x-generic \
+            -a "Screen Recorder" \
+            -t 4000
+    fi
+    ;;
 status)
     if checkRecording; then
         echo "recording"
