@@ -48,7 +48,11 @@ emergency_eject_key(Key.F16)    # default key: F16
 
 timeouts(
     multipurpose        = 1,        # default: 1 sec
-    suspend             = 1,        # default: 1 sec, try 0.1 sec for touchpads/trackpads
+    # Lowered from 1s: a suspended (remapped) modifier like physical Super->Alt is
+    # only flushed to the compositor after this timeout when no key-combo follows.
+    # Mouse clicks aren't seen by the keymapper, so with 1s the first Super+drag
+    # missed (Alt not yet emitted). 0.1s makes the modifier active near-instantly.
+    suspend             = 0.1,      # default: 1 sec, try 0.1 sec for touchpads/trackpads
 )
 
 # Delays often needed for Wayland and/or virtual machines or slow systems
