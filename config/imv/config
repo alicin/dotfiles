@@ -1,0 +1,63 @@
+# imv config. Based on the distro default (/etc/imv_config) with one key change:
+# scaling_mode = shrink, so images are only ever scaled DOWN to fit the window,
+# never enlarged. The default "full" mode upscales small images (e.g. screenshots)
+# past 100%, which looks muddy — especially on this 1.33x fractional-scaled display.
+
+[options]
+# Only shrink to fit; never upscale. Small images show at crisp 100%.
+scaling_mode = shrink
+# If an image ever is upscaled, keep edges sharp-ish.
+upscaling_method = nearest_neighbour
+
+# Suppress built-in key bindings and specify them explicitly below.
+suppress_default_binds = true
+
+[aliases]
+
+[binds]
+# Quit / close
+q = quit
+
+# Image navigation
+<Left> = prev
+<bracketleft> = prev
+<Right> = next
+<bracketright> = next
+gg = goto 1
+<Shift+G> = goto -1
+
+# Panning
+j = pan 0 -50
+k = pan 0 50
+h = pan 50 0
+l = pan -50 0
+
+# Zooming
+<Up> = zoom 1
+<Shift+plus> = zoom 1
+i = zoom 1
+<Down> = zoom -1
+<minus> = zoom -1
+o = zoom -1
+
+# Rotate clockwise by 90 degrees
+<Ctrl+r> = rotate by 90
+
+# Other commands
+x = close
+f = fullscreen
+d = overlay
+p = exec echo $imv_current_file
+c = center
+s = scaling next
+<Shift+S> = upscaling next
+a = zoom actual
+r = reset
+
+# Gif playback
+<period> = next_frame
+<space> = toggle_playing
+
+# Slideshow control
+t = slideshow +1
+<Shift+T> = slideshow -1
