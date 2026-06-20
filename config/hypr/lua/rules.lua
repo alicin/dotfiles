@@ -109,6 +109,11 @@ hl.window_rule({
 -- No shadow on any floating window (cuts shadow render cost).
 hl.window_rule({ match = { float = true }, no_shadow = true })
 
+-- ── Layer rules ──────────────────────────────────────────────────────────────
+-- wofi: plain fade in/out, no scale/slide. The fade speed is set by the `fade`
+-- animation leaf in lua/animations.lua (cranked up so it's snappy).
+hl.layer_rule({ match = { namespace = "^(wofi)$" }, animation = "fade" })
+
 -- ── Special workspace assignments ────────────────────────────────────────────
 hl.window_rule({
   match     = { title = "^(meet.google.com is sharing a window.)$" },

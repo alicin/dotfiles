@@ -12,6 +12,7 @@ local M       = mod
 local MS      = mod .. " + SHIFT"
 local MC      = mod .. " + CTRL"
 local MA      = mod .. " + " .. mod2
+local M2      = mod2
 local M2S     = mod2 .. " + SHIFT"
 local CA      = "CTRL + " .. mod2
 
@@ -52,7 +53,10 @@ hl.bind(MS .. " + Return",  dsp.exec_cmd(apps.term_float))
 hl.bind(MA .. " + Return",  dsp.exec_cmd(apps.term_float_portrait))
 hl.bind(M2S .. " + Return", dsp.exec_cmd(apps.editor .. " --enable-features=UseOzonePlatform,WaylandWindowDecorations --ozone-platform=wayland"))
 hl.bind(MS .. " + D",       dsp.exec_cmd("discord --enable-features=UseOzonePlatform,WaylandWindowDecorations --ozone-platform=wayland"))
-hl.bind(MS .. " + V",       dsp.exec_cmd(apps.clipboard))
+-- Clipboard history. Under Toshy, physical Cmd (the Alt key) is re-emitted as
+-- Right Control, so "Cmd + Shift + V" reaches Hyprland as CTRL + SHIFT + V.
+-- Physical Super is remapped away entirely, so MS (SUPER+SHIFT) never matches.
+hl.bind("CTRL + SHIFT + V", dsp.exec_cmd(apps.clipboard))
 hl.bind(MS .. " + P",       dsp.exec_cmd(apps.colorpicker))
 -- Original had `$modR, d` — `$modR` is an undefined variable in the old config
 -- and almost certainly a typo for `$mod`. Translating as plain mod here.
@@ -91,9 +95,13 @@ local ws_keys = {
   [1] = "1", [2] = "2", [3] = "3", [4] = "4",  [5] = "5",
   [6] = "F1", [7] = "F2", [8] = "F3", [9] = "F4", [10] = "F5", [11] = "F6", [12] = "F7",
 }
+-- NOTE: Under Toshy the physical Super/Win key is re-emitted as ALT (it is the
+-- macOS "Option" key in Toshy's layout), so to switch/move with the physical
+-- Super key these bind to ALT / ALT+SHIFT, not SUPER. See the toshy-hypr-bind
+-- skill for the full physical->emitted modifier map.
 for ws, key in pairs(ws_keys) do
-  hl.bind(M  .. " + " .. key, dsp.focus({ workspace = ws }))
-  hl.bind(MS .. " + " .. key, dsp.window.move({ workspace = ws, follow = false }))
+  hl.bind(M2  .. " + " .. key,         dsp.focus({ workspace = ws }))
+  hl.bind(M2S   .. " + " .. key,         dsp.window.move({ workspace = ws, follow = false }))
 end
 
 -- ── Special workspaces ───────────────────────────────────────────────────────

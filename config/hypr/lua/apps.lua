@@ -19,7 +19,10 @@ M.editor      = "code"
 M.overview    = "qs ipc -c overview call overview toggle"
 
 -- Menus.
-M.menu  = "ali"
+-- M.menu  = "ali"
+-- `pkill wofi ||` makes the bind a toggle: if wofi is already open, the
+-- keypress closes it instead of spawning a second instance.
+M.menu  = "pkill wofi || wofi --show drun --allow-images"
 M.dmenu = "wofi -i --show dmenu"
 -- Window switcher: select a client via wofi and focus it. Uses [==[ ]==]
 -- (level-2 long brackets) because the shell snippet contains [[:blank:]].
