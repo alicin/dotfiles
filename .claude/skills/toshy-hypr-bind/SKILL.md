@@ -118,6 +118,10 @@ keymaps rewrite many Cmd combos, and the result collides or varies by context. O
   (physical Super/Win+F4), so Cmd+Q jumped workspaces.
 - **Cmd+F → Ctrl+F** in GUI apps but **Ctrl+Shift+F** (Find) in terminals. So a `CTRL+F`/
   `CTRL+SHIFT+F` bind fired inconsistently (Alt+F floated only in terminals).
+- **Cmd+V → Ctrl+V** in GUI but **Ctrl+Shift+V** (paste) in terminals — so a
+  `CTRL+SHIFT+V` clipboard-picker bind hijacked terminal Cmd+V (paste popped the picker). Moved
+  the picker to `SUPER+SHIFT+V` and routed `Cmd+Shift+V → Super+Shift+V`. General lesson: never
+  bind a Hyprland global to `CTRL+SHIFT+<x>` if terminals map a common Cmd combo to it.
 
 Fix = sidestep all of that by emitting a literal `Super+<key>` from Toshy and binding that in
 Hyprland (Toshy can emit Super even though it remaps the physical Super key away on input):

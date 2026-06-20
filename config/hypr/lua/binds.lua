@@ -59,10 +59,11 @@ hl.bind(MS .. " + Return",  dsp.exec_cmd(apps.term_float))
 hl.bind(MA .. " + Return",  dsp.exec_cmd(apps.term_float_portrait))
 hl.bind(M2S .. " + Return", dsp.exec_cmd(apps.editor .. " --enable-features=UseOzonePlatform,WaylandWindowDecorations --ozone-platform=wayland"))
 hl.bind(MS .. " + D",       dsp.exec_cmd("discord --enable-features=UseOzonePlatform,WaylandWindowDecorations --ozone-platform=wayland"))
--- Clipboard history. Under Toshy, physical Cmd (the Alt key) is re-emitted as
--- Right Control, so "Cmd + Shift + V" reaches Hyprland as CTRL + SHIFT + V.
--- Physical Super is remapped away entirely, so MS (SUPER+SHIFT) never matches.
-hl.bind(CS .. " + V", dsp.exec_cmd(apps.clipboard))
+-- Clipboard history picker. Bound to SUPER+SHIFT+V, not CTRL+SHIFT+V: in a
+-- terminal Toshy rewrites Cmd+V (paste) to Ctrl+Shift+V, which would otherwise
+-- hit this and pop the picker instead of pasting. Toshy routes Cmd+Shift+V ->
+-- Super+Shift+V (user_apps slice), so the picker fires without that clash.
+hl.bind(MS .. " + V", dsp.exec_cmd(apps.clipboard))
 -- Colorpicker on physical Cmd+Shift+P (Cmd = Alt -> Ctrl under Toshy).
 hl.bind(CS .. " + P", dsp.exec_cmd(apps.colorpicker))
 -- Original had `$modR, d` — `$modR` is an undefined variable in the old config
