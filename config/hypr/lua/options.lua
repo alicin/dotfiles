@@ -52,6 +52,10 @@ hl.config({
     -- `pseudotile` is no longer a dwindle config option in 0.55; it became a
     -- per-window action only. Use `hl.dsp.window.pseudo()` from a keybind.
     preserve_split = true,
+    -- Drag-move a tiled window to its exact drop position (insert at the cursor)
+    -- instead of only swapping with the target on release. Makes Super+drag
+    -- actually reposition tiled windows around the layout.
+    precise_mouse_move = true,
   },
 
   master = {
