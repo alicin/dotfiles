@@ -1,0 +1,6 @@
+brew "starship"
+brew "atuin"
+brew "lazygit"
+brew "btop"
+brew "yazi"
+brew "bat"

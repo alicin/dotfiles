@@ -1,0 +1,19 @@
+{
+  "name": "nullsector-deb",
+  "description": "Debian headless CLI box",
+  "hostname": "nullsector",
+  "os": "debian",
+  "arch": "x86_64",
+  "package_managers": {
+    "apt": { "enabled": true, "file": "apt.txt" },
+    "homebrew": { "enabled": true, "file": "Brewfile" },
+    "npm": { "enabled": true, "file": "npm.txt" }
+  },
+  "configs": ["zsh", "atuin", "bat", "btop", "lazygit", "yazi"],
+  "dotfiles": [".zshrc", ".gitconfig", ".editorconfig"],
+  "themes": [],
+  "scripts": {
+    "pre_install": ["nullsector-prep.sh"],
+    "post_install": ["workspace.sh", "permissions.sh"]
+  }
+}

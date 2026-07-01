@@ -1,0 +1,14 @@
+zsh
+git
+curl
+wget
+ca-certificates
+gnupg
+build-essential
+jq
+micro
+trash-cli
+thefuck
+fastfetch
+openssh-server
+rsync

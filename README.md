@@ -21,6 +21,7 @@ This dotfiles system is organized around **profiles** that represent specific co
 | `k3v1n-arch`      | Minisforum V3 running Arch Linux       | Arch    | x86_64       |
 | `mcu-arch`        | Desktop workstation running Arch Linux | Arch    | x86_64       |
 | `mcu-win`         | Desktop workstation running Windows    | Windows | x86_64       |
+| `nullsector-deb`  | Debian headless CLI box                | Debian  | x86_64       |
 | `zero-deb`        | Debian home server                     | Debian  | x86_64       |
 
 ## Quick Start
@@ -90,6 +91,12 @@ dotfiles/
 │   │   └── packages/
 │   │       ├── winget.txt      # Winget packages
 │   │       └── scoop.txt       # Scoop packages
+│   ├── nullsector-deb/         # Debian headless CLI box profile
+│   │   ├── profile.json
+│   │   └── packages/
+│   │       ├── apt.txt         # APT packages
+│   │       ├── Brewfile        # Homebrew packages
+│   │       └── npm.txt         # Global npm packages
 │   └── zero-deb/               # Debian home server profile
 │       ├── profile.json
 │       └── packages/
