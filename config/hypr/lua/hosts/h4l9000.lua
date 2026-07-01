@@ -7,7 +7,7 @@ local vertical = "desc:LG Electronics LG HDR 4K 0x0007FDE4"
 -- ── Monitors ────────────────────────────────────────────────────────────────
 hl.monitor({ output = edp,    mode = "2560x1600@240", position = "187x1296",  scale = 1.33 })
 hl.monitor({ output = horizontal,     mode = "3840x2160@60",  position = "0x0",       scale = 1.67 })
-hl.monitor({ output = vertical, mode = "3840x2160@60",  position = "2304x-620", scale = 1.67, transform = 3 })
+hl.monitor({ output = vertical, mode = "3840x2160@60",  position = "2304x-620", scale = 1.33, transform = 3 })
 
 -- ── Per-host workspace assignments (override lua/monitors.lua defaults) ─────
 local dp1 = horizontal

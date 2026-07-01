@@ -70,7 +70,7 @@
   "menus.clock.time.hideSeconds": false,
   "menus.clock.weather.location": "Izmir",
   "menus.clock.weather.unit": "metric",
-  "menus.dashboard.stats.enable_gpu": true,
+  "menus.dashboard.stats.enable_gpu": false,
   "wallpaper.image": "",
   "theme.bar.menus.background": "#19161d",
   "theme.bar.background": "#11111b",

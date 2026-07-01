@@ -476,6 +476,7 @@ def create_list_of_dicts(lst: 'list[str]'):
 
 terminals = [
     "alacritty",
+    ".*floating_shell.*",               # Ali's custom --class floating scratchpad shells (kitty/ghostty)
     # "com.mitchellh.ghostty",          # Replaced with double-wildcard ghostty pattern
     "com.raggesilver.BlackBox",
     "com.system76.CosmicTerm",

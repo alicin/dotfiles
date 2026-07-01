@@ -39,5 +39,45 @@ export HYPRCURSOR_SIZE="32"
 export XCURSOR_THEME="BreezeX-RosePine-Linux"
 export XCURSOR_SIZE="32"
 
-# Multi-GPU device order.
-export AQ_DRM_DEVICES="/dev/dri/card1:/dev/dri/card0"
+# ── GPU: mode-aware environment ─────────────────────────────────────────────
+# Re-evaluated at every login. A supergfx mode switch (`supergfxctl -m ...`)
+# always logs you out, so the right GPU setup is picked automatically on the way
+# back in -- no daemon/hook needed.
+#
+# AQ_DRM_DEVICES (the compositor's GPU) MUST stay colon-free: it is ':'-delimited,
+# and a by-path name contains colons -> Aquamarine "Found no gpus" -> crash loop.
+# We point it at the colon-free ~/.config/hypr/igpu symlink (-> Intel card via the
+# udev by-path link), which also survives card0/card1 renumbering.
+#
+# Game-GPU policy (chosen 2026-06-25):
+#   Integrated / Vfio  -> dGPU unavailable; force everything onto the Intel iGPU.
+#   Hybrid             -> games default to the nvidia dGPU (PRIME offload);
+#                         compositor and video decode stay on the iGPU.
+#   AsusMuxDgpu        -> nvidia drives the panel directly; everything on nvidia.
+# Per-app override either way: `igpu-run <cmd>` / `dgpu-run <cmd>`.
+_gfx="$(/usr/bin/supergfxctl -g 2>/dev/null)"
+case "$_gfx" in
+  Integrated|Vfio)
+    export AQ_DRM_DEVICES="$HOME/.config/hypr/igpu"
+    export MESA_VK_DEVICE_SELECT="8086:7d51!"     # Vulkan (DXVK/vkd3d) -> Intel
+    export __GLX_VENDOR_LIBRARY_NAME="mesa"        # GLX -> Intel
+    export DRI_PRIME=0
+    export LIBVA_DRIVER_NAME="iHD"                 # VA-API video -> Intel
+    unset __NV_PRIME_RENDER_OFFLOAD __VK_LAYER_NV_optimus
+    ;;
+  AsusMuxDgpu)
+    unset AQ_DRM_DEVICES                           # nvidia drives the panel (MUX)
+    export __GLX_VENDOR_LIBRARY_NAME="nvidia"
+    export LIBVA_DRIVER_NAME="nvidia"
+    unset MESA_VK_DEVICE_SELECT DRI_PRIME __NV_PRIME_RENDER_OFFLOAD __VK_LAYER_NV_optimus
+    ;;
+  *)  # Hybrid (and any unrecognized mode): compositor on iGPU, games on dGPU
+    export AQ_DRM_DEVICES="$HOME/.config/hypr/igpu"
+    export __NV_PRIME_RENDER_OFFLOAD=1
+    export __GLX_VENDOR_LIBRARY_NAME="nvidia"       # GLX games -> nvidia
+    export __VK_LAYER_NV_optimus="NVIDIA_only"      # Vulkan games -> nvidia only
+    export LIBVA_DRIVER_NAME="iHD"                  # keep video decode on the iGPU
+    unset MESA_VK_DEVICE_SELECT DRI_PRIME
+    ;;
+esac
+unset _gfx

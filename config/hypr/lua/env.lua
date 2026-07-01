@@ -39,5 +39,14 @@ hl.env("HYPRCURSOR_SIZE",  "32")
 hl.env("XCURSOR_THEME",    "BreezeX-RosePine-Linux")
 hl.env("XCURSOR_SIZE",     "32")
 
--- Multi-GPU device order.
-hl.env("AQ_DRM_DEVICES", "/dev/dri/card1:/dev/dri/card0")
+-- GPU device pin (compositor).
+-- The AUTHORITATIVE, supergfx-mode-aware GPU/game environment lives in
+-- ~/.config/uwsm/env (sourced before the compositor launches; that is the path
+-- tuigreet's remembered session uses). This line is only a safe static fallback
+-- for a bare `--cmd Hyprland` launch that bypasses uwsm -- correct for the
+-- Integrated/Hybrid desktop modes; in AsusMuxDgpu (MUX) mode use the uwsm session.
+-- NOTE: AQ_DRM_DEVICES is ':'-delimited, so the value must NOT contain colons.
+-- A raw by-path name (pci-0000:00:02.0-card) is split on its own colons into
+-- garbage -> "Found no gpus" -> CBackend::create() failed -> crash loop. The
+-- colon-free ~/.config/hypr/igpu symlink chains through the udev by-path link.
+hl.env("AQ_DRM_DEVICES", "/home/ali/.config/hypr/igpu")

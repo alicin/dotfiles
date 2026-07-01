@@ -1,0 +1,25 @@
+[Unit]
+# systemd USER service (installed to ~/.config/systemd/user/ by
+# scripts/deploy-h4l9000-sys.sh, which substitutes the @PLACEHOLDERS@).
+# Runs as the logged-in user and is tied to the graphical session so the
+# desktop collector (hyprctl) and the rest (nvidia-smi / sensors / pacman /
+# pactl / bluetoothctl) inherit the Hyprland/Wayland environment.
+Description=h4l9000-sys — laptop telemetry for the j4rv15 dashboard
+PartOf=graphical-session.target
+After=graphical-session.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/ali/labs/src/nullsector/j4rv15/apps/h4l9000-sys
+# Run TypeScript directly via tsx (source-first, in-place from the repo).
+ExecStart=/usr/bin/node /home/ali/labs/src/nullsector/j4rv15/apps/h4l9000-sys/node_modules/tsx/dist/cli.mjs /home/ali/labs/src/nullsector/j4rv15/apps/h4l9000-sys/src/server.ts
+# `always` (not on-failure): if all binds fail the process exits 0, and we still
+# want systemd to retry once the port frees up / the session is ready.
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+Environment=NODE_NO_WARNINGS=1
+
+[Install]
+WantedBy=graphical-session.target
