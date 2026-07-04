@@ -12,10 +12,7 @@ local M       = mod
 local MS      = mod .. " + SHIFT"
 local MC      = mod .. " + CTRL"
 local MA      = mod .. " + " .. mod2
-local M2      = mod2
 local M2S     = mod2 .. " + SHIFT"
-local C       = "CTRL"
-local CS      = "CTRL + SHIFT"
 local CA      = "CTRL + " .. mod2
 
 local dsp = hl.dsp
@@ -43,12 +40,9 @@ hl.bind(M2S .. " + S", dsp.exec_cmd("hyprctl keyword xwayland:force_zero_scaling
 -- ── Screenshot / record / monitor toggle ─────────────────────────────────────
 hl.bind(MS .. " + S", dsp.exec_cmd(apps.grab))
 hl.bind(MS .. " + R", dsp.exec_cmd(apps.record))
--- macOS-style: Cmd+Shift+4 area screenshot, Cmd+Shift+5 toggle area recording.
--- Cmd = physical Alt, which Toshy re-emits as Ctrl.
-hl.bind(CS .. " + 4", dsp.exec_cmd(apps.screenshot_area))
-hl.bind(CS .. " + 5", dsp.exec_cmd(apps.record_toggle))
 hl.bind(MS .. " + M", dsp.exec_cmd(apps.toggle_edp))
 hl.bind(MS .. " + N", dsp.exec_cmd(apps.toggle_edp_refresh))
+hl.bind(MS .. " + n", dsp.exec_cmd(apps.toggle_edp_refresh))
 
 -- ── Launchers ────────────────────────────────────────────────────────────────
 hl.bind(M  .. " + Return",  dsp.exec_cmd(apps.term))
@@ -58,11 +52,8 @@ hl.bind(MS .. " + Return",  dsp.exec_cmd(apps.term_float))
 hl.bind(MA .. " + Return",  dsp.exec_cmd(apps.term_float_portrait))
 hl.bind(M2S .. " + Return", dsp.exec_cmd(apps.editor .. " --enable-features=UseOzonePlatform,WaylandWindowDecorations --ozone-platform=wayland"))
 hl.bind(MS .. " + D",       dsp.exec_cmd("discord --enable-features=UseOzonePlatform,WaylandWindowDecorations --ozone-platform=wayland"))
--- Clipboard history picker on physical Super+V. Toshy emits the physical Super/Win
--- key as ALT, so this binds to ALT+V. Cmd+V (physical Alt) stays paste in apps/terminals.
-hl.bind(M2 .. " + V", dsp.exec_cmd(apps.clipboard))
--- Colorpicker on physical Super+Shift+P (physical Super/Win -> ALT). Frees Cmd+Shift+P for apps.
-hl.bind(M2S .. " + P", dsp.exec_cmd(apps.colorpicker))
+hl.bind(MS .. " + V",       dsp.exec_cmd(apps.clipboard))
+hl.bind(MS .. " + P",       dsp.exec_cmd(apps.colorpicker))
 -- Original had `$modR, d` — `$modR` is an undefined variable in the old config
 -- and almost certainly a typo for `$mod`. Translating as plain mod here.
 hl.bind(M  .. " + D",       dsp.exec_cmd(apps.menu))
@@ -71,12 +62,11 @@ hl.bind(M  .. " + Tab",     dsp.exec_cmd(apps.overview))
 
 -- ── Window / session ─────────────────────────────────────────────────────────
 hl.bind(CA .. " + Delete", dsp.exit())
-hl.bind(M  .. " + Q",      dsp.window.close())              -- also Cmd+Q: Toshy maps Cmd+Q -> Super+Q (see user_apps slice in toshy_config.py). Avoids the Alt+F4 clash with workspace 9.
+hl.bind(M  .. " + Q",      dsp.window.close())
 hl.bind(MS .. " + Q",      dsp.window.kill())              -- was forcekillactive
--- Fullscreen + float/tile toggle on the physical Super/Win key (Toshy emits it as
--- ALT). Frees Cmd+F / Cmd+Shift+F to reach apps (Find) again.
-hl.bind(M2 .. " + F",      dsp.window.fullscreen({ action = "toggle" }))
-hl.bind(M2 .. " + Space",  dsp.window.float({ action = "toggle" }))
+hl.bind(M  .. " + Space",  dsp.window.float({ action = "toggle" }))
+hl.bind(M  .. " + F",      dsp.window.fullscreen({ action = "toggle" }))
+hl.bind(MS .. " + F",      dsp.window.fullscreen({ action = "toggle" }))  -- duplicate kept for parity
 hl.bind(M  .. " + P",      dsp.layout("togglesplit"))
 
 -- ── Focus ────────────────────────────────────────────────────────────────────
@@ -101,13 +91,9 @@ local ws_keys = {
   [1] = "1", [2] = "2", [3] = "3", [4] = "4",  [5] = "5",
   [6] = "F1", [7] = "F2", [8] = "F3", [9] = "F4", [10] = "F5", [11] = "F6", [12] = "F7",
 }
--- NOTE: Under Toshy the physical Super/Win key is re-emitted as ALT (it is the
--- macOS "Option" key in Toshy's layout), so to switch/move with the physical
--- Super key these bind to ALT / ALT+SHIFT, not SUPER. See the toshy-hypr-bind
--- skill for the full physical->emitted modifier map.
 for ws, key in pairs(ws_keys) do
-  hl.bind(M2  .. " + " .. key,         dsp.focus({ workspace = ws }))
-  hl.bind(M2S   .. " + " .. key,         dsp.window.move({ workspace = ws, follow = false }))
+  hl.bind(M  .. " + " .. key, dsp.focus({ workspace = ws }))
+  hl.bind(MS .. " + " .. key, dsp.window.move({ workspace = ws, follow = false }))
 end
 
 -- ── Special workspaces ───────────────────────────────────────────────────────
@@ -130,10 +116,8 @@ hl.bind(MA .. " + l", dsp.window.move({ x = 20, y = 0,   relative = true }), { r
 hl.bind(MA .. " + h", dsp.window.move({ x = -20, y = 0,  relative = true }), { repeating = true })
 
 -- ── Mouse: drag / resize floating windows ────────────────────────────────────
--- Physical Super + drag. Toshy re-emits physical Super as ALT, so these bind to
--- ALT, not SUPER (which never reaches Hyprland from the physical Super key).
-hl.bind(mod2 .. " + mouse:272", dsp.window.drag(),   { mouse = true })
-hl.bind(mod2 .. " + mouse:273", dsp.window.resize(), { mouse = true })
+hl.bind(M .. " + mouse:272", dsp.window.drag(),   { mouse = true })
+hl.bind(M .. " + mouse:273", dsp.window.resize(), { mouse = true })
 
 -- ── Gestures ─────────────────────────────────────────────────────────────────
 hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
