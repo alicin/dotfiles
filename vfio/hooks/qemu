@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# /etc/libvirt/hooks/qemu — libvirt dispatches every domain lifecycle event here.
+# Routes only the `win11` domain's prepare/release to the VFIO scripts. Everything
+# else is a no-op. Installed by vfio/scripts/setup-host.sh (with prepare.sh/release.sh
+# under /etc/libvirt/hooks/vfio/). libvirt runs this as root.
+#
+# Args: $1=domain  $2=operation  $3=sub-operation  $4=extra
+GUEST="${1:-}"
+OP="${2:-}"
+SUBOP="${3:-}"
+
+[ "$GUEST" = "win11" ] || exit 0
+
+case "$OP/$SUBOP" in
+  prepare/begin) exec /etc/libvirt/hooks/vfio/prepare.sh "$@" ;;
+  release/end)   exec /etc/libvirt/hooks/vfio/release.sh "$@" ;;
+esac
+exit 0

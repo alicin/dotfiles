@@ -1,0 +1,2 @@
+# Let the user (kvm group) open the Looking Glass KVMFR device without root.
+SUBSYSTEM=="kvmfr", OWNER="ali", GROUP="kvm", MODE="0660"

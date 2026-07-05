@@ -1,0 +1,16 @@
+# --- Add to /etc/libvirt/qemu.conf, then: sudo systemctl restart libvirtd ---
+#
+# Setting cgroup_device_acl REPLACES libvirt's default list, so the defaults are repeated
+# here plus /dev/kvmfr0 and the evdev nodes the win11 domain passes through.
+# (Native <input type='evdev'> usually auto-adds the evdev nodes, but listing them is safe.)
+
+cgroup_device_acl = [
+    "/dev/null", "/dev/full", "/dev/zero",
+    "/dev/random", "/dev/urandom",
+    "/dev/ptmx", "/dev/kvm",
+    "/dev/rtc", "/dev/hpet",
+    "/dev/kvmfr0",
+    "/dev/input/by-id/usb-Razer_Razer_Naga_V2_HyperSpeed_000000000000-event-mouse",
+    "/dev/input/by-id/usb-Razer_Razer_Naga_V2_HyperSpeed_000000000000-if02-event-kbd",
+    "/dev/input/by-path/platform-i8042-serio-0-event-kbd"
+]
