@@ -109,6 +109,11 @@ hl.window_rule({
 -- No shadow on any floating window (cuts shadow render cost).
 hl.window_rule({ match = { float = true }, no_shadow = true })
 
+-- Looking Glass: let the client tear so its `egl:vsync=no` isn't negated by the
+-- compositor's frame queue (lowest video latency for the passthrough VM).
+-- Requires `general { allow_tearing = true }` in lua/options.lua.
+hl.window_rule({ match = { class = "^(looking-glass-client)$" }, immediate = true })
+
 -- ── Layer rules ──────────────────────────────────────────────────────────────
 -- wofi: plain fade in/out, no scale/slide. The fade speed is set by the `fade`
 -- animation leaf in lua/animations.lua (cranked up so it's snappy).
