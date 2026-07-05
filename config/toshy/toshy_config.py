@@ -2356,8 +2356,8 @@ modmap("Cond modmap - GUI - Win kbd - multi_lang OFF", {
 modmap("Cond modmap - GUI - Win kbd", {
     # - Default Mac/Win
     # - Default Win
-    Key.LEFT_CTRL:              Key.LEFT_META,                  # WinMac
-    # LEFT_ALT (Cmd) and LEFT_META (Opt) handled by the held companions / Super tap multis
+    Key.LEFT_CTRL:              Key.LEFT_CTRL,                  # ALI: Ctrl stays native (was ->LEFT_META). Ctrl is native for SIGINT/apps.
+    # LEFT_ALT (Cmd) handled by the "Cmd held" companion below. LEFT_META (Super) stays native for Hyprland (see Opt-held self-map).
 }, when = lambda ctx:
     cnfg.screen_has_focus and
     ctx_kbd_is_windows and
@@ -2372,7 +2372,7 @@ modmap("Cond modmap - GUI - Win kbd - Cmd held", {
     not ctx_app_is_terminal and not ctx_app_is_remote
 )
 modmap("Cond modmap - GUI - Win kbd - Opt held", {
-    Key.LEFT_META:              Key.LEFT_ALT,                   # WinMac - Opt (held)
+    Key.LEFT_META:              Key.LEFT_META,                  # ALI: Super stays native (was ->LEFT_ALT/Opt). Physical Super = Hyprland WM key.
 }, when = lambda ctx:
     not cnfg.l_opt_is_sup_and_opt and
     cnfg.screen_has_focus and
@@ -2482,7 +2482,7 @@ modmap("Cond modmap - Terms - Win kbd - Cmd held", {
     ctx_app_is_terminal
 )
 modmap("Cond modmap - Terms - Win kbd - Opt held", {
-    Key.LEFT_META:              Key.LEFT_ALT,                   # WinMac - Opt (held)
+    Key.LEFT_META:              Key.LEFT_META,                  # ALI: Super stays native (was ->LEFT_ALT/Opt). Physical Super = Hyprland WM key.
 }, when = lambda ctx:
     not cnfg.l_opt_is_sup_and_opt and
     cnfg.screen_has_focus and
@@ -4049,13 +4049,54 @@ keymap("imv image viewer", {
     ctx_ovl_macos_globals and
     hmp_is_imv(ctx) )
 
-# Cmd+Q -> close window, the Hyprland way. The General GUI keymap turns Cmd+Q into
-# Alt+F4, but Alt+F4 is Hyprland's "workspace 9" bind, so Cmd+Q jumped workspaces.
-# Emit Super+Q instead, which Hyprland binds to window.close. (Fullscreen, float and
-# clipboard moved to the physical Super/Win key = ALT, so they no longer need routing
-# here and Cmd+F / Cmd+Shift+F / Cmd+Shift+V now reach apps normally.)
+# ── ALI: physical Super = Hyprland WM key ────────────────────────────────────
+# Modifier scheme (2026-07-05): physical Alt = Cmd (mac shortcuts, terminal-aware),
+# physical Super = NATIVE Super owned by Hyprland, physical Ctrl = native.
+# Toshy's "General GUI" layer maps Super-a/e/b/f/n/p/k/d + Super-Backspace/Delete to
+# emacs-style navigation (in the old Win-kbd scheme those were driven by physical Ctrl,
+# which used to become LEFT_META). Now physical Super feeds LEFT_META directly, so that
+# layer would hijack the WM keys (Super+D launcher, Super+F fullscreen, Super+E files,
+# Super+P split). This keymap is defined BEFORE "General GUI"; xwaykeyz uses first-match
+# in _KEYMAPS order, so it passes the whole Super layer straight through to Hyprland.
+keymap("ALI - pass physical Super through to Hyprland (WM)", {
+    C("Super-a"):               C("Super-a"),
+    C("Super-b"):               C("Super-b"),
+    C("Super-d"):               C("Super-d"),
+    C("Super-e"):               C("Super-e"),
+    C("Super-f"):               C("Super-f"),
+    C("Super-k"):               C("Super-k"),
+    C("Super-n"):               C("Super-n"),
+    C("Super-p"):               C("Super-p"),
+    C("Super-Backspace"):       C("Super-Backspace"),
+    C("Super-Delete"):          C("Super-Delete"),
+    C("RC-F3"):                 ignore_combo,                   # kill stray General-GUI Cmd+F3 -> Super+D emitter
+}, when = lambda ctx:
+    cnfg.screen_has_focus and
+    not ctx_app_is_remote )
+
+# Cmd+Q -> Super+Q -> Hyprland window.close (Cmd = physical Alt). Without this the
+# General GUI keymap turns Cmd+Q into Alt+F4, which is Hyprland's workspace-9 bind.
 keymap("User overrides - Hyprland global shortcuts", {
     C("RC-Q"):                  C("Super-Q"),                   # Cmd+Q -> Super+Q -> window.close
+    C("Shift-RC-Slash"):        C("Super-Slash"),               # Cmd+Shift+/ (Alt+Shift+?) -> Super+/ -> shortcuts overlay
+}, when = lambda ctx:
+    cnfg.screen_has_focus and
+    not ctx_app_is_remote )
+
+# Super = the mac "Option" key for ARROWS: word-wise text navigation + selection.
+# Emits Ctrl+arrows (the Linux word-jump combo) so it works in GUI apps AND terminals.
+# Window focus/move live on Super+hjkl in Hyprland, so plain Ctrl+arrows stays free to
+# reach the focused app. (Cmd = physical Alt keeps line-start/end + line selection.)
+keymap("ALI - Super = Option key (arrows nav/select, Enter)", {
+    C("Super-Left"):            C("C-Left"),                    # jump word left
+    C("Super-Right"):           C("C-Right"),                   # jump word right
+    C("Super-Up"):              C("C-Up"),                      # (VSCode: scroll up)
+    C("Super-Down"):            C("C-Down"),                    # (VSCode: scroll down)
+    C("Shift-Super-Left"):      C("Shift-C-Left"),              # select word left
+    C("Shift-Super-Right"):     C("Shift-C-Right"),             # select word right
+    C("Shift-Super-Up"):        C("Shift-C-Up"),                # (VSCode: add cursor above)
+    C("Shift-Super-Down"):      C("Shift-C-Down"),              # (VSCode: add cursor below)
+    C("Super-Enter"):           C("Alt-Enter"),                 # Super+Enter = macOS Option+Enter
 }, when = lambda ctx:
     cnfg.screen_has_focus and
     not ctx_app_is_remote )
