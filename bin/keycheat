@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Toggle the keyboard-shortcuts overlay: open if closed, close if open.
+# (Matches on "keycheat-overlay" so it never matches this wrapper's own name.)
+if pgrep -f 'keycheat-overlay' >/dev/null 2>&1; then
+    pkill -f 'keycheat-overlay'
+else
+    exec python3 /home/ali/labs/dotfiles/bin/keycheat-overlay.py
+fi
