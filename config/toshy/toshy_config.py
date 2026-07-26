@@ -4101,6 +4101,62 @@ keymap("ALI - Super = Option key (arrows nav/select, Enter)", {
     cnfg.screen_has_focus and
     not ctx_app_is_remote )
 
+# yazi is a file manager, but it runs inside a terminal, so "General File Managers -
+# Finder Mods" never sees it (that keymap matches on GUI file manager window classes)
+# and "General Terminals" claims the Cmd combos instead: Cmd+C -> Ctrl+Shift+C,
+# Cmd+V -> Ctrl+Shift+V, Cmd+Backspace -> Ctrl+U, and so on. Worse, kitty itself
+# consumes Ctrl+Shift+ C/V/T/W/N as its own copy/paste/tab shortcuts, so those combos
+# never reach yazi at all. Matching on the window TITLE ("Yazi: <dir>", which yazi
+# sets via OSC) instead of the class catches it in any terminal, and this keymap sits
+# ahead of both the kitty and General Terminals keymaps, so it wins. Outputs are yazi's
+# own native keys wherever one exists, so this survives a keymap.toml rewrite.
+hmp_is_yazi                     = matchProps(name="^Yazi:.*$")
+keymap("yazi file manager - Finder Mods", {
+    ### Clipboard
+    C("RC-c"):                  C("y"),                         # Cmd+C -> yank (copy)
+    C("RC-x"):                  C("x"),                         # Cmd+X -> yank --cut
+    C("RC-v"):                  C("p"),                         # Cmd+V -> paste
+    C("Shift-RC-v"):            C("Shift-p"),                   # Cmd+Shift+V -> paste --force
+    C("RC-a"):                  C("C-a"),                       # Cmd+A -> select all
+    ### Navigation
+    C("RC-Up"):                 C("h"),                         # Cmd+Up    -> enclosing folder
+    C("RC-Down"):               C("Enter"),                     # Cmd+Down  -> open
+    C("RC-Left"):               C("Shift-h"),                   # Cmd+Left  -> back
+    C("RC-Right"):              C("Shift-l"),                   # Cmd+Right -> forward
+    C("RC-Left_Brace"):         C("Shift-h"),                   # Cmd+[     -> back
+    C("RC-Right_Brace"):        C("Shift-l"),                   # Cmd+]     -> forward
+    C("RC-l"):                 [C("g"),C("Space")],             # Cmd+L     -> jump/location (cd --interactive)
+    ### File operations
+    C("RC-Backspace"):          C("d"),                         # Cmd+Delete       -> move to trash
+    C("Shift-RC-Backspace"):    C("Shift-d"),                   # Cmd+Shift+Delete -> delete permanently
+    C("Shift-RC-n"):            C("a"),                         # Cmd+Shift+N -> create (end name with / for a folder)
+    C("RC-i"):                  C("Tab"),                       # Cmd+I -> Get Info (spot)
+    C("RC-f"):                  C("f"),                         # Cmd+F -> filter
+    C("Shift-RC-dot"):          C("Dot"),                       # Cmd+Shift+. -> toggle hidden files
+    ### Tabs
+    C("RC-t"):                 [C("t"),C("t")],                 # Cmd+T -> new tab
+    C("RC-w"):                  C("C-w"),                       # Cmd+W -> close tab (keymap.toml bind)
+    C("Shift-RC-Left_Brace"):   C("Left_Brace"),                # Cmd+Shift+[ -> prior tab
+    C("Shift-RC-Right_Brace"):  C("Right_Brace"),               # Cmd+Shift+] -> next tab
+    C("Shift-RC-Left"):         C("Left_Brace"),                # Cmd+Shift+Left  -> prior tab
+    C("Shift-RC-Right"):        C("Right_Brace"),               # Cmd+Shift+Right -> next tab
+    C("RC-1"):                  C("1"),                         # Cmd+1..9 -> switch to tab N
+    C("RC-2"):                  C("2"),
+    C("RC-3"):                  C("3"),
+    C("RC-4"):                  C("4"),
+    C("RC-5"):                  C("5"),
+    C("RC-6"):                  C("6"),
+    C("RC-7"):                  C("7"),
+    C("RC-8"):                  C("8"),
+    C("RC-9"):                  C("9"),
+    ### Blocked: yazi has no undo, and a bare Ctrl+Z would suspend it into the
+    ### background — which reads as "yazi crashed" to anyone expecting macOS undo.
+    C("RC-z"):                  ignore_combo,                   # Cmd+Z -> nothing
+}, when = lambda ctx:
+    cnfg.screen_has_focus and
+    ctx_ovl_finder_mods and
+    hmp_is_yazi(ctx) )
+
 ###  SLICE_MARK_END: user_apps  ###  EDITS OUTSIDE THESE MARKS WILL BE LOST ON UPGRADE
 ###################################################################################################
 
