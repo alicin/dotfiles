@@ -16,12 +16,12 @@ import Quickshell.Io
 // brightnessctl behind our back: that way the OSD reacts on the keypress rather
 // than whenever a poll next happens to run.
 //
-// The keyboard backlight can't work that way. This laptop's Fn key for it never
-// reaches the compositor — no input device here even declares KEY_KBDILLUMUP
-// (checked the evdev capability bitmaps: the Asus WMI hotkeys device exposes
-// volume, mic-mute and display brightness, and nothing for the keyboard light),
-// so a hyprland bind on XF86KbdBrightnessUp is dead config and always was.
-// asusd handles that key itself, so we listen to *it* instead — see kbdWatcher.
+// The keyboard backlight can't work that way, and can't be intercepted at all.
+// Its Fn key produces *no* input event on any device — logged every evdev event
+// on all 19 devices across dozens of presses and nothing appears, which matches
+// the capability bitmaps (no device declares KEY_KBDILLUMUP). asusd doesn't
+// announce it either. The firmware changes the LED and the only trace is in
+// sysfs, so the only thing that can work is watching sysfs — see kbdHwPoll.
 Singleton {
     id: root
 
@@ -45,6 +45,10 @@ Singleton {
     // 0..kbdMax, integer steps
     property int kbd: 0
     property int kbdMax: 3
+
+    // Last level the *firmware* reported, -1 before the first read. Separate
+    // from `kbd` because kbd also moves for software writes.
+    property int kbdHw: -1
 
     property bool kbdAvailable: true
 
@@ -112,37 +116,49 @@ Singleton {
         onTriggered: root.refresh()
     }
 
-    // asusd owns the keyboard-light Fn key on this hardware and republishes the
-    // level as xyz.ljones.Aura.Brightness, so its PropertiesChanged is the only
-    // event there is for "the user changed the keyboard backlight".
+    // `brightness_hw_changed`, not `brightness`. The LED core writes it only for
+    // *hardware*-initiated changes, so it is precisely "the user pressed the
+    // key" and nothing else: hypridle blanking the light on idle and our own
+    // writes below are software, never appear in it, and need no filtering.
     //
-    // Conveniently it is *also* exactly the right filter: asusd only signals for
-    // changes that went through asusd, so hypridle blanking the light on idle
-    // (a raw brightnessctl write) stays silent, and so do our own writes below.
+    // It's also 0.03ms to read against 1.9ms for `brightness`, which goes out
+    // over WMI to the EC — cheap enough to poll at 120ms and so catch every
+    // step of a key repeat (measured ~170ms apart) instead of just the last.
     //
-    // Matched on the interface rather than the object path, which carries the
-    // device id (/xyz/ljones/aura/19b6_2_6).
-    //
-    // stdbuf because gdbus block-buffers when its stdout is a pipe, which would
-    // sit on an OSD trigger until the next signal pushed it out. setpriv
-    // because this is the shell's only long-lived child: `qs kill` reaps it
-    // properly, but a bare SIGTERM to the process leaves it orphaned, and one
-    // accumulates per restart.
-    Process {
-        id: kbdWatcher
+    // Polled rather than poll()ed: the attribute does support sysfs_notify, but
+    // reaching POLLPRI from QML would mean a helper process babysitting a file
+    // descriptor, and at 0.03% of a core that buys nothing.
+    FileView {
+        id: kbdHwFile
+
+        path: `/sys/class/leds/${root.kbdDev}/brightness_hw_changed`
+        blockLoading: true
+        blockAllReads: true
+        printErrors: false // -ENODATA until the key has been pressed once
+    }
+
+    Timer {
+        id: kbdHwPoll
 
         running: true
-        command: ["setpriv", "--pdeathsig", "TERM", "--", "stdbuf", "-oL", "gdbus", "monitor", "--system", "--dest", "xyz.ljones.Asusd"]
-
-        stdout: SplitParser {
-            onRead: line => {
-                const m = line.match(/xyz\.ljones\.Aura'.*'Brightness': <uint32 (\d+)>/);
-                if (!m)
-                    return;
-                root.kbd = parseInt(m[1], 10);
-                root.kbdAvailable = true;
-                root.kbdChangedExternally();
-            }
+        interval: 120
+        repeat: true
+        onTriggered: {
+            kbdHwFile.reload();
+            const level = parseInt(kbdHwFile.text(), 10);
+            if (isNaN(level) || level === root.kbdHw)
+                return;
+            // The attribute persists across shell restarts and across software
+            // writes, so the value found on the first read is history — it may
+            // not even be the current level. Record it, but don't let it
+            // overwrite what the reader below saw, and don't announce it.
+            const known = root.kbdHw >= 0;
+            root.kbdHw = level;
+            if (!known)
+                return;
+            root.kbd = level;
+            root.kbdAvailable = true;
+            root.kbdChangedExternally();
         }
     }
 

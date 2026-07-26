@@ -47,29 +47,31 @@ Hyprland wiring (`~/.config/hypr/lua/`):
   drawn full-strength even when collapsed — it's the affordance for a whole
   hidden row, and a dimmed one read as a disabled control rather than "there's
   more over here"; the reveal is its own hover feedback.
-- **Privacy lights** (`modules/bar/PrivacyStatus.qml`) — macOS-style: a glyph
-  appears immediately left of the tray ellipsis *only* while something is
-  actually using the camera (green) or the microphone (amber). Presence is the
-  signal, so neither has an idle state; both fade and scale in, because a thing
-  appearing out of nowhere in the corner of a bar is easy to miss and a moving
-  thing isn't. Being first in a right-anchored Row, they come and go without
-  shifting anything else along the bar. Clicking the mic mutes it.
-  - The mic keys off **active capture**, not the mute switch: an unmuted mic
-    with nothing listening isn't a privacy event, and an indicator lit all day
-    is one you stop seeing. A muted mic shows nothing at all — if nothing can
-    hear you there's nothing to warn about.
-  - Capture is detected as *the existence of a PipeWire link group* on the
-    source node. Its `state` is deliberately not consulted: PipeWire reports
-    these as Unlinked (-1) here even mid-recording, tracked or not, so
-    filtering on Active never matches — while the group itself appears and
-    disappears exactly with the client (measured: 0 idle, 1 through a capture,
-    0 after). Read off the global `Pipewire.linkGroups` rather than a
-    `PwNodeLinkTracker`, which wants both ends bound before it reports anything
-    and stayed empty. This also distinguishes a real mic capture from a screen
-    recording grabbing desktop audio off a monitor, which a
-    `Stream/Input/Audio` filter would have flagged as someone listening.
-  - The Sound page names **who** is listening (`Audio.micUsers`), since a bar
-    glyph can say *that* something is but not *what*.
+- **Privacy lights** (`modules/bar/PrivacyStatus.qml`) — filled squircles with
+  white glyphs, immediately left of the tray ellipsis, sized to the same height
+  as the active workspace pill so both ends of the bar agree on how big a
+  container is. Presence is the signal, so neither has an idle state: a **green
+  camera** while a webcam is open, an **amber mic** while the mic is live (not
+  muted). Clicking the mic mutes it, which also makes it disappear — the light
+  is both the warning and the switch that clears it. Both fade and scale in,
+  because appearing out of nowhere in the corner of a bar is easy to miss and a
+  moving thing isn't.
+  - Badges rather than bare glyphs because a coloured icon on transparent bar
+    chrome is at the mercy of the wallpaper behind it, while a solid fill
+    carries its own contrast and reads as a status light instead of one more
+    clickable icon. Their fills (`Theme.privacyCam` / `privacyMic`) are
+    deliberately **not** per-theme: these are safety indicators whose job is to
+    be unmistakable — macOS keeps its camera/mic dots identical in light and
+    dark for the same reason — and they have to carry a white glyph, which
+    `barOk`/`barWarn` can't, being foreground tints that are pale pastels in
+    mocha.
+  - The mic tracks the **mute switch**, not whether something is currently
+    capturing: the question it answers is whether anything *could* be
+    listening, and what happens to be connected this second doesn't change the
+    exposure.
+  - The Sound page separately names **who** is listening (`Audio.micUsers`,
+    from live PipeWire link groups on the source node), since a bar glyph can
+    say that something is but not what.
   - Camera detection is `/sys/module/uvcvideo/refcnt` (`services/Camera.qml`):
     one 25µs read covers every UVC device at once — four here, the FHD webcam
     plus the IR one for face unlock — with no enumeration and no caring which
@@ -197,18 +199,26 @@ Hyprland wiring (`~/.config/hypr/lua/`):
     `qs ipc call brightness up|down` and the shell raises the OSD on the press
     instead of whenever a poll next runs. Hyprland falls back to brightnessctl
     if the shell is dead, so the keys never stop working.
-  - The *keyboard* backlight can't work that way at all: its Fn key never
-    reaches the compositor. No input device on this laptop declares
-    `KEY_KBDILLUMUP` — the Asus WMI hotkeys device exposes volume, mic-mute and
-    display brightness and nothing for the keyboard light — so the hyprland
-    bind on `XF86KbdBrightnessUp` was dead config, and the `asusctl leds next`
-    it replaced never fired either. asusd owns that key, so the shell listens to
-    *asusd*: a `gdbus monitor` on `xyz.ljones.Aura.Brightness`. That also turns
-    out to be exactly the right filter — asusd only signals for changes that
-    went through asusd, so hypridle blanking the light on idle (a raw
-    brightnessctl write) stays silent, and so do the shell's own writes.
-    It's the only long-lived child process here: `qs kill` reaps it, but a bare
-    SIGTERM would orphan one per restart, hence `setpriv --pdeathsig`.
+  - The *keyboard* backlight can't work that way and can't be intercepted at
+    all: its Fn key produces **no input event on any device**. Logged every
+    evdev event on all 19 devices across dozens of presses and nothing appears,
+    which matches the capability bitmaps — no device declares
+    `KEY_KBDILLUMUP`. asusd doesn't announce it either (its
+    `xyz.ljones.Aura.Brightness` only signals for changes that went *through*
+    asusd). The firmware moves the LED and the sole trace is in sysfs.
+    So the shell watches `/sys/class/leds/asus::kbd_backlight/`**`brightness_hw_changed`**
+    — not `brightness`. The LED core writes that attribute only for
+    *hardware*-initiated changes, which makes it precisely "the user pressed
+    the key" and nothing else: hypridle blanking the light on idle and the
+    shell's own writes are software, never appear in it, and need no filtering
+    to tell apart (verified — it held its value through both a `brightnessctl`
+    and an asusd write). It's also 0.03ms to read against 1.9ms for
+    `brightness`, which goes out over WMI to the EC, so it can be polled at
+    120ms and catch every step of a key repeat (measured ~170ms apart) rather
+    than just the last. Polled rather than `poll()`ed: the attribute does
+    support `sysfs_notify`, but reaching POLLPRI from QML would mean a helper
+    process babysitting a file descriptor, and at 0.03% of a core that buys
+    nothing.
   - Display brightness is a **logical** 0-100 mapped onto the panel's useful
     range (`Brightness.usefulPct`). The eDP HDR backlight register spans the
     full HDR luminance, and in ordinary SDR use nothing gets brighter past the

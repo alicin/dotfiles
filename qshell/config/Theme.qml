@@ -85,6 +85,15 @@ Singleton {
     readonly property color barWarn: active.barWarn
     readonly property color barUrgent: active.barUrgent
 
+    // ── Privacy badge fills ──
+    // Deliberately *not* per-theme. These are safety indicators whose whole job
+    // is to be unmistakable, and macOS keeps its camera/mic dots identical in
+    // light and dark for exactly that reason. They also have to carry a white
+    // glyph, which barOk/barWarn can't — those are foreground tints, and their
+    // mocha variants are pale pastels meant to sit on a dark bar.
+    readonly property color privacyCam: "#2f9e44"
+    readonly property color privacyMic: "#f08c00"
+
     // ── Surfaces (launcher) ──
     readonly property color surfaceBg: active.surfaceBg
     readonly property color surfaceFg: active.surfaceFg

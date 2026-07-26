@@ -3,14 +3,18 @@ import qs.config
 import qs.components
 import qs.services
 
-// Privacy lights, macOS-style: a glyph appears only while something is actually
-// using the camera or the microphone, immediately left of the tray ellipsis.
+// Privacy lights, immediately left of the tray ellipsis. Presence is the
+// signal, so neither has an idle state:
 //
-// Presence *is* the signal, which is why neither of these has an idle state.
-// The mic keys off active capture rather than the mute switch — an unmuted mic
-// with nothing listening isn't a privacy event, and an indicator lit all day is
-// one you stop seeing. A muted mic shows nothing at all: if nothing can hear
-// you, there's nothing to warn about.
+//   amber mic    — the mic is live, i.e. not muted. Anything *could* be
+//                  listening, which is the question this answers; whether
+//                  something currently is doesn't change the exposure.
+//   green camera — a webcam is open right now.
+//
+// Filled squircles rather than bare glyphs: a coloured icon on a transparent
+// bar over an arbitrary wallpaper is at the mercy of whatever's behind it,
+// while a solid badge carries its own contrast and reads as a status light
+// instead of one more clickable icon.
 //
 // Both fade and scale in, because appearing out of nowhere in the corner of a
 // bar is easy to miss, and a moving thing isn't.
@@ -24,13 +28,13 @@ Row {
 
         property bool active: false
         property string glyph: ""
-        property color tint: Theme.barFg
+        property color bg: Theme.barFg
 
         signal tapped
 
         // Collapses to nothing when inactive, so the rest of the bar doesn't
         // shuffle around it.
-        implicitWidth: active ? inner.implicitWidth + Appearance.sizes.modulePad : 0
+        implicitWidth: active ? badge.width + Appearance.s(6) : 0
         implicitHeight: Appearance.sizes.barInner
         visible: implicitWidth > 0.5
 
@@ -45,14 +49,22 @@ Row {
             onClicked: light.tapped()
         }
 
-        FIcon {
-            id: inner
+        Rectangle {
+            id: badge
 
             anchors.centerIn: parent
-            icon: light.glyph
-            color: light.tint
+            // Same height as the active workspace pill, so the two ends of the
+            // bar agree on how big a "container" is.
+            width: Appearance.sizes.barInner
+            height: width
+            // A true squircle is a superellipse and would need a Shape; 0.38 of
+            // the side is what the empty-workspace squircle already uses and
+            // reads the same at this size.
+            radius: width * 0.38
+            color: light.bg
+
             opacity: light.active ? 1 : 0
-            scale: light.active ? 1 : 0.6
+            scale: light.active ? 1 : 0.55
 
             Behavior on opacity {
                 Anim {
@@ -66,6 +78,13 @@ Row {
                     curve: Appearance.anim.curves.expressiveFastSpatial
                 }
             }
+
+            FIcon {
+                anchors.centerIn: parent
+                icon: light.glyph
+                font.pixelSize: Appearance.s(15)
+                color: "#ffffff"
+            }
         }
     }
 
@@ -74,15 +93,15 @@ Row {
     Light {
         active: Camera.inUse
         glyph: "videocam_fill"
-        tint: Theme.barOk
+        bg: Theme.privacyCam
     }
 
-    // Click mutes — the one useful thing to do about a mic you didn't expect to
-    // be live, and it makes this disappear.
+    // Click mutes, which also makes this disappear — so the light is both the
+    // warning and the switch that clears it.
     Light {
-        active: Audio.micInUse && !Audio.micMuted
+        active: !Audio.micMuted
         glyph: "mic_fill"
-        tint: Theme.barWarn
+        bg: Theme.privacyMic
         onTapped: {
             Audio.toggleMicMute();
             Osd.show("mic");

@@ -70,6 +70,10 @@ ShellRoot {
     IpcHandler {
         target: "debug"
 
+        function backlight(): string {
+            return `display=${Math.round(Brightness.display * 100)}% kbd=${Brightness.kbd}/${Brightness.kbdMax} kbdHw=${Brightness.kbdHw} available=${Brightness.kbdAvailable}`;
+        }
+
         function privacy(): string {
             return `mic inUse=${Audio.micInUse} muted=${Audio.micMuted} users=${JSON.stringify(Audio.micUsers)}\ncamera inUse=${Camera.inUse} handles=${Camera.users}`;
         }
