@@ -82,6 +82,20 @@ ShellRoot {
             Capture.toggleRecording();
             return Capture.recording ? "stopping" : "starting";
         }
+
+        // Called by the capture scripts themselves, not by a person: `done`
+        // from their EXIT trap so the shell stops hiding its own toasts on
+        // every path out, and `region` to hand back the geometry an area
+        // recording was drawn on.
+        function done(): string {
+            Capture.finished();
+            return "ok";
+        }
+
+        function region(geom: string): string {
+            Capture.region(geom);
+            return "ok";
+        }
     }
 
     // `qs -c qshell ipc call debug net` — introspection while developing.

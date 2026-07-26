@@ -31,6 +31,12 @@ Singleton {
     // Toasts key off this (Notifs.popupsHidden).
     property bool hidingUi: false
 
+    // A selection or grab is in flight. Second requests are refused rather
+    // than stacked: two slurps both take a layer-shell grab, input goes to
+    // whichever ended up on top, and the other sits there forever holding the
+    // screen hostage — which is what "rec area does nothing" turned out to be.
+    property bool busy: false
+
     // Popouts listen for this and close.
     signal closePopouts
 
@@ -50,14 +56,39 @@ Singleton {
     }
 
     // Clear the shell off the screen, then run `fn` once the compositor has
-    // actually unmapped it. 350ms covers the popout's 300ms close animation —
-    // shooting earlier catches it mid-fade.
+    // actually unmapped it. 450ms covers the popout's 300ms close animation
+    // plus the `qshell:.*` layer-rule fade on top of it — go earlier and the
+    // selector comes up while the focus grab is still live, which is the same
+    // failure as not closing the popout at all.
     function withUiHidden(fn: var): void {
+        if (root.busy)
+            return;
+        root.busy = true;
         root.hidingUi = true;
         root.closePopouts();
         Osd.hide();
         settle.pending = fn;
         settle.restart();
+    }
+
+    // Called from the capture script's EXIT trap, so it runs on *every* path
+    // out — success, a cancelled selection, a failure mid-script.
+    function finished(): void {
+        root.busy = false;
+        root.hidingUi = false;
+        deadman.stop();
+    }
+
+    // The geometry an area recording was drawn on, handed back by the script.
+    function region(geom: string): void {
+        root.regionGeom = geom;
+        root.startRecorder(geom);
+    }
+
+    // Wrapper every capture script gets: whatever happens, the shell finds out
+    // and stops hiding itself.
+    function trapDone(): string {
+        return `trap 'qs -c qshell ipc call capture done >/dev/null 2>&1' EXIT`;
     }
 
     // Posts a notification with Open / Show-in-folder buttons, as a shell
@@ -127,6 +158,7 @@ Singleton {
         // that from producing an empty screenshot and a bogus notification.
         root.run(`
             set -e
+            ${root.trapDone()}
             mkdir -p '${root.shotDir}'
             f="${root.shotDir}/screenshot_$(date +%Y-%m-%d_%H-%M-%S).png"
             grim ${geom}"$f"
@@ -144,11 +176,19 @@ Singleton {
     // Two steps: pick the region (so QML learns the geometry and can dim
     // around it), then start the recorder on it. The picker only gets input
     // once the popout's focus grab is gone, hence withUiHidden.
+    //
+    // slurp runs inside the script and hands the geometry back over IPC, rather
+    // than being its own Quickshell Process. Same path the screenshots use, and
+    // that one is demonstrably interactive — a bare `Process { command:
+    // ["slurp"] }` came up and drew nothing you could click.
     function recordArea(): void {
-        root.withUiHidden(() => {
-            picker.running = false;
-            picker.running = true;
-        });
+        root.withUiHidden(() => root.run(`
+            set -e
+            ${root.trapDone()}
+            g=$(slurp)
+            [ -n "$g" ] || exit 0
+            qs -c qshell ipc call capture region "$g" >/dev/null 2>&1
+        `));
     }
 
     function startRecorder(geom: string): void {
@@ -159,7 +199,6 @@ Singleton {
                 -f '${root.videoDir}'/recording_$(date +%Y-%m-%d_%H-%M-%S).mp4 \
                 >/dev/null 2>&1
         `]);
-        root.hidingUi = false;
         poll.restart();
     }
 
@@ -176,22 +215,23 @@ Singleton {
             recordArea();
     }
 
-    // Run a capture script. A tracked Process, not execDetached, purely so the
-    // toast suppression can be lifted when the shot is actually taken rather
-    // than guessed at — an area selection can sit there for half a minute.
+    // Detached, deliberately. These scripts block on slurp for as long as the
+    // selection takes, and a tracked Process gets killed the moment the next
+    // capture starts — which doesn't kill its slurp child, so the orphan stays
+    // up stealing clicks from the new one. The EXIT trap is what reports back
+    // instead.
     function run(script: string): void {
-        root.script = script;
-        shooter.running = false;
-        shooter.running = true;
+        Quickshell.execDetached(["sh", "-c", script]);
+        deadman.restart();
     }
 
-    property string script: ""
+    // If a script dies without its trap running, the shell would hide its own
+    // toasts forever. Long enough not to cut a real selection short.
+    Timer {
+        id: deadman
 
-    Process {
-        id: shooter
-
-        command: ["sh", "-c", root.script]
-        onExited: root.hidingUi = false
+        interval: 120000
+        onTriggered: root.finished()
     }
 
     Timer {
@@ -199,18 +239,13 @@ Singleton {
 
         property var pending: null
 
-        interval: 350
+        interval: 450
         onTriggered: {
-            const fn = root.settleFn();
+            const fn = settle.pending;
+            settle.pending = null;
             if (fn)
                 fn();
         }
-    }
-
-    function settleFn(): var {
-        const fn = settle.pending;
-        settle.pending = null;
-        return fn;
     }
 
     Timer {
@@ -238,24 +273,6 @@ Singleton {
         // The OSD's exit animation is 200ms; a little margin past it.
         interval: 280
         onTriggered: root.grab("full")
-    }
-
-    Process {
-        id: picker
-
-        command: ["slurp"]
-
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const g = text.trim();
-                if (!g) {
-                    root.hidingUi = false;
-                    return; // cancelled
-                }
-                root.regionGeom = g;
-                root.startRecorder(g);
-            }
-        }
     }
 
     // wf-recorder is launched detached, so its liveness is the source of truth

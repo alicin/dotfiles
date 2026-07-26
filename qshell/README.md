@@ -176,9 +176,22 @@ Hyprland wiring (`~/.config/hypr/lua/`):
       want to photograph usually isn't reachable while a menu is open. The OSD
       is dismissed and given its 200ms fade before the shutter — it's on the
       overlay layer and would otherwise be in the picture.
-    - The capture script runs as a tracked `Process` rather than detached, so
-      toast suppression lifts when the shot is actually taken instead of being
-      guessed at: an area selection can sit there for half a minute.
+    - Capture scripts run **detached**, with an `EXIT` trap that calls
+      `qs ipc call capture done` to lift the hiding. They block on slurp for as
+      long as the selection takes, and a tracked `Process` gets killed the
+      moment the next capture starts — which does *not* kill its slurp child,
+      so the orphan stays up stealing clicks from the new selector. That is how
+      two slurps ended up on screen at once, one of them waiting forever.
+      A trap covers every path out, including a cancelled selection; a 120s
+      deadman timer covers a script that dies without running it.
+    - A second capture while one is in flight is **refused**, not stacked, for
+      the same reason: two layer-shell grabs, and the clicks go to whichever
+      ended up on top.
+    - slurp always runs *inside* the script, never as its own Quickshell
+      `Process`. A bare `Process { command: ["slurp"] }` came up and drew
+      nothing clickable — which is what "rec area does nothing, not even area
+      selection" was. The area recording gets its geometry back through
+      `qs ipc call capture region`.
   - *Theme* — latte / mocha chips, writing `Settings.theme` live.
   - The bar's own trigger takes a **scroll** for volume: the speaker module
     that used to own that gesture is a page in here now, and losing a working
@@ -312,6 +325,8 @@ qs ipc -c qshell call popouts toggle control # control center; also: audio /
 qs ipc -c qshell call overview toggle       # workspace overview (Alt+Tab)
 qs ipc -c qshell call capture shot window   # area / window / full
 qs ipc -c qshell call capture record        # start (area select) / stop
+                                            # (capture done / region are called
+                                            #  by the scripts, not by hand)
 qs ipc -c qshell call brightness up         # down / kbdUp / kbdDown (media keys)
 qs ipc -c qshell call theme set catppuccin-mocha
 qs ipc -c qshell call theme list            # / get
