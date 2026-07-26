@@ -5,14 +5,15 @@ import Quickshell
 
 // What the on-screen display is showing, and for how much longer.
 //
-// Volume is *reactive*: Pipewire signals every change no matter who made it, so
-// a media key, pavucontrol and a headset button all raise the OSD with nothing
-// routed through the shell. Brightness has no such signal — the kernel won't
-// tell us — so those keys call in over IPC and `show()` explicitly.
+// Volume, mic mute and the power profile are *reactive*: Pipewire and
+// power-profiles-daemon signal every change no matter who made it, so a media
+// key, pavucontrol, a headset button or `powerprofilesctl` all raise the OSD
+// with nothing routed through the shell. Brightness has no such signal — the
+// kernel won't tell us — so those keys call in over IPC and `show()`.
 Singleton {
     id: root
 
-    // "" | "volume" | "brightness" | "kbd"
+    // "" | "volume" | "mic" | "brightness" | "kbd" | "power"
     property string kind: ""
 
     // Bumped on every trigger. The panel watches this rather than the value so
@@ -56,6 +57,24 @@ Singleton {
         function onMutedChanged(): void {
             if (!Audio.selfEdit)
                 root.show("volume");
+        }
+
+        function onMicMutedChanged(): void {
+            if (!Audio.selfEdit)
+                root.show("mic");
+        }
+    }
+
+    // Not filtered on selfEdit, unlike the audio ones: switching the power
+    // profile is a rare, deliberate act with no live readout anywhere else on
+    // screen, and the confirmation is worth having even when it came from the
+    // battery menu two inches away.
+    Connections {
+        target: Power
+        enabled: root.armed
+
+        function onProfileChanged(): void {
+            root.show("power");
         }
     }
 }

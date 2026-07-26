@@ -17,27 +17,10 @@ Column {
     readonly property var device: UPower.displayDevice
     readonly property bool charging: (device?.state ?? 0) === UPowerDeviceState.Charging
 
-    readonly property var profiles: {
-        const list = [
-            {
-                profile: PowerProfile.PowerSaver,
-                label: "Power Saver",
-                glyph: "tortoise"
-            },
-            {
-                profile: PowerProfile.Balanced,
-                label: "Balanced",
-                glyph: "gauge"
-            }
-        ];
-        if (PowerProfiles.hasPerformanceProfile)
-            list.push({
-                profile: PowerProfile.Performance,
-                label: "Performance",
-                glyph: "hare"
-            });
-        return list;
-    }
+    // Names and glyphs come from the Power service, not from a list here: the
+    // bar badge and the OSD show the same profile, and three private copies of
+    // "Performance is the hare" only agree by luck.
+    readonly property var profiles: Power.all
 
     function fmtEta(seconds: real): string {
         if (seconds <= 0)
@@ -162,9 +145,9 @@ Column {
         Item {
             id: profileItem
 
-            required property var modelData
+            required property int modelData
 
-            readonly property bool active: PowerProfiles.profile === modelData.profile
+            readonly property bool active: Power.profile === modelData
 
             width: parent.width
             height: Appearance.sizes.menuRowHeight
@@ -172,7 +155,7 @@ Column {
             StateLayer {
                 radius: Appearance.rounding.normal
                 color: Theme.surfaceFg
-                onClicked: PowerProfiles.profile = profileItem.modelData.profile
+                onClicked: Power.set(profileItem.modelData)
             }
 
             FIcon {
@@ -180,7 +163,7 @@ Column {
 
                 x: Appearance.s(8)
                 anchors.verticalCenter: parent.verticalCenter
-                icon: profileItem.modelData.glyph
+                icon: Power.glyph(profileItem.modelData)
                 color: profileItem.active ? Theme.accent : Theme.surfaceFg
             }
 
@@ -188,7 +171,7 @@ Column {
                 anchors.left: profileGlyph.right
                 anchors.leftMargin: Appearance.s(10)
                 anchors.verticalCenter: parent.verticalCenter
-                text: profileItem.modelData.label
+                text: Power.label(profileItem.modelData)
                 color: Theme.surfaceFg
             }
 

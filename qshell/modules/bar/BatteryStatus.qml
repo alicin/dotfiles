@@ -2,9 +2,11 @@ import QtQuick
 import Quickshell.Services.UPower
 import qs.config
 import qs.components
+import qs.services
 
-// Horizontal battery (drawn, not a glyph) + percentage. Green while
-// charging/full, red when low. Click opens the power-profile menu.
+// Horizontal battery (drawn, not a glyph) + percentage, with the current CPU
+// power profile as a small glyph to its left. Green while charging/full, red
+// when low. Click opens the power-profile menu.
 Item {
     id: root
 
@@ -15,6 +17,11 @@ Item {
     readonly property bool charging: (device?.state ?? 0) === UPowerDeviceState.Charging
     readonly property bool full: (device?.state ?? 0) === UPowerDeviceState.FullyCharged
     readonly property color tint: charging || full ? Theme.barOk : !charging && pct <= 0.15 ? Theme.barUrgent : Theme.barFg
+
+    // Colour-coded rather than plain white: the profile glyph sits next to a
+    // battery, and "which way is this costing me" is the thing you actually
+    // want to read off it at a glance.
+    readonly property color profileTint: Power.profile === PowerProfile.Performance ? Theme.barWarn : Power.profile === PowerProfile.PowerSaver ? Theme.barOk : Theme.barFg
 
     visible: device?.isLaptopBattery ?? false
     implicitWidth: content.implicitWidth + Appearance.sizes.modulePad
@@ -29,6 +36,15 @@ Item {
 
         anchors.centerIn: parent
         spacing: Appearance.s(6)
+
+        // Deliberately smaller than the battery beside it: this is a modifier
+        // on the reading, not a second reading.
+        FIcon {
+            anchors.verticalCenter: parent.verticalCenter
+            icon: Power.glyph(Power.profile)
+            font.pixelSize: Appearance.s(14)
+            color: root.profileTint
+        }
 
         Item {
             readonly property int bodyW: Appearance.s(21)

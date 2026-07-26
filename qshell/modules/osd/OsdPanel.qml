@@ -13,23 +13,41 @@ import qs.services
 // Entirely click-through (empty input mask) — this is feedback, not a control,
 // and it appears exactly where you might be aiming at something else.
 //
-// Keyboard backlight gets *segments* rather than a bar: the ROG light has three
-// steps and nothing in between, so a continuous fill would promise a precision
-// the hardware doesn't have.
+// Three shapes, chosen by what the value actually is:
+//   bar    — volume, display brightness: continuous
+//   steps  — keyboard backlight: the ROG light has three steps and nothing in
+//            between, and a continuous fill would promise a precision the
+//            hardware doesn't have
+//   label  — mic mute, power profile: a state, not a level, so a bar sitting at
+//            some arbitrary fill would be actively misleading
 Scope {
     id: root
 
     readonly property bool shown: Osd.kind !== ""
-    readonly property bool isKbd: Osd.kind === "kbd"
-    readonly property bool muted: Osd.kind === "volume" && Audio.muted
+
+    readonly property string mode: {
+        if (Osd.kind === "kbd")
+            return "steps";
+        if (Osd.kind === "mic" || Osd.kind === "power")
+            return "label";
+        return "bar";
+    }
+
+    readonly property bool muted: (Osd.kind === "volume" && Audio.muted) || (Osd.kind === "mic" && Audio.micMuted)
 
     readonly property real value: Osd.kind === "brightness" ? Brightness.display : Audio.volume
+
+    readonly property string label: Osd.kind === "mic" ? (Audio.micMuted ? "Microphone muted" : "Microphone on") : Power.label(Power.profile)
 
     readonly property string glyph: {
         if (Osd.kind === "brightness")
             return Brightness.display < 0.4 ? "sun_min_fill" : "sun_max_fill";
         if (Osd.kind === "kbd")
             return "keyboard";
+        if (Osd.kind === "mic")
+            return Audio.micMuted ? "mic_slash_fill" : "mic_fill";
+        if (Osd.kind === "power")
+            return Power.glyph(Power.profile);
         if (Audio.muted)
             return "speaker_slash_fill";
         if (Audio.volume < 0.01)
@@ -81,12 +99,22 @@ Scope {
             anchors.bottom: parent.bottom
             anchors.bottomMargin: Appearance.s(64) - (1 - anim) * Appearance.s(16)
 
-            width: Appearance.s(320)
+            // Label mode shrinks to its text — a 320px pill with "Microphone
+            // muted" adrift in it reads as a layout bug. Animated, so switching
+            // kinds while one is already up morphs instead of snapping.
+            width: root.mode === "label" ? Math.max(Appearance.s(190), Appearance.s(78) + label.implicitWidth) : Appearance.s(320)
             height: Appearance.s(58)
             radius: height / 2
             color: Theme.surfaceBg
             border.width: 1
             border.color: Theme.surfaceBorder
+
+            Behavior on width {
+                Anim {
+                    duration: Appearance.anim.durations.expressiveFastSpatial
+                    curve: Appearance.anim.curves.emphasized
+                }
+            }
 
             visible: anim > 0.005
             // Faster than the scale so it's legible before it's finished
@@ -160,7 +188,7 @@ Scope {
                 height: Appearance.s(8)
                 radius: height / 2
                 color: Qt.alpha(Theme.surfaceFg, 0.16)
-                visible: !root.isKbd
+                visible: root.mode === "bar"
 
                 // Clipped, because the fill's curve overshoots its target and
                 // would otherwise poke out past the rounded end of the track.
@@ -193,10 +221,22 @@ Scope {
                 anchors.verticalCenter: parent.verticalCenter
                 width: Appearance.s(44)
                 horizontalAlignment: Text.AlignRight
-                visible: !root.isKbd
+                visible: root.mode === "bar"
                 text: `${Math.round(root.value * 100)}%`
                 color: Theme.surfaceFgDim
                 font.pixelSize: Appearance.font.size.small
+            }
+
+            // ── State, not a level: mic mute, power profile ──
+            StyledText {
+                id: label
+
+                anchors.left: glyphSlot.right
+                anchors.leftMargin: Appearance.s(14)
+                anchors.verticalCenter: parent.verticalCenter
+                visible: root.mode === "label"
+                text: root.label
+                color: Theme.surfaceFg
             }
 
             // ── Stepped: keyboard backlight ──
@@ -212,7 +252,7 @@ Scope {
                 anchors.rightMargin: Appearance.s(20)
                 anchors.verticalCenter: parent.verticalCenter
                 height: Appearance.s(11)
-                visible: root.isKbd
+                visible: root.mode === "steps"
 
                 Row {
                     anchors.fill: parent

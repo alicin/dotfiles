@@ -73,6 +73,11 @@ Scope {
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: Appearance.s(2)
 
+                        // Left of the tray ellipsis: the Row is right-anchored,
+                        // so anything ahead of the tray keeps every other
+                        // module in place when this one appears and vanishes.
+                        MicStatus {}
+
                         Tray {
                             popouts: popouts
                         }

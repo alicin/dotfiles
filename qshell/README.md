@@ -47,6 +47,12 @@ Hyprland wiring (`~/.config/hypr/lua/`):
   drawn full-strength even when collapsed — it's the affordance for a whole
   hidden row, and a dimmed one read as a disabled control rather than "there's
   more over here"; the reveal is its own hover feedback.
+- **Mic** — a muted-mic glyph immediately left of the tray ellipsis, and
+  *only* while the mic is actually muted. The interesting state is the one
+  where you're talking and nobody can hear you; a permanently-lit mic icon
+  would make exactly that state easy to miss. Click unmutes. Being first in a
+  right-anchored Row means it appears and disappears without shifting anything
+  else along the bar.
 - **Popout menus** (click any status module — each icon opens its own menu in
   place under it; position and size snap, and it scales+fades in over 300ms on
   the M3 emphasized-decelerate curve, growing from its top edge so it reads as
@@ -60,7 +66,13 @@ Hyprland wiring (`~/.config/hypr/lua/`):
     networks), ethernet devices, Tailscale, VPN/WireGuard toggles (nmcli).
     Past 6 networks the list scrolls instead of growing the menu.
   - *Battery* — Power Saver / Balanced / Performance via power-profiles-daemon,
-    charge estimate. Bar shows a drawn horizontal battery. Below that, the ROG
+    charge estimate. Bar shows a drawn horizontal battery with the current CPU
+    profile as a smaller glyph to its left (tortoise / gauge / hare), tinted
+    green / white / amber — next to a battery reading, "which way is this
+    costing me" is the thing you want at a glance. Names, glyphs and the
+    profile list all come from `services/Power.qml`, because the bar badge, the
+    menu and the OSD show the same thing and three private copies of
+    "Performance is the hare" only agree by luck. Below that, the ROG
     platform knobs (`services/Asus.qml`): **fan profile**, **charge limit**
     (60/80/100) and **GPU mode**. The CPU governor and the ASUS platform/fan
     profile are genuinely different settings, so both are listed rather than
@@ -138,16 +150,24 @@ Hyprland wiring (`~/.config/hypr/lua/`):
   glitch. Every trigger also replays a scale punch, which is the only feedback
   you get when the key repeats at the end of the range (holding volume-up at
   100%, muting twice).
-  - Keyboard backlight draws **segments**, not a bar: the ROG light has three
-    steps and nothing between them, and a continuous fill would promise a
-    precision the hardware doesn't have. Unlit segments sit slightly small so
-    the one that just came on visibly pops.
-  - Volume needs no plumbing — Pipewire signals every change, whoever made it,
-    so media keys, pavucontrol and headset buttons all raise it. What *is*
-    filtered out: the sink coming up at startup, and the shell's own writes, so
-    dragging the Control Center slider doesn't stack an OSD over the control
-    already under your cursor. (Scrolling the bar's Control Center glyph asks
-    for one explicitly — no visible slider there.)
+  - Three shapes, picked by what the value actually is. **Bar** for volume and
+    display brightness. **Segments** for keyboard backlight — the ROG light has
+    three steps and nothing between them, so a continuous fill would promise a
+    precision the hardware doesn't have; unlit segments sit slightly small, so
+    the one that just came on visibly pops. **Label** for mic mute and the CPU
+    power profile, which are states rather than levels — a bar parked at some
+    arbitrary fill would be actively misleading. The pill shrinks to fit in
+    label mode, animated, so switching kinds mid-display morphs.
+  - Volume, mic mute and the power profile need no plumbing — Pipewire and
+    power-profiles-daemon signal every change, whoever made it, so media keys,
+    pavucontrol, headset buttons and `powerprofilesctl` all raise it. What *is*
+    filtered out: the sink coming up at startup, and the shell's own audio
+    writes, so dragging the Control Center slider doesn't stack an OSD over the
+    control already under your cursor. (Scrolling the bar's Control Center
+    glyph, and the bar mic button, ask for one explicitly — no visible control
+    there, or it's about to vanish.) Profile changes are *not* filtered: it's a
+    rare deliberate act with no live readout anywhere else, and the
+    confirmation is worth having even from the menu two inches away.
   - Brightness has no such signal from the kernel, so those keys call
     `qs ipc call brightness up|down|kbdUp|kbdDown` and the shell raises the OSD
     on the press instead of whenever a poll next runs. Hyprland falls back to
@@ -273,11 +293,12 @@ services/             Audio (Pipewire sink), Net (wifi/ethernet — named Net be
                       Tailscale (CLI + pkexec escalation), KdeConnect (daemon over DBus),
                       Clipboard (cliphist history), Brightness (display + kbd via
                       brightnessctl), Idle (keep-awake flag; inhibitor is on the bar),
-                      Asus (fan profile / charge limit / GPU mode), Capture (grim,
+                      Asus (fan profile / charge limit / GPU mode), Power (CPU profile
+                      + its one set of names and glyphs), Capture (grim,
                       slurp, wf-recorder + the live region geometry), Osd (what the
                       on-screen display is showing and for how much longer)
 modules/bar/          Bar, Workspaces + WorkspaceSlot, Clock, Tray + TrayItem, NotifsStatus,
-                      WifiStatus, BatteryStatus, ControlStatus
+                      WifiStatus, BatteryStatus, ControlStatus, MicStatus
 modules/bar/popouts/  Popouts (dropdown host) + WifiMenu, BatteryMenu, NotifsMenu, TrayMenu
 modules/control/      ControlCenter (push navigation host) + Home, AudioPage,
                       BluetoothPage, KdeConnectPage, and the shared Card / Badge /

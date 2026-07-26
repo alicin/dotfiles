@@ -186,18 +186,15 @@ Column {
     Card {
         title: "Input"
 
+        // Through the Audio service rather than the node directly, so these
+        // count as the shell's own edits and don't summon an OSD over the
+        // slider you're already holding.
         LevelRow {
-            glyph: (root.source?.audio?.muted ?? false) ? "mic_slash_fill" : "mic_fill"
-            muted: root.source?.audio?.muted ?? false
-            level: root.source?.audio?.volume ?? 0
-            onMoved: v => {
-                if (root.source?.audio)
-                    root.source.audio.volume = v;
-            }
-            onMuteToggled: {
-                if (root.source?.audio)
-                    root.source.audio.muted = !root.source.audio.muted;
-            }
+            glyph: Audio.micMuted ? "mic_slash_fill" : "mic_fill"
+            muted: Audio.micMuted
+            level: Audio.micVolume
+            onMoved: v => Audio.setMicVolume(v)
+            onMuteToggled: Audio.toggleMicMute()
         }
 
         ListView {
