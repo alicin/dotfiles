@@ -7,9 +7,16 @@ import Quickshell.Io
 // Screenshots and screen recording (grim / slurp / wf-recorder), plus the
 // region geometry the dim overlay needs while an area recording is live.
 //
-// Region selection runs slurp from here rather than inside a shell one-liner
-// so the geometry comes back into QML — the overlay can't dim "everything
-// except the recording" without knowing where the recording is.
+// Every capture starts by getting the shell out of the way. Popouts, toasts and
+// the OSD all live on the wayland *overlay* layer, so grim photographs them —
+// and worse, a popout holding a HyprlandFocusGrab swallows the first click
+// meant for slurp, which is why "Rec area" appeared to do nothing at all: the
+// selector came up behind a grab and never saw the press that would have
+// started the recording.
+//
+// Region selection runs slurp from here rather than inside a shell one-liner so
+// the geometry comes back into QML — the overlay can't dim "everything except
+// the recording" without knowing where the recording is.
 Singleton {
     id: root
 
@@ -19,6 +26,16 @@ Singleton {
     property bool recording: false
     // "x,y wxh" as slurp prints it; empty for a full-screen recording.
     property string regionGeom: ""
+
+    // True from the moment a capture is asked for until the frame is taken.
+    // Toasts key off this (Notifs.popupsHidden).
+    property bool hidingUi: false
+
+    // Popouts listen for this and close.
+    signal closePopouts
+
+    // Seconds left before a full-screen grab; 0 when not counting.
+    property int countdown: 0
 
     readonly property int rx: parseGeom(0)
     readonly property int ry: parseGeom(1)
@@ -30,6 +47,17 @@ Singleton {
     function parseGeom(i: int): int {
         const m = root.regionGeom.match(/^(-?\d+),(-?\d+)\s+(\d+)x(\d+)$/);
         return m ? parseInt(m[i + 1], 10) : 0;
+    }
+
+    // Clear the shell off the screen, then run `fn` once the compositor has
+    // actually unmapped it. 350ms covers the popout's 300ms close animation —
+    // shooting earlier catches it mid-fade.
+    function withUiHidden(fn: var): void {
+        root.hidingUi = true;
+        root.closePopouts();
+        Osd.hide();
+        settle.pending = fn;
+        settle.restart();
     }
 
     // Posts a notification with Open / Show-in-folder buttons, as a shell
@@ -57,39 +85,70 @@ Singleton {
     }
 
     // ── Screenshots ──
-    // Each mode ends the same way: write the png, copy it, notify with actions
-    // to open it. Only the geometry differs.
+
+    // area   — freehand region (slurp)
+    // window — pick a window: slurp -r restricted to the boxes of everything
+    //          visible, so hovering highlights a whole window and clicking
+    //          takes exactly it. Beats grabbing `activewindow`, which is
+    //          whatever had focus before the Control Center did.
+    // full   — whole screen, after a 3-second countdown, because the thing you
+    //          want to photograph is usually not reachable while a menu is open.
     function shoot(mode: string): void {
-        const f = `${root.shotDir}/screenshot_$(date +%Y-%m-%d_%H-%M-%S).png`;
+        if (mode === "full") {
+            root.withUiHidden(() => {
+                root.countdown = 3;
+                Osd.show("countdown");
+                ticker.restart();
+            });
+            return;
+        }
+        root.withUiHidden(() => root.grab(mode));
+    }
+
+    function grab(mode: string): void {
         let geom = "";
-        if (mode === "area")
+        if (mode === "area") {
             geom = `-g "$(slurp)" `;
-        else if (mode === "window")
-            geom = `-g "$(hyprctl -j activewindow | jq -r '"\\(.at[0]),\\(.at[1]) \\(.size[0])x\\(.size[1])"')" `;
+        } else if (mode === "window") {
+            // Boxes for mapped, non-hidden windows on whichever workspaces are
+            // currently visible — one per monitor, so this stays right with
+            // more than one screen.
+            geom = `-g "$(
+                ws=$(hyprctl -j monitors | jq -c '[.[].activeWorkspace.id]')
+                hyprctl -j clients | jq -r --argjson ws "$ws" '
+                    .[] | select(.mapped and (.hidden | not)
+                                 and (.workspace.id as $i | $ws | index($i)))
+                    | "\\(.at[0]),\\(.at[1]) \\(.size[0])x\\(.size[1])"' \
+                    | slurp -r -f '%x,%y %wx%h'
+            )" `;
+        }
 
         // slurp exits non-zero when the selection is cancelled — `set -e` keeps
         // that from producing an empty screenshot and a bogus notification.
-        Quickshell.execDetached(["sh", "-c", `
+        root.run(`
             set -e
             mkdir -p '${root.shotDir}'
-            f="${f}"
+            f="${root.shotDir}/screenshot_$(date +%Y-%m-%d_%H-%M-%S).png"
             grim ${geom}"$f"
             wl-copy < "$f"
             ${root.notifySnippet("Screenshot saved", "$f")}
-        `]);
+        `);
     }
 
     // ── Recording ──
     function recordFull(): void {
         root.regionGeom = "";
-        startRecorder("");
+        root.withUiHidden(() => root.startRecorder(""));
     }
 
     // Two steps: pick the region (so QML learns the geometry and can dim
-    // around it), then start the recorder on it.
+    // around it), then start the recorder on it. The picker only gets input
+    // once the popout's focus grab is gone, hence withUiHidden.
     function recordArea(): void {
-        picker.running = false;
-        picker.running = true;
+        root.withUiHidden(() => {
+            picker.running = false;
+            picker.running = true;
+        });
     }
 
     function startRecorder(geom: string): void {
@@ -100,6 +159,7 @@ Singleton {
                 -f '${root.videoDir}'/recording_$(date +%Y-%m-%d_%H-%M-%S).mp4 \
                 >/dev/null 2>&1
         `]);
+        root.hidingUi = false;
         poll.restart();
     }
 
@@ -116,6 +176,70 @@ Singleton {
             recordArea();
     }
 
+    // Run a capture script. A tracked Process, not execDetached, purely so the
+    // toast suppression can be lifted when the shot is actually taken rather
+    // than guessed at — an area selection can sit there for half a minute.
+    function run(script: string): void {
+        root.script = script;
+        shooter.running = false;
+        shooter.running = true;
+    }
+
+    property string script: ""
+
+    Process {
+        id: shooter
+
+        command: ["sh", "-c", root.script]
+        onExited: root.hidingUi = false
+    }
+
+    Timer {
+        id: settle
+
+        property var pending: null
+
+        interval: 350
+        onTriggered: {
+            const fn = root.settleFn();
+            if (fn)
+                fn();
+        }
+    }
+
+    function settleFn(): var {
+        const fn = settle.pending;
+        settle.pending = null;
+        return fn;
+    }
+
+    Timer {
+        id: ticker
+
+        interval: 1000
+        repeat: true
+        onTriggered: {
+            root.countdown--;
+            if (root.countdown > 0) {
+                Osd.show("countdown");
+                return;
+            }
+            ticker.stop();
+            // The OSD is on the overlay layer and would be in the picture, so
+            // it goes first and the shutter waits out its fade.
+            Osd.hide();
+            afterOsd.restart();
+        }
+    }
+
+    Timer {
+        id: afterOsd
+
+        // The OSD's exit animation is 200ms; a little margin past it.
+        interval: 280
+        onTriggered: root.grab("full")
+    }
+
     Process {
         id: picker
 
@@ -124,8 +248,10 @@ Singleton {
         stdout: StdioCollector {
             onStreamFinished: {
                 const g = text.trim();
-                if (!g)
+                if (!g) {
+                    root.hidingUi = false;
                     return; // cancelled
+                }
                 root.regionGeom = g;
                 root.startRecorder(g);
             }

@@ -28,7 +28,7 @@ Scope {
     readonly property string mode: {
         if (Osd.kind === "kbd")
             return "steps";
-        if (Osd.kind === "mic" || Osd.kind === "power")
+        if (Osd.kind === "mic" || Osd.kind === "power" || Osd.kind === "countdown")
             return "label";
         return "bar";
     }
@@ -37,7 +37,13 @@ Scope {
 
     readonly property real value: Osd.kind === "brightness" ? Brightness.display : Audio.volume
 
-    readonly property string label: Osd.kind === "mic" ? (Audio.micMuted ? "Microphone muted" : "Microphone on") : Power.label(Power.profile)
+    readonly property string label: {
+        if (Osd.kind === "mic")
+            return Audio.micMuted ? "Microphone muted" : "Microphone on";
+        if (Osd.kind === "countdown")
+            return `Screenshot in ${Capture.countdown}…`;
+        return Power.label(Power.profile);
+    }
 
     readonly property string glyph: {
         if (Osd.kind === "brightness")
@@ -48,6 +54,8 @@ Scope {
             return Audio.micMuted ? "mic_slash_fill" : "mic_fill";
         if (Osd.kind === "power")
             return Power.glyph(Power.profile);
+        if (Osd.kind === "countdown")
+            return "timer_fill";
         if (Audio.muted)
             return "speaker_slash_fill";
         if (Audio.volume < 0.01)

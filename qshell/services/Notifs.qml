@@ -16,10 +16,14 @@ Singleton {
     property var popups: []
     property real now: Date.now()
 
-    // Toasts hide while a bar popout menu is open (they share the top-right).
     // Written by Popouts; with several screens the last writer wins, which is
     // fine for a hide flag.
-    property bool popupsHidden: false
+    property bool menuOpen: false
+
+    // Toasts hide while a bar popout covers the same top-right corner, and
+    // while a capture is pending — a toast is exactly the sort of thing you
+    // don't want immortalised in a screenshot.
+    readonly property bool popupsHidden: menuOpen || Capture.hidingUi
 
     readonly property int count: list.length
     readonly property bool dnd: persist.dnd

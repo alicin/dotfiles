@@ -27,7 +27,7 @@ Scope {
 
     readonly property bool open: current !== ""
 
-    onOpenChanged: Notifs.popupsHidden = open
+    onOpenChanged: Notifs.menuOpen = open
 
     function toggle(name: string, item: Item, ctx: var): void {
         if (current === name) {
@@ -58,6 +58,17 @@ Scope {
 
     function close(): void {
         current = "";
+    }
+
+    // A capture is starting: get off the screen. Not just cosmetic — a popout
+    // holding a focus grab eats the first click meant for slurp, so an area
+    // selection never sees the press that would have started it.
+    Connections {
+        target: Capture
+
+        function onClosePopouts(): void {
+            root.close();
+        }
     }
 
     PanelWindow {

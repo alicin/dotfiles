@@ -160,6 +160,25 @@ Hyprland wiring (`~/.config/hypr/lua/`):
     colour picker (`hyprpicker -a`, copied). Mode is an explicit choice rather
     than one button with a hidden default, because guessing wrong costs a
     retake. While recording, the row collapses to a single Stop.
+    - Every capture starts by getting the shell off the screen: popouts close,
+      toasts hide, the OSD is dismissed, and the shot waits 350ms for the
+      compositor to actually unmap them (the popout's close animation is 300ms).
+      Not just cosmetic — a popout holding a `HyprlandFocusGrab` **swallows the
+      first click meant for slurp**, which is exactly why "Rec area" appeared to
+      do nothing: the selector came up behind a grab and never saw the press
+      that would have started it.
+    - *Window* mode is a real selector, not `activewindow` — which is whichever
+      window had focus before the Control Center took it. `slurp -r` is fed the
+      boxes of every mapped, non-hidden window on the visible workspaces (one
+      per monitor, so it stays right with more than one screen), so hovering
+      highlights a whole window and clicking takes exactly that.
+    - *Whole screen* counts down 3 seconds with an OSD first, because what you
+      want to photograph usually isn't reachable while a menu is open. The OSD
+      is dismissed and given its 200ms fade before the shutter — it's on the
+      overlay layer and would otherwise be in the picture.
+    - The capture script runs as a tracked `Process` rather than detached, so
+      toast suppression lifts when the shot is actually taken instead of being
+      guessed at: an area selection can sit there for half a minute.
   - *Theme* — latte / mocha chips, writing `Settings.theme` live.
   - The bar's own trigger takes a **scroll** for volume: the speaker module
     that used to own that gesture is a page in here now, and losing a working
@@ -291,6 +310,8 @@ qs ipc -c qshell call popouts toggle control # control center; also: audio /
                                              # bluetooth / kdeconnect open it
                                              # straight onto that page
 qs ipc -c qshell call overview toggle       # workspace overview (Alt+Tab)
+qs ipc -c qshell call capture shot window   # area / window / full
+qs ipc -c qshell call capture record        # start (area select) / stop
 qs ipc -c qshell call brightness up         # down / kbdUp / kbdDown (media keys)
 qs ipc -c qshell call theme set catppuccin-mocha
 qs ipc -c qshell call theme list            # / get

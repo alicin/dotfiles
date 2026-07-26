@@ -13,7 +13,7 @@ import Quickshell
 Singleton {
     id: root
 
-    // "" | "volume" | "mic" | "brightness" | "kbd" | "power"
+    // "" | "volume" | "mic" | "brightness" | "kbd" | "power" | "countdown"
     property string kind: ""
 
     // Bumped on every trigger. The panel watches this rather than the value so
@@ -29,11 +29,18 @@ Singleton {
     function show(k: string): void {
         root.kind = k;
         root.pulse++;
-        hide.restart();
+        autoHide.restart();
+    }
+
+    // Explicit dismissal, for callers that need the screen clear at a known
+    // moment rather than 1.5s after the last change — a screenshot, mainly.
+    function hide(): void {
+        autoHide.stop();
+        root.kind = "";
     }
 
     Timer {
-        id: hide
+        id: autoHide
 
         interval: 1500
         onTriggered: root.kind = ""
