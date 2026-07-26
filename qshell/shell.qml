@@ -79,8 +79,25 @@ ShellRoot {
         }
 
         function record(): string {
+            // Read *before* the toggle: `recording` is owned by the pgrep poll
+            // and doesn't flip synchronously, so reading it after reports the
+            // state we just left rather than the action taken.
+            const wasRecording = Capture.recording;
             Capture.toggleRecording();
-            return Capture.recording ? "stopping" : "starting";
+            return wasRecording ? "stopping" : "starting";
+        }
+
+        // Which audio sources get mixed into a recording. Persisted, so these
+        // are a standing preference rather than a per-clip choice; the overlay
+        // has the same two toggles.
+        function audio(which: string): string {
+            if (which === "mic")
+                Capture.toggleMic();
+            else if (which === "system")
+                Capture.toggleSystem();
+            else
+                return `unknown source "${which}" — mic / system`;
+            return `system=${Capture.recordSystem} mic=${Capture.recordMic}`;
         }
 
         // Called by the capture scripts themselves, not by a person: `done`

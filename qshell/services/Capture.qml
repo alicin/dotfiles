@@ -27,6 +27,49 @@ Singleton {
     // "x,y wxh" as slurp prints it; empty for a full-screen recording.
     property string regionGeom: ""
 
+    // Region picked but not rolling yet. Selecting an area and *immediately*
+    // recording meant the first seconds were always you letting go of the mouse
+    // and getting out of the way, so the selection now only arms it — the
+    // overlay puts a Start button on screen and you begin when you're ready.
+    readonly property bool armed: regionGeom !== "" && !recording
+
+    // Audio sources to mix in. Persisted, because this is a preference about
+    // how you record rather than a per-clip decision.
+    readonly property bool recordSystem: persist.recordSystem
+    readonly property bool recordMic: persist.recordMic
+
+    function toggleSystem(): void {
+        persist.recordSystem = !persist.recordSystem;
+    }
+
+    function toggleMic(): void {
+        persist.recordMic = !persist.recordMic;
+    }
+
+    PersistentProperties {
+        id: persist
+
+        reloadableId: "qshellCapture"
+
+        property bool recordSystem: true
+        property bool recordMic: false
+    }
+
+    // Wall-clock ms when the recorder came up, and a ticking `now` so the
+    // overlay can show elapsed time. `now` only advances while recording, so
+    // the binding is idle the rest of the time.
+    property real recordingSince: 0
+    property real now: 0
+
+    readonly property int elapsed: recording && recordingSince > 0 ? Math.max(0, Math.floor((now - recordingSince) / 1000)) : 0
+
+    readonly property string elapsedText: {
+        const t = root.elapsed;
+        const m = Math.floor(t / 60);
+        const s = t % 60;
+        return `${m}:${s < 10 ? "0" : ""}${s}`;
+    }
+
     // True from the moment a capture is asked for until the frame is taken.
     // Toasts key off this (Notifs.popupsHidden).
     property bool hidingUi: false
@@ -80,9 +123,20 @@ Singleton {
     }
 
     // The geometry an area recording was drawn on, handed back by the script.
+    // Arms only — the overlay's Start button does the rest.
     function region(geom: string): void {
         root.regionGeom = geom;
-        root.startRecorder(geom);
+    }
+
+    // Throw away an armed region without recording it.
+    function disarm(): void {
+        if (!root.recording)
+            root.regionGeom = "";
+    }
+
+    function startArmed(): void {
+        if (root.armed)
+            root.startRecorder(root.regionGeom);
     }
 
     // Wrapper every capture script gets: whatever happens, the shell finds out
@@ -191,11 +245,45 @@ Singleton {
         `));
     }
 
+    // wf-recorder takes exactly one --audio device, so recording the desktop
+    // *and* the mic together needs them mixed first: a null sink with a
+    // loopback from each, recorded through its monitor. The modules are torn
+    // down in an EXIT trap, so a crash or a kill doesn't leave a phantom output
+    // device in your sound settings.
     function startRecorder(geom: string): void {
         const g = geom ? `-g "${geom}" ` : "";
+        const both = root.recordSystem && root.recordMic;
+
+        let audioSetup = "";
+        let audioArg = "";
+        if (both) {
+            audioSetup = `
+                mods=""
+                cleanup() {
+                    for m in $mods; do pactl unload-module "$m" 2>/dev/null; done
+                }
+                trap cleanup EXIT INT TERM
+                # Order matters: the sink has to exist before anything loops
+                # into it, and it unloads last (the list is prepended to).
+                m=$(pactl load-module module-null-sink sink_name=qshell_rec \
+                        sink_properties=device.description=qshell-recording) || exit 1
+                mods="$m"
+                m=$(pactl load-module module-loopback source="$(pactl get-default-sink).monitor" \
+                        sink=qshell_rec latency_msec=50) && mods="$m $mods"
+                m=$(pactl load-module module-loopback source="$(pactl get-default-source)" \
+                        sink=qshell_rec latency_msec=50) && mods="$m $mods"
+            `;
+            audioArg = `--audio=qshell_rec.monitor `;
+        } else if (root.recordSystem) {
+            audioArg = `--audio="$(pactl get-default-sink).monitor" `;
+        } else if (root.recordMic) {
+            audioArg = `--audio="$(pactl get-default-source)" `;
+        }
+
         Quickshell.execDetached(["sh", "-c", `
             mkdir -p '${root.videoDir}'
-            wf-recorder ${g}--audio="$(pactl get-default-sink).monitor" \
+            ${audioSetup}
+            wf-recorder ${g}${audioArg}\
                 -f '${root.videoDir}'/recording_$(date +%Y-%m-%d_%H-%M-%S).mp4 \
                 >/dev/null 2>&1
         `]);
@@ -211,6 +299,8 @@ Singleton {
     function toggleRecording(): void {
         if (recording)
             stopRecording();
+        else if (armed)
+            startArmed();
         else
             recordArea();
     }
@@ -287,6 +377,15 @@ Singleton {
         onTriggered: probe.running = true
     }
 
+    // Drives `now` while recording, for the overlay's elapsed counter.
+    Timer {
+        running: root.recording
+        interval: 500
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: root.now = Date.now()
+    }
+
     Process {
         id: probe
 
@@ -296,7 +395,15 @@ Singleton {
             onStreamFinished: {
                 const was = root.recording;
                 root.recording = text.trim() === "yes";
+                // Timed from when the recorder is first *seen*, not from when
+                // it was asked for: wf-recorder takes a moment to come up, and
+                // counting that in would overstate the clip's length.
+                if (!was && root.recording) {
+                    root.recordingSince = Date.now();
+                    root.now = root.recordingSince;
+                }
                 if (was && !root.recording) {
+                    root.recordingSince = 0;
                     root.regionGeom = "";
                     Quickshell.execDetached(["sh", "-c", `
                         f=$(ls -t '${root.videoDir}'/recording_*.mp4 2>/dev/null | head -1)

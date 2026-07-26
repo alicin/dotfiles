@@ -257,17 +257,41 @@ Hyprland wiring (`~/.config/hypr/lua/`):
     top fifth of it — so 100% is now the panel's real maximum instead of
     four-fifths of the way up with dead travel above. Must stay in sync with
     `MAX_PCT` in `scripts/rog-backlight-control.sh`.
-- **Record overlay** (`modules/capture/`) — while an *area* recording is live,
-  everything outside the region is dimmed, with a red frame and a blinking
-  size pill. Four rectangles around the region, not one with a hole: there's no
-  inverse-clip primitive, and a transparent cutout stacked over a dim layer
-  still darkens what's under it. The window has an empty input mask so it's
-  entirely click-through — it's annotation, and blocking input on a recording
-  you're actively driving would be worse than useless.
-  Region selection runs `slurp` from QML rather than inside a shell pipeline,
-  so the geometry comes back and the overlay knows where the recording is.
-  Note slurp reports *global* compositor coordinates, so the overlay subtracts
-  each screen's origin.
+- **Record overlay** (`modules/capture/`) — an area selection **arms** a
+  recording rather than starting one: the first seconds were always you letting
+  go of the mouse and getting out of the way. The overlay comes up with the
+  region framed, everything outside it dimmed, and a pill carrying the area
+  size, audio toggles, **Start** and **Cancel**. Once rolling it becomes a
+  blinking dot, elapsed time and **Stop**.
+  - **Nothing the overlay draws may sit inside the region** — it would all be
+    in the recording, which is exactly what put a red border in the video. Qt
+    strokes borders *inward*, so the frame rect is inflated by the border width
+    first and the stroke lands entirely outside the captured pixels (verified
+    by sampling all four edges of a finished mp4: zero border-coloured pixels).
+    The pill is parked above the region, or below it when the region is hard
+    against the top of the screen — never within.
+  - The frame takes hyprland's own `general:col.active_border` and
+    `border_size`, read live via `hyprctl` rather than hardcoded, so a recording
+    looks like a focused window instead of an alarm and follows the theme in
+    hypr's lua config. The colour is a gradient string ("ff64ad85 0deg"); the
+    first stop is used, and hyprctl's AARRGGBB is already what Qt's `#AARRGGBB`
+    literal wants.
+  - Four rectangles around the region, not one with a hole: there's no
+    inverse-clip primitive, and a transparent cutout stacked over a dim layer
+    still darkens what's under it.
+  - The window is click-through **except** for the pill — its input mask is the
+    pill and nothing else, so the buttons work without blocking a recording
+    you're actively driving.
+  - *Audio* is two persisted toggles, desktop and mic. wf-recorder takes exactly
+    one `--audio` device, so recording both needs them mixed first: a null sink
+    with a loopback from each, captured through its monitor. The modules are
+    unloaded in an `EXIT INT TERM` trap, so a crash or a kill can't leave a
+    phantom "qshell-recording" output device in your sound settings (checked:
+    zero modules left after every path).
+  - Region selection runs `slurp` from a script whose geometry comes back over
+    IPC, so the overlay knows where the recording is. Note slurp reports
+    *global* compositor coordinates, so the overlay subtracts each screen's
+    origin.
 - **Notifications** — qshell owns `org.freedesktop.Notifications`. Toasts
   top-right (critical sticks + red border, actions supported), history under
   the bell. Toasts hide while a menu is open; notifications survive config
@@ -324,7 +348,8 @@ qs ipc -c qshell call popouts toggle control # control center; also: audio /
                                              # straight onto that page
 qs ipc -c qshell call overview toggle       # workspace overview (Alt+Tab)
 qs ipc -c qshell call capture shot window   # area / window / full
-qs ipc -c qshell call capture record        # start (area select) / stop
+qs ipc -c qshell call capture record        # select area / start armed / stop
+qs ipc -c qshell call capture audio mic     # toggle mic / system audio capture
                                             # (capture done / region are called
                                             #  by the scripts, not by hand)
 qs ipc -c qshell call brightness up         # down / kbdUp / kbdDown (media keys)
