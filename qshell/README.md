@@ -158,8 +158,18 @@ qs ipc -c qshell call debug net             # networking introspection
 `settings.json` (in this directory) is watched — edits apply live:
 
 ```json
-{ "theme": "catppuccin-latte", "workspaces": 12, "launcherMaxShown": 8, "scale": 1.15 }
+{ "theme": "catppuccin-latte", "workspaces": 12, "launcherMaxShown": 8, "scale": 1.15,
+  "overviewColumns": 6, "scrollFactor": 3.5 }
 ```
+
+`scrollFactor` multiplies **trackpad** scrolling inside the shell's own lists
+(`components/WheelScroll.qml`). Hyprland sets `input:touchpad:scroll_factor =
+0.3` globally; Qt's Flickable takes that already-scaled delta at face value
+while native apps layer their own acceleration on top, which is why only the
+shell felt sluggish. Boosting here rather than raising the global factor keeps
+every other app's scrolling untouched. Mouse wheels are deliberately left at
+1× — `scroll_factor` only applies to the touchpad, so the wheel was never
+slowed down.
 
 `scale` multiplies every size token (fonts, bar height, menus, launcher) —
 the whole shell grows/shrinks with one knob (`Appearance.s(px)`).

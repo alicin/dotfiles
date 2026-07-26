@@ -175,6 +175,10 @@ Scope {
                     delegate: ClipItem {
                         onActivated: root.open = false
                     }
+
+                    WheelScroll {
+                        view: list
+                    }
                 }
             }
 

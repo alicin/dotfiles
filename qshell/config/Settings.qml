@@ -13,6 +13,9 @@ Singleton {
     readonly property int launcherMaxShown: adapter.launcherMaxShown
     readonly property real scale: adapter.scale
     readonly property int overviewColumns: adapter.overviewColumns
+    // Multiplies trackpad scrolling inside the shell's lists only.
+    // Clamped so a bad edit can't make lists unscrollable or uncontrollable.
+    readonly property real scrollFactor: Math.max(0.25, Math.min(10, adapter.scrollFactor))
 
     function setTheme(name: string): void {
         adapter.theme = name;
@@ -33,6 +36,7 @@ Singleton {
             property int launcherMaxShown: 8
             property real scale: 1.15
             property int overviewColumns: 6
+            property real scrollFactor: 3.5
         }
     }
 }

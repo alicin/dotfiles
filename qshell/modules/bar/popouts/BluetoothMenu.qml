@@ -258,6 +258,10 @@ Column {
             values: root.on ? root.known : []
         }
 
+        WheelScroll {
+            view: knownList
+        }
+
         delegate: Column {
             id: knownItem
 
@@ -377,6 +381,10 @@ Column {
 
         model: ScriptModel {
             values: root.on && root.discovering ? root.nearby : []
+        }
+
+        WheelScroll {
+            view: nearbyList
         }
 
         delegate: DeviceRow {

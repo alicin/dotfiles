@@ -190,6 +190,10 @@ Column {
             values: Networking.wifiEnabled ? root.networks : []
         }
 
+        WheelScroll {
+            view: netList
+        }
+
         delegate: Item {
             id: netItem
 

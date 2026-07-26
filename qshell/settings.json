@@ -2,6 +2,7 @@
     "launcherMaxShown": 8,
     "overviewColumns": 6,
     "scale": 1.15,
+    "scrollFactor": 3.5,
     "theme": "catppuccin-latte",
     "workspaces": 12
 }

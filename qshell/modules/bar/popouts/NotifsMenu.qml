@@ -100,6 +100,10 @@ Column {
         clip: true
         spacing: Appearance.s(4)
 
+        WheelScroll {
+            view: list
+        }
+
         model: ScriptModel {
             values: Notifs.list
         }
