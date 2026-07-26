@@ -197,10 +197,21 @@ Item {
                     StateLayer {
                         radius: parent.radius
                         color: Theme.surfaceFg
+                        // Everything is read into locals *before* invoking:
+                        // invoke() usually makes the client close the
+                        // notification, which drops it from the model and
+                        // destroys this delegate mid-handler. The rest of the
+                        // function then runs without a QML context, and
+                        // `root` — the card — resolves to nothing.
+                        // (Observed: "ReferenceError: root is not defined",
+                        // which is why action buttons appeared to do nothing.)
                         onClicked: {
-                            parent.modelData.invoke();
-                            if (root.n && !root.n.resident)
-                                root.n.dismiss();
+                            const notif = root.n;
+                            const resident = notif?.resident ?? false;
+                            if (!Notifs.runAction(notif, parent.modelData.identifier))
+                                parent.modelData.invoke();
+                            if (notif && !resident)
+                                notif.dismiss();
                         }
                     }
 

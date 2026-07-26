@@ -15,6 +15,7 @@ import qs.modules.capture
 import qs.modules.clipboard
 import qs.modules.launcher
 import qs.modules.notifications
+import qs.modules.osd
 import qs.modules.overview
 
 ShellRoot {
@@ -28,7 +29,42 @@ ShellRoot {
 
     NotificationPopups {}
 
+    OsdPanel {}
+
     Overview {}
+
+    // Brightness media keys. Volume needs nothing here — Pipewire signals every
+    // change, whoever made it — but the kernel gives no such signal for the
+    // backlights, so the keys come through the shell and it raises the OSD on
+    // the press instead of whenever a poll next runs. Hyprland falls back to
+    // brightnessctl/asusctl when the shell isn't up (see hypr's apps.lua).
+    IpcHandler {
+        target: "brightness"
+
+        function up(): string {
+            Brightness.stepDisplay(1);
+            Osd.show("brightness");
+            return "ok";
+        }
+
+        function down(): string {
+            Brightness.stepDisplay(-1);
+            Osd.show("brightness");
+            return "ok";
+        }
+
+        function kbdUp(): string {
+            Brightness.stepKbd(1);
+            Osd.show("kbd");
+            return "ok";
+        }
+
+        function kbdDown(): string {
+            Brightness.stepKbd(-1);
+            Osd.show("kbd");
+            return "ok";
+        }
+    }
 
     // `qs -c qshell ipc call debug net` — introspection while developing.
     IpcHandler {

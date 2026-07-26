@@ -64,10 +64,13 @@ Row {
         implicitWidth: Appearance.sizes.trayCell
         implicitHeight: Appearance.sizes.barInner
 
+        // Full-strength even when collapsed: it's the affordance for a whole
+        // hidden row, and a dimmed one reads as a disabled control rather than
+        // "there's more over here". The reveal itself is the hover feedback.
         FIcon {
             anchors.centerIn: parent
             icon: "ellipsis"
-            color: root.expanded ? Theme.barFg : Theme.barFgDim
+            color: Theme.barFg
         }
     }
 }

@@ -67,5 +67,5 @@ end)
 -- ── Host-specific binds ─────────────────────────────────────────────────────
 hl.bind("XF86MonBrightnessUp",   hl.dsp.exec_cmd(apps.rog_brightness_up),   { locked = true, repeating = true })
 hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd(apps.rog_brightness_down), { locked = true, repeating = true })
-hl.bind("XF86KbdBrightnessUp",   hl.dsp.exec_cmd("asusctl leds next"))
-hl.bind("XF86KbdBrightnessDown", hl.dsp.exec_cmd("asusctl leds prev"))
+hl.bind("XF86KbdBrightnessUp",   hl.dsp.exec_cmd(apps.kb_brightness_up))
+hl.bind("XF86KbdBrightnessDown", hl.dsp.exec_cmd(apps.kb_brightness_down))

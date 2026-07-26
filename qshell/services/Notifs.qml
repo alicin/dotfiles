@@ -32,6 +32,42 @@ Singleton {
         root.popups = root.popups.filter(p => p !== w);
     }
 
+    // Actions on notifications the *shell* posts (screenshots, recordings) are
+    // carried out here rather than over DBus. Sending an action back to the
+    // client is useless for these: whatever posted the notification exits
+    // immediately, so by the time you open the notification center the button
+    // has nobody to talk to and does nothing at all.
+    //
+    // The identifier is a verb and nothing else — the path it acts on is the
+    // notification's own body, i.e. the path the card is already showing you.
+    // So "Open" can't be talked into doing anything other than what it says,
+    // even by an app that lies about its name.
+    //
+    // Returns true when it handled the action, so the caller can skip invoke().
+    function runAction(notif: var, identifier: string): bool {
+        if (!notif || notif.appName !== "qshell")
+            return false;
+
+        const path = notif.body;
+        if (identifier === "qshell-open") {
+            Quickshell.execDetached(["xdg-open", path]);
+            return true;
+        }
+        if (identifier === "qshell-reveal") {
+            // ShowItems highlights the file in whatever file manager is
+            // registered, which beats dumping you in a folder of 400
+            // screenshots. Falls back to opening the directory.
+            Quickshell.execDetached(["sh", "-c", `
+                gdbus call --session --dest org.freedesktop.FileManager1 \
+                    --object-path /org/freedesktop/FileManager1 \
+                    --method org.freedesktop.FileManager1.ShowItems "['file://$1']" "" \
+                    >/dev/null 2>&1 || xdg-open "$(dirname "$1")"
+            `, "qshell-reveal", path]);
+            return true;
+        }
+        return false;
+    }
+
     function clearAll(): void {
         const all = [...root.list];
         root.list = [];

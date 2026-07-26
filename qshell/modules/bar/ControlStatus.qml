@@ -23,13 +23,20 @@ Item {
     }
 
     WheelHandler {
-        onWheel: event => Audio.setVolume(Audio.volume + (event.angleDelta.y > 0 ? 0.04 : -0.04))
+        onWheel: event => {
+            Audio.setVolume(Audio.volume + (event.angleDelta.y > 0 ? 0.04 : -0.04));
+            // Asked for explicitly: setVolume marks the change as the shell's
+            // own, which is what stops a Control Center slider drag from
+            // summoning an OSD over the slider you're already looking at.
+            // Scrolling the bar has no such visible control, so it needs one.
+            Osd.show("volume");
+        }
     }
 
     FIcon {
         id: glyph
 
         anchors.centerIn: parent
-        icon: "slider_horizontal_3"
+        icon: "equal_square_fill"
     }
 }

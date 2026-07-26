@@ -32,9 +32,33 @@ Singleton {
         return m ? parseInt(m[i + 1], 10) : 0;
     }
 
+    // Posts a notification with Open / Show-in-folder buttons, as a shell
+    // snippet to be embedded where `$f` holds the path.
+    //
+    // gdbus rather than notify-send: notify-send's own --action support makes
+    // it sit in a glib loop waiting for the click, then hands the key back over
+    // DBus — and it exits when the notification expires, so the buttons are
+    // dead a few seconds later when you find the card in the notification
+    // center. Posting the raw Notify call returns immediately and leaves the
+    // actions to the shell (Notifs.runAction), where they keep working for as
+    // long as the notification exists.
+    //
+    // The body is deliberately the bare path: that's what the actions operate
+    // on, so what the card shows and what the buttons do can't disagree.
+    function notifySnippet(summary: string, icon: string): string {
+        return `
+            gdbus call --session --dest org.freedesktop.Notifications \
+                --object-path /org/freedesktop/Notifications \
+                --method org.freedesktop.Notifications.Notify \
+                qshell 0 "${icon}" "${summary}" "$f" \
+                "['qshell-open','Open','qshell-reveal','Show in folder']" \
+                "{}" 8000 >/dev/null
+        `;
+    }
+
     // ── Screenshots ──
-    // Each mode ends the same way: write the png, copy it, notify with an
-    // action to open it. Only the geometry differs.
+    // Each mode ends the same way: write the png, copy it, notify with actions
+    // to open it. Only the geometry differs.
     function shoot(mode: string): void {
         const f = `${root.shotDir}/screenshot_$(date +%Y-%m-%d_%H-%M-%S).png`;
         let geom = "";
@@ -51,9 +75,7 @@ Singleton {
             f="${f}"
             grim ${geom}"$f"
             wl-copy < "$f"
-            notify-send "Screenshot saved" "$f" -i "$f" -a qshell -t 8000 \
-                --action="scriptAction:-xdg-open $(dirname "$f")=Open folder" \
-                --action="scriptAction:-xdg-open $f=Open"
+            ${root.notifySnippet("Screenshot saved", "$f")}
         `]);
     }
 
@@ -137,8 +159,7 @@ Singleton {
                         f=$(ls -t '${root.videoDir}'/recording_*.mp4 2>/dev/null | head -1)
                         [ -n "$f" ] || exit 0
                         printf %s "$f" | wl-copy
-                        notify-send "Recording saved" "$f" -i video-x-generic -a qshell -t 8000 \
-                            --action="scriptAction:-xdg-open $f=Open"
+                        ${root.notifySnippet("Recording saved", "video-x-generic")}
                     `]);
                 }
             }

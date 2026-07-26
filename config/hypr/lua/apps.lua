@@ -37,15 +37,24 @@ M.bar = "qs kill -c qshell 2>/dev/null; qs -d -c qshell"
 -- On-screen volume/brightness indicator (wob).
 M.onscreen_bar = [[bash ~/labs/dotfiles/scripts/wob.sh "#EB8A7DFF" "#2C2440FF"]]
 
--- Brightness.
-M.brightness_up        = "brightnessctl -s set +10%"
-M.brightness_down      = "brightnessctl -s set 10%-"
-M.rog_brightness_up    = "/home/ali/labs/dotfiles/scripts/rog-backlight-control.sh up"
-M.rog_brightness_down  = "/home/ali/labs/dotfiles/scripts/rog-backlight-control.sh down"
+-- Brightness. Routed through qshell so its OSD reacts on the keypress: the
+-- kernel gives no change notification to watch, so a shell that only polls
+-- would show the bar late (or not at all). qs ipc exits non-zero when the
+-- shell isn't running, so the standalone paths stay as a fallback and the keys
+-- keep working with the bar dead.
+--
+-- The shell applies the same 1-100 logical scale as the script (mapped onto the
+-- panel's useful ~80% of the HDR register), so the step size feels identical
+-- either way.
+M.brightness_up        = "qs ipc -c qshell call brightness up 2>/dev/null || brightnessctl -s set +10%"
+M.brightness_down      = "qs ipc -c qshell call brightness down 2>/dev/null || brightnessctl -s set 10%-"
+M.rog_brightness_up    = "qs ipc -c qshell call brightness up 2>/dev/null || /home/ali/labs/dotfiles/scripts/rog-backlight-control.sh up"
+M.rog_brightness_down  = "qs ipc -c qshell call brightness down 2>/dev/null || /home/ali/labs/dotfiles/scripts/rog-backlight-control.sh down"
 
--- Keyboard backlight.
-M.kb_brightness_up    = "brightnessctl --device='kbd_backlight' set +25"
-M.kb_brightness_down  = "brightnessctl --device='kbd_backlight' set 25-"
+-- Keyboard backlight. Same deal; the ROG light is 0-3 with nothing in between,
+-- so these step rather than scale, and the OSD draws segments not a bar.
+M.kb_brightness_up    = "qs ipc -c qshell call brightness kbdUp 2>/dev/null || asusctl leds next"
+M.kb_brightness_down  = "qs ipc -c qshell call brightness kbdDown 2>/dev/null || asusctl leds prev"
 M.kb_brightness_on    = "brightnessctl -rd asus::kbd_backlight"
 M.kb_brightness_off   = "brightnessctl -sd asus::kbd_backlight set 0"
 

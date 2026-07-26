@@ -48,15 +48,18 @@ Scope {
                     anchors.leftMargin: Appearance.s(10)
                     anchors.rightMargin: Appearance.s(10)
 
-                    // Subtle macOS-menubar-style drop shadow under everything
-                    // on the bar (one layer pass for all icons/text).
+                    // macOS-menubar-style drop shadow under everything on the
+                    // bar (one layer pass for all icons/text). Heavy on
+                    // purpose: the bar is transparent chrome over an arbitrary
+                    // wallpaper, and a subtle shadow loses the fight against a
+                    // bright or busy one.
                     layer.enabled: true
                     layer.effect: MultiEffect {
                         shadowEnabled: true
                         shadowColor: "#000000"
-                        shadowOpacity: 0.45
-                        shadowBlur: 0.12
-                        shadowVerticalOffset: 1
+                        shadowOpacity: 0.75
+                        shadowBlur: 0.3
+                        shadowVerticalOffset: 2
                         shadowHorizontalOffset: 0
                     }
 

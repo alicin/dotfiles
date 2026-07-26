@@ -43,7 +43,10 @@ Hyprland wiring (`~/.config/hypr/lua/`):
 - **Tray** — collapsed behind an ellipsis, items slide out on hover. Leftward,
   because the status Row is right-anchored: growing left leaves the ellipsis
   and every icon after it in place instead of shoving the trigger out from
-  under the cursor. Stays open while one of its own menus is.
+  under the cursor. Stays open while one of its own menus is. The ellipsis is
+  drawn full-strength even when collapsed — it's the affordance for a whole
+  hidden row, and a dimmed one read as a disabled control rather than "there's
+  more over here"; the reveal is its own hover feedback.
 - **Popout menus** (click any status module — each icon opens its own menu in
   place under it; position and size snap, and it scales+fades in over 300ms on
   the M3 emphasized-decelerate curve, growing from its top edge so it reads as
@@ -70,7 +73,7 @@ Hyprland wiring (`~/.config/hypr/lua/`):
     are turned into separators, or every mode concatenates into one string.
   - *Notifications* — DND toggle, clear-all, full history.
   - *Tray* — custom-drawn DBus menus (QsMenuOpener), one inline submenu level.
-- **Control Center** (the sliders glyph, next to the bell — `modules/control/`)
+- **Control Center** (the `equal_square_fill` glyph, next to the bell — `modules/control/`)
   — a home screen plus drill-down pages, macOS Control Centre style. Home is
   only one-tap toggles and sliders; anything that needs a *list* (sound
   devices, Bluetooth pairing, KDE Connect actions) gets a row that pushes its
@@ -127,6 +130,34 @@ Hyprland wiring (`~/.config/hypr/lua/`):
     opens the panel straight onto that page, so keybinds from when these were
     their own dropdowns didn't have to change. A second call for the *same*
     page closes it; a different one switches pages instead of dismissing.
+- **OSD** (`modules/osd/`) — volume / display brightness / keyboard backlight
+  pill near the bottom of the focused screen, click-through (empty input mask),
+  gone after 1.5s. Springs in on the M3 expressive-spatial curve, which
+  overshoots — and the bar fill uses it too, so each step lands with a little
+  rubber. Out is deliberately *not* springy: a bounce on the way out reads as a
+  glitch. Every trigger also replays a scale punch, which is the only feedback
+  you get when the key repeats at the end of the range (holding volume-up at
+  100%, muting twice).
+  - Keyboard backlight draws **segments**, not a bar: the ROG light has three
+    steps and nothing between them, and a continuous fill would promise a
+    precision the hardware doesn't have. Unlit segments sit slightly small so
+    the one that just came on visibly pops.
+  - Volume needs no plumbing — Pipewire signals every change, whoever made it,
+    so media keys, pavucontrol and headset buttons all raise it. What *is*
+    filtered out: the sink coming up at startup, and the shell's own writes, so
+    dragging the Control Center slider doesn't stack an OSD over the control
+    already under your cursor. (Scrolling the bar's Control Center glyph asks
+    for one explicitly — no visible slider there.)
+  - Brightness has no such signal from the kernel, so those keys call
+    `qs ipc call brightness up|down|kbdUp|kbdDown` and the shell raises the OSD
+    on the press instead of whenever a poll next runs. Hyprland falls back to
+    brightnessctl/asusctl if the shell is dead, so the keys never stop working.
+  - Display brightness is a **logical** 0-100 mapped onto the panel's useful
+    range (`Brightness.usefulPct`). The eDP HDR backlight register spans the
+    full HDR luminance, and in ordinary SDR use nothing gets brighter past the
+    top fifth of it — so 100% is now the panel's real maximum instead of
+    four-fifths of the way up with dead travel above. Must stay in sync with
+    `MAX_PCT` in `scripts/rog-backlight-control.sh`.
 - **Record overlay** (`modules/capture/`) — while an *area* recording is live,
   everything outside the region is dimmed, with a red frame and a blinking
   size pill. Four rectangles around the region, not one with a hole: there's no
@@ -142,6 +173,26 @@ Hyprland wiring (`~/.config/hypr/lua/`):
   top-right (critical sticks + red border, actions supported), history under
   the bell. Toasts hide while a menu is open; notifications survive config
   reloads.
+  - Screenshot/recording toasts carry **Open** and **Show in folder**, and
+    those run *inside the shell* (`Notifs.runAction`) rather than over DBus.
+    Sending the action back to the client is useless here: whatever posted the
+    notification has exited, so the buttons would be dead by the time you find
+    the card in the notification center. Which is exactly what was happening —
+    the old `--action="scriptAction:-…"` keys are a dunst convention nothing
+    here implements, and `notify-send` (the only thing listening) exits when
+    the toast expires. Capture posts via `gdbus … Notify` instead of
+    `notify-send`, so nothing has to sit in a glib loop waiting for a click.
+  - The action identifier is a verb and nothing else; the path it acts on is
+    the notification's own body, i.e. the path the card is already showing. So
+    "Open" can't be talked into doing anything but what it says, even by an app
+    that lies about its name. *Show in folder* goes through
+    `org.freedesktop.FileManager1.ShowItems`, which highlights the file rather
+    than dumping you in a folder of 400 screenshots.
+  - Action buttons also silently did nothing for a second reason: the handler
+    read `root.n` *after* `invoke()`, and invoke() closing the notification
+    destroys the delegate mid-handler, leaving the rest of the function with no
+    QML context ("ReferenceError: root is not defined"). Everything is read
+    into locals first now.
 - **Launcher** — bottom-center panel with the expressive spring-up, fuzzy
   search, keyboard nav.
 - **Clipboard history** (Super+Shift+V) — the same panel as the launcher (same
@@ -173,6 +224,7 @@ qs ipc -c qshell call popouts toggle control # control center; also: audio /
                                              # bluetooth / kdeconnect open it
                                              # straight onto that page
 qs ipc -c qshell call overview toggle       # workspace overview (Alt+Tab)
+qs ipc -c qshell call brightness up         # down / kbdUp / kbdDown (media keys)
 qs ipc -c qshell call theme set catppuccin-mocha
 qs ipc -c qshell call theme list            # / get
 qs ipc -c qshell call debug net             # networking introspection
@@ -222,7 +274,8 @@ services/             Audio (Pipewire sink), Net (wifi/ethernet — named Net be
                       Clipboard (cliphist history), Brightness (display + kbd via
                       brightnessctl), Idle (keep-awake flag; inhibitor is on the bar),
                       Asus (fan profile / charge limit / GPU mode), Capture (grim,
-                      slurp, wf-recorder + the live region geometry)
+                      slurp, wf-recorder + the live region geometry), Osd (what the
+                      on-screen display is showing and for how much longer)
 modules/bar/          Bar, Workspaces + WorkspaceSlot, Clock, Tray + TrayItem, NotifsStatus,
                       WifiStatus, BatteryStatus, ControlStatus
 modules/bar/popouts/  Popouts (dropdown host) + WifiMenu, BatteryMenu, NotifsMenu, TrayMenu
@@ -234,6 +287,7 @@ modules/clipboard/    ClipboardHistory, ClipItem (cliphist-backed, launcher styl
                       lazy image thumbnails)
 modules/capture/      RecordOverlay (dims around a live area recording)
 modules/notifications/NotificationPopups (toast stack)
+modules/osd/          OsdPanel (volume / brightness / keyboard-backlight pill)
 modules/overview/     Overview (grid, drag/drop plumbing), OverviewWindow (live thumbnail)
 ```
 
