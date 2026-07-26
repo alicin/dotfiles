@@ -168,10 +168,22 @@ Hyprland wiring (`~/.config/hypr/lua/`):
     there, or it's about to vanish.) Profile changes are *not* filtered: it's a
     rare deliberate act with no live readout anywhere else, and the
     confirmation is worth having even from the menu two inches away.
-  - Brightness has no such signal from the kernel, so those keys call
-    `qs ipc call brightness up|down|kbdUp|kbdDown` and the shell raises the OSD
-    on the press instead of whenever a poll next runs. Hyprland falls back to
-    brightnessctl/asusctl if the shell is dead, so the keys never stop working.
+  - *Display* brightness has no such signal from the kernel, so those keys call
+    `qs ipc call brightness up|down` and the shell raises the OSD on the press
+    instead of whenever a poll next runs. Hyprland falls back to brightnessctl
+    if the shell is dead, so the keys never stop working.
+  - The *keyboard* backlight can't work that way at all: its Fn key never
+    reaches the compositor. No input device on this laptop declares
+    `KEY_KBDILLUMUP` — the Asus WMI hotkeys device exposes volume, mic-mute and
+    display brightness and nothing for the keyboard light — so the hyprland
+    bind on `XF86KbdBrightnessUp` was dead config, and the `asusctl leds next`
+    it replaced never fired either. asusd owns that key, so the shell listens to
+    *asusd*: a `gdbus monitor` on `xyz.ljones.Aura.Brightness`. That also turns
+    out to be exactly the right filter — asusd only signals for changes that
+    went through asusd, so hypridle blanking the light on idle (a raw
+    brightnessctl write) stays silent, and so do the shell's own writes.
+    It's the only long-lived child process here: `qs kill` reaps it, but a bare
+    SIGTERM would orphan one per restart, hence `setpriv --pdeathsig`.
   - Display brightness is a **logical** 0-100 mapped onto the panel's useful
     range (`Brightness.usefulPct`). The eDP HDR backlight register spans the
     full HDR luminance, and in ordinary SDR use nothing gets brighter past the

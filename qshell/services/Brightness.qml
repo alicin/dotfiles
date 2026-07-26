@@ -11,12 +11,22 @@ import Quickshell.Io
 // device (512 for the panel, 3 for the ROG keyboard) and has to be read, not
 // assumed.
 //
-// The kernel gives no change notification we can watch, so the media keys call
-// stepDisplay/stepKbd over IPC (see shell.qml) instead of running brightnessctl
-// behind our back: that way the OSD reacts on the keypress rather than whenever
-// a poll next happens to run.
+// The kernel gives no change notification we can watch, so the *display* media
+// keys call stepDisplay over IPC (see shell.qml) instead of running
+// brightnessctl behind our back: that way the OSD reacts on the keypress rather
+// than whenever a poll next happens to run.
+//
+// The keyboard backlight can't work that way. This laptop's Fn key for it never
+// reaches the compositor — no input device here even declares KEY_KBDILLUMUP
+// (checked the evdev capability bitmaps: the Asus WMI hotkeys device exposes
+// volume, mic-mute and display brightness, and nothing for the keyboard light),
+// so a hyprland bind on XF86KbdBrightnessUp is dead config and always was.
+// asusd handles that key itself, so we listen to *it* instead — see kbdWatcher.
 Singleton {
     id: root
+
+    // The keyboard backlight moved, and not because we moved it.
+    signal kbdChangedExternally
 
     readonly property string displayDev: "intel_backlight"
     readonly property string kbdDev: "asus::kbd_backlight"
@@ -100,6 +110,40 @@ Singleton {
 
         interval: 400
         onTriggered: root.refresh()
+    }
+
+    // asusd owns the keyboard-light Fn key on this hardware and republishes the
+    // level as xyz.ljones.Aura.Brightness, so its PropertiesChanged is the only
+    // event there is for "the user changed the keyboard backlight".
+    //
+    // Conveniently it is *also* exactly the right filter: asusd only signals for
+    // changes that went through asusd, so hypridle blanking the light on idle
+    // (a raw brightnessctl write) stays silent, and so do our own writes below.
+    //
+    // Matched on the interface rather than the object path, which carries the
+    // device id (/xyz/ljones/aura/19b6_2_6).
+    //
+    // stdbuf because gdbus block-buffers when its stdout is a pipe, which would
+    // sit on an OSD trigger until the next signal pushed it out. setpriv
+    // because this is the shell's only long-lived child: `qs kill` reaps it
+    // properly, but a bare SIGTERM to the process leaves it orphaned, and one
+    // accumulates per restart.
+    Process {
+        id: kbdWatcher
+
+        running: true
+        command: ["setpriv", "--pdeathsig", "TERM", "--", "stdbuf", "-oL", "gdbus", "monitor", "--system", "--dest", "xyz.ljones.Asusd"]
+
+        stdout: SplitParser {
+            onRead: line => {
+                const m = line.match(/xyz\.ljones\.Aura'.*'Brightness': <uint32 (\d+)>/);
+                if (!m)
+                    return;
+                root.kbd = parseInt(m[1], 10);
+                root.kbdAvailable = true;
+                root.kbdChangedExternally();
+            }
+        }
     }
 
     Process {

@@ -65,6 +65,18 @@ Singleton {
         }
     }
 
+    // The keyboard-light Fn key never reaches the compositor on this hardware,
+    // so unlike the display keys there's no IPC call to hang this off — asusd
+    // handling the key and announcing the result is the whole event.
+    Connections {
+        target: Brightness
+        enabled: root.armed
+
+        function onKbdChangedExternally(): void {
+            root.show("kbd");
+        }
+    }
+
     // Not filtered on selfEdit, unlike the audio ones: switching the power
     // profile is a rare, deliberate act with no live readout anywhere else on
     // screen, and the confirmation is worth having even when it came from the
