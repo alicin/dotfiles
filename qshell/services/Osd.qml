@@ -16,19 +16,12 @@ Singleton {
     // "" | "volume" | "mic" | "brightness" | "kbd" | "power" | "countdown"
     property string kind: ""
 
-    // Bumped on every trigger. The panel watches this rather than the value so
-    // a repeat at the end of the range — holding volume-up at 100%, muting
-    // twice — still replays the punch, which is the only feedback that the key
-    // registered at all.
-    property int pulse: 0
-
     // Pipewire's first notifications are the sink coming up, not a person
     // pressing anything.
     property bool armed: false
 
     function show(k: string): void {
         root.kind = k;
-        root.pulse++;
         autoHide.restart();
     }
 

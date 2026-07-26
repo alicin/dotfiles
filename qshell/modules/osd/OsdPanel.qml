@@ -100,8 +100,6 @@ Scope {
             // 0 hidden, 1 shown — drives opacity, scale and the rise together
             // so they can't drift apart.
             property real anim: root.shown ? 1 : 0
-            // 0..1..0 on every keypress.
-            property real punch: 0
 
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottom: parent.bottom
@@ -125,47 +123,18 @@ Scope {
             }
 
             visible: anim > 0.005
-            // Faster than the scale so it's legible before it's finished
-            // settling, rather than fading in behind its own overshoot.
+            // Faster than the scale so it's legible before it has finished
+            // settling.
             opacity: Math.min(1, anim * 1.6)
-            scale: (0.86 + 0.14 * anim) * (1 + 0.05 * punch)
+            scale: 0.86 + 0.14 * anim
 
-            // In on the expressive spatial curve, which overshoots — that
-            // slight rubberiness is most of what makes this feel alive. Out is
-            // deliberately not springy: a bounce on the way out reads as a
-            // glitch, not a flourish.
+            // Decelerating, never overshooting: the M3 *Spatial curves all rise
+            // past 1 before settling, which is the bounce. Out stays a plain
+            // accelerate.
             Behavior on anim {
                 Anim {
                     duration: root.shown ? Appearance.anim.durations.expressiveFastSpatial : Appearance.anim.durations.expressiveDefaultEffects
-                    curve: root.shown ? Appearance.anim.curves.expressiveDefaultSpatial : Appearance.anim.curves.standardAccel
-                }
-            }
-
-            Connections {
-                target: Osd
-
-                function onPulseChanged(): void {
-                    punchAnim.restart();
-                }
-            }
-
-            SequentialAnimation {
-                id: punchAnim
-
-                Anim {
-                    target: pill
-                    property: "punch"
-                    to: 1
-                    duration: Appearance.anim.durations.expressiveFastEffects * 0.6
-                    curve: Appearance.anim.curves.standardDecel
-                }
-
-                Anim {
-                    target: pill
-                    property: "punch"
-                    to: 0
-                    duration: Appearance.anim.durations.expressiveFastSpatial
-                    curve: Appearance.anim.curves.expressiveFastSpatial
+                    curve: root.shown ? Appearance.anim.curves.emphasizedDecel : Appearance.anim.curves.standardAccel
                 }
             }
 
@@ -198,8 +167,8 @@ Scope {
                 color: Qt.alpha(Theme.surfaceFg, 0.16)
                 visible: root.mode === "bar"
 
-                // Clipped, because the fill's curve overshoots its target and
-                // would otherwise poke out past the rounded end of the track.
+                // Clipped anyway: the fill's rounded ends would otherwise show
+                // through the square corners of the track.
                 Rectangle {
                     // Floor at a circle so 0% still reads as a control at rest
                     // rather than a missing element.
@@ -211,7 +180,7 @@ Scope {
                     Behavior on width {
                         Anim {
                             duration: Appearance.anim.durations.expressiveFastSpatial
-                            curve: Appearance.anim.curves.expressiveDefaultSpatial
+                            curve: Appearance.anim.curves.emphasizedDecel
                         }
                     }
 
@@ -289,7 +258,7 @@ Scope {
                             Behavior on scale {
                                 Anim {
                                     duration: Appearance.anim.durations.expressiveFastSpatial
-                                    curve: Appearance.anim.curves.expressiveFastSpatial
+                                    curve: Appearance.anim.curves.emphasizedDecel
                                 }
                             }
                         }

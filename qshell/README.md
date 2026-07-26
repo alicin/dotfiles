@@ -203,17 +203,16 @@ Hyprland wiring (`~/.config/hypr/lua/`):
     page closes it; a different one switches pages instead of dismissing.
 - **OSD** (`modules/osd/`) — volume / display brightness / keyboard backlight
   pill near the bottom of the focused screen, click-through (empty input mask),
-  gone after 1.5s. Springs in on the M3 expressive-spatial curve, which
-  overshoots — and the bar fill uses it too, so each step lands with a little
-  rubber. Out is deliberately *not* springy: a bounce on the way out reads as a
-  glitch. Every trigger also replays a scale punch, which is the only feedback
-  you get when the key repeats at the end of the range (holding volume-up at
-  100%, muting twice).
+  gone after 1.5s. Scales and fades in, decelerating, and never overshoots —
+  the M3 `*Spatial` curves all rise past 1 before settling, so none of them are
+  used here; `emphasizedDecel` throughout, and a plain accelerate on the way
+  out. There is deliberately no pulse on re-trigger either, so holding
+  volume-up at 100% shows a steady pill rather than a repeating twitch.
   - Three shapes, picked by what the value actually is. **Bar** for volume and
     display brightness. **Segments** for keyboard backlight — the ROG light has
     three steps and nothing between them, so a continuous fill would promise a
     precision the hardware doesn't have; unlit segments sit slightly small, so
-    the one that just came on visibly pops. **Label** for mic mute and the CPU
+    the one that just came on grows to full size. **Label** for mic mute and the CPU
     power profile, which are states rather than levels — a bar parked at some
     arbitrary fill would be actively misleading. The pill shrinks to fit in
     label mode, animated, so switching kinds mid-display morphs.
