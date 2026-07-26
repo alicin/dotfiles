@@ -1,13 +1,19 @@
-# A TOML linter such as https://taplo.tamasfe.dev/ can use this schema to validate your config.
+# A TOML linter such as https://github.com/tombi-toml/tombi can use this schema to validate your config.
 # If you encounter any issues, please make an issue at https://github.com/yazi-rs/schemas.
-"$schema" = "https://yazi-rs.github.io/schemas/yazi.json"
+
+#:schema https://yazi-rs.github.io/schemas/yazi.json
 
 [mgr]
 show_hidden = true
 show_symlink = true
 ratio = [1, 1, 2]
+sort_by = "natural"    # file2 before file10, the way a GUI lists things
+sort_dir_first = true
+linemode = "size"      # permanent size column; git status renders alongside it
+scrolloff = 0          # no forced margin from the top/bottom of the list
 
 [preview]
+wrap = "yes"
 tab_size = 2
 max_width = 600
 max_height = 900
@@ -15,51 +21,51 @@ cache_dir = ""
 image_delay = 30
 image_filter = "triangle"
 image_quality = 75
-sixel_fraction = 15
 ueberzug_scale = 1
 ueberzug_offset = [0, 0, 0, 0]
 
 [opener]
+# Placeholders (yazi 26.x, same on every platform): %s = all selected paths,
+# %s1 = the first one, %d1 = its parent directory.
 edit = [
-  { run = 'nano "$@"', desc = "nano", block = true, for = "unix" },
-  { run = 'code %*', orphan = true, desc = "code", for = "windows" },
-  { run = 'code -w %*', block = true, desc = "code (block)", for = "windows" },
+  { run = 'nano %s', desc = "nano", block = true, for = "unix" },
+  { run = 'code %s', orphan = true, desc = "code", for = "windows" },
+  { run = 'code -w %s', block = true, desc = "code (block)", for = "windows" },
 ]
 open = [
-  { run = 'xdg-open "$1"', desc = "Open", for = "linux" },
-  { run = 'open "$@"', desc = "Open", for = "macos" },
-  { run = 'start "" "%1"', orphan = true, desc = "Open", for = "windows" },
+  { run = 'xdg-open %s1', desc = "Open", for = "linux" },
+  { run = 'open %s', desc = "Open", for = "macos" },
+  { run = 'start "" %s1', orphan = true, desc = "Open", for = "windows" },
 ]
-code = [{ run = 'code "$@"', desc = "code", for = "unix" }]
+code = [{ run = 'code %s', desc = "code", for = "unix" }]
 reveal = [
-  { run = 'xdg-open "$(dirname "$1")"', desc = "Reveal", for = "linux" },
-  { run = 'open -R "$1"', desc = "Reveal", for = "macos" },
-  { run = 'explorer /select,"%1"', orphan = true, desc = "Reveal", for = "windows" },
-  { run = '''exiftool "$1"; echo "Press enter to exit"; read _''', block = true, desc = "Show EXIF", for = "unix" },
+  { run = 'xdg-open %d1', desc = "Reveal", for = "linux" },
+  { run = 'open -R %s1', desc = "Reveal", for = "macos" },
+  { run = 'explorer /select,%s1', orphan = true, desc = "Reveal", for = "windows" },
+  { run = '''exiftool %s1; echo "Press enter to exit"; read _''', block = true, desc = "Show EXIF", for = "unix" },
 ]
-extract = [
-  { run = 'ya pub extract --list "$@"', desc = "Extract here", for = "unix" },
-  { run = 'ya pub extract --list %*', desc = "Extract here", for = "windows" },
-]
+extract = [{ run = 'ya pub extract --list %s', desc = "Extract here" }]
 play = [
-  { run = 'mpv --force-window "$@"', orphan = true, for = "unix" },
-  { run = 'mpv --force-window %*', orphan = true, for = "windows" },
-  { run = '''mediainfo "$1"; echo "Press enter to exit"; read _''', block = true, desc = "Show media info", for = "unix" },
+  { run = 'mpv --force-window %s', orphan = true, for = "unix" },
+  { run = 'mpv --force-window %s', orphan = true, for = "windows" },
+  { run = '''mediainfo %s1; echo "Press enter to exit"; read _''', block = true, desc = "Show media info", for = "unix" },
 ]
 
 [open]
 rules = [
   # Folder
-  { name = "*/", use = [
+  { url = "*/", use = [
     "code",
     "edit",
     "open",
     "reveal",
   ] },
-  # Text
+  # Text — `open` (xdg-open) leads everywhere so Enter matches a desktop
+  # double-click; code/edit stay one Shift+Enter away as "Open With".
   { mime = "text/*", use = [
-    "edit",
+    "open",
     "code",
+    "edit",
     "reveal",
   ] },
   # Image
@@ -79,25 +85,40 @@ rules = [
   ] },
   # JSON
   { mime = "application/{json,ndjson}", use = [
-    "edit",
+    "open",
     "code",
+    "edit",
     "reveal",
   ] },
   { mime = "*/javascript", use = [
-    "edit",
+    "open",
     "code",
+    "edit",
     "reveal",
   ] },
   # Empty file
   { mime = "inode/empty", use = [
-    "edit",
+    "open",
     "code",
+    "edit",
     "reveal",
   ] },
   # Fallback
-  { name = "*", use = [
+  { url = "*", use = [
     "open",
     "code",
     "reveal",
   ] },
 ]
+
+# git.yazi — shows VCS status per file, rendered next to the size linemode.
+# `id` is deliberately absent: the plugin README only needs it on yazi <= 26.1.22.
+[[plugin.prepend_fetchers]]
+url   = "*"
+run   = "git"
+group = "git"
+
+[[plugin.prepend_fetchers]]
+url   = "*/"
+run   = "git"
+group = "git"

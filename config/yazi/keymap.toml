@@ -1,0 +1,45 @@
+# A TOML linter such as https://github.com/tombi-toml/tombi can use this schema to validate your config.
+# If you encounter any issues, please make an issue at https://github.com/yazi-rs/schemas.
+
+#:schema https://yazi-rs.github.io/schemas/keymap.json
+
+# GUI-familiar shortcuts layered *on top of* yazi's defaults. `prepend_keymap`
+# wins on conflicts and leaves every vim binding (hjkl, y/x/p, d, r, a) intact —
+# using plain `keymap` would replace the whole preset instead.
+#
+# Not bound on purpose: <C-h>, <C-i>, <C-m>, <C-[>. Terminals send those as
+# Backspace/Tab/Enter/Esc, so they can't be told apart from the real keys.
+# `.` already toggles hidden files.
+
+[mgr]
+prepend_keymap = [
+  # Navigation
+  { on = "<Backspace>", run = "leave",            desc = "Up one level" },
+  { on = "<A-Up>",      run = "leave",            desc = "Up one level" },
+  { on = "<A-Left>",    run = "back",             desc = "Back" },
+  { on = "<A-Right>",   run = "forward",          desc = "Forward" },
+  { on = "<C-l>",       run = "cd --interactive", desc = "Location bar" },
+
+  # Clipboard — <C-c> was "close tab", which moves to <C-w> below.
+  { on = "<C-c>", run = "yank",       desc = "Copy" },
+  { on = "<C-x>", run = "yank --cut", desc = "Cut" },
+  { on = "<C-v>", run = "paste",      desc = "Paste" },
+
+  # File operations
+  { on = "<Delete>",   run = "remove",                     desc = "Move to trash" },
+  { on = "<S-Delete>", run = "remove --permanently",       desc = "Delete permanently" },
+  { on = "<F2>",       run = "rename --cursor=before_ext", desc = "Rename" },
+  { on = "<C-n>",      run = "create",                     desc = "New (end the name with / for a folder)" },
+  { on = "<F5>",       run = "refresh",                    desc = "Refresh" },
+
+  # Search — <C-f> was page-down; PageDown and <C-d> still do that.
+  { on = "<C-f>", run = "filter --smart", desc = "Filter box" },
+
+  # Tabs / window
+  { on = "<C-t>", run = "tab_create --current", desc = "New tab" },
+  { on = "<C-w>", run = "close",                desc = "Close tab" },
+  { on = "<C-q>", run = "quit",                 desc = "Quit" },
+
+  # Removable drives (mount.yazi): m/u/e mount, unmount, eject inside it.
+  { on = "M", run = "plugin mount", desc = "Mount manager" },
+]
