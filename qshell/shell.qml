@@ -70,6 +70,10 @@ ShellRoot {
     IpcHandler {
         target: "debug"
 
+        function privacy(): string {
+            return `mic inUse=${Audio.micInUse} muted=${Audio.micMuted} users=${JSON.stringify(Audio.micUsers)}\ncamera inUse=${Camera.inUse} handles=${Camera.users}`;
+        }
+
         function scan(active: bool): string {
             if (!Net.wifi)
                 return "no wifi device";

@@ -75,8 +75,8 @@ Scope {
 
                         // Left of the tray ellipsis: the Row is right-anchored,
                         // so anything ahead of the tray keeps every other
-                        // module in place when this one appears and vanishes.
-                        MicStatus {}
+                        // module in place when these appear and vanish.
+                        PrivacyStatus {}
 
                         Tray {
                             popouts: popouts

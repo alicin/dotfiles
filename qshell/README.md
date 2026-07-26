@@ -47,12 +47,37 @@ Hyprland wiring (`~/.config/hypr/lua/`):
   drawn full-strength even when collapsed — it's the affordance for a whole
   hidden row, and a dimmed one read as a disabled control rather than "there's
   more over here"; the reveal is its own hover feedback.
-- **Mic** — a muted-mic glyph immediately left of the tray ellipsis, and
-  *only* while the mic is actually muted. The interesting state is the one
-  where you're talking and nobody can hear you; a permanently-lit mic icon
-  would make exactly that state easy to miss. Click unmutes. Being first in a
-  right-anchored Row means it appears and disappears without shifting anything
-  else along the bar.
+- **Privacy lights** (`modules/bar/PrivacyStatus.qml`) — macOS-style: a glyph
+  appears immediately left of the tray ellipsis *only* while something is
+  actually using the camera (green) or the microphone (amber). Presence is the
+  signal, so neither has an idle state; both fade and scale in, because a thing
+  appearing out of nowhere in the corner of a bar is easy to miss and a moving
+  thing isn't. Being first in a right-anchored Row, they come and go without
+  shifting anything else along the bar. Clicking the mic mutes it.
+  - The mic keys off **active capture**, not the mute switch: an unmuted mic
+    with nothing listening isn't a privacy event, and an indicator lit all day
+    is one you stop seeing. A muted mic shows nothing at all — if nothing can
+    hear you there's nothing to warn about.
+  - Capture is detected as *the existence of a PipeWire link group* on the
+    source node. Its `state` is deliberately not consulted: PipeWire reports
+    these as Unlinked (-1) here even mid-recording, tracked or not, so
+    filtering on Active never matches — while the group itself appears and
+    disappears exactly with the client (measured: 0 idle, 1 through a capture,
+    0 after). Read off the global `Pipewire.linkGroups` rather than a
+    `PwNodeLinkTracker`, which wants both ends bound before it reports anything
+    and stayed empty. This also distinguishes a real mic capture from a screen
+    recording grabbing desktop audio off a monitor, which a
+    `Stream/Input/Audio` filter would have flagged as someone listening.
+  - The Sound page names **who** is listening (`Audio.micUsers`), since a bar
+    glyph can say *that* something is but not *what*.
+  - Camera detection is `/sys/module/uvcvideo/refcnt` (`services/Camera.qml`):
+    one 25µs read covers every UVC device at once — four here, the FHD webcam
+    plus the IR one for face unlock — with no enumeration and no caring which
+    is which. Polled at 700ms because there is no event: inotify doesn't fire
+    for writes the kernel makes to its own attributes, and this file has no
+    `sysfs_notify` behind it either (checked — POLLPRI never arrives). It counts
+    *opens* rather than streaming, which is the right direction to err for a
+    privacy light.
 - **Popout menus** (click any status module — each icon opens its own menu in
   place under it; position and size snap, and it scales+fades in over 300ms on
   the M3 emphasized-decelerate curve, growing from its top edge so it reads as
@@ -260,6 +285,7 @@ qs ipc -c qshell call brightness up         # down / kbdUp / kbdDown (media keys
 qs ipc -c qshell call theme set catppuccin-mocha
 qs ipc -c qshell call theme list            # / get
 qs ipc -c qshell call debug net             # networking introspection
+qs ipc -c qshell call debug privacy         # what's using the mic / camera
 ```
 
 ## Settings & theming
@@ -305,12 +331,13 @@ services/             Audio (Pipewire sink), Net (wifi/ethernet — named Net be
                       Tailscale (CLI + pkexec escalation), KdeConnect (daemon over DBus),
                       Clipboard (cliphist history), Brightness (display + kbd via
                       brightnessctl), Idle (keep-awake flag; inhibitor is on the bar),
+                      Camera (is anything using a webcam — uvcvideo refcount),
                       Asus (fan profile / charge limit / GPU mode), Power (CPU profile
                       + its one set of names and glyphs), Capture (grim,
                       slurp, wf-recorder + the live region geometry), Osd (what the
                       on-screen display is showing and for how much longer)
 modules/bar/          Bar, Workspaces + WorkspaceSlot, Clock, Tray + TrayItem, NotifsStatus,
-                      WifiStatus, BatteryStatus, ControlStatus, MicStatus
+                      WifiStatus, BatteryStatus, ControlStatus, PrivacyStatus
 modules/bar/popouts/  Popouts (dropdown host) + WifiMenu, BatteryMenu, NotifsMenu, TrayMenu
 modules/control/      ControlCenter (push navigation host) + Home, AudioPage,
                       BluetoothPage, KdeConnectPage, and the shared Card / Badge /

@@ -16,6 +16,43 @@ Singleton {
     readonly property bool micMuted: source?.audio?.muted ?? false
     readonly property real micVolume: source?.audio?.volume ?? 0
 
+    // Live links on the mic node — i.e. something is actually *capturing*, as
+    // opposed to the mic merely being unmuted. An idle unmuted mic is not a
+    // privacy event, and an indicator lit all day is one you stop seeing, so
+    // this is what the bar's warning keys off rather than `micMuted`.
+    //
+    // Existence of the group is the whole signal; its `state` deliberately
+    // isn't consulted. PipeWire reports these as Unlinked (-1) here even
+    // mid-recording, tracked or not, so filtering on Active never matches —
+    // whereas the group itself appears and disappears exactly with the client
+    // (measured: 0 idle, 1 through a capture, 0 after).
+    //
+    // Read off the global list rather than a PwNodeLinkTracker, which needs
+    // both ends bound before it reports anything and so stayed empty.
+    readonly property var micLinkGroups: {
+        const src = root.source;
+        if (!src)
+            return [];
+        return [...Pipewire.linkGroups.values].filter(g => g.source === src || g.target === src);
+    }
+
+    readonly property bool micInUse: micLinkGroups.length > 0
+
+    // What's listening, so "who?" has an answer that isn't a process list.
+    // Whichever end of the link isn't the mic is the consumer.
+    readonly property var micUsers: {
+        const out = [];
+        for (const g of root.micLinkGroups) {
+            const n = g.target === root.source ? g.source : g.target;
+            if (!n)
+                continue;
+            const name = (n.properties?.["application.name"] ?? "") || n.description || n.name;
+            if (name && !out.includes(name))
+                out.push(name);
+        }
+        return out;
+    }
+
     // True for a beat after the shell writes one of these itself. The OSD keys
     // off Pipewire's change signal — which fires for *any* writer, so a media
     // key, pavucontrol and a headset button all work with no plumbing — and
@@ -65,10 +102,11 @@ Singleton {
         onTriggered: root.selfEdit = false
     }
 
-    // The source is tracked too, not just the sink: `audio` only populates for
-    // tracked nodes, and the bar's mic indicator has to know whether the mic is
-    // muted without the Sound page being open to do the tracking for it.
+    // Everything, not just the default sink and source: `properties`
+    // (application.name) populates only for tracked nodes, and the node that
+    // needs naming is whatever stream turns up mid-recording — not something
+    // that can be known in advance.
     PwObjectTracker {
-        objects: [root.sink, root.source].filter(n => n)
+        objects: [...Pipewire.nodes.values]
     }
 }

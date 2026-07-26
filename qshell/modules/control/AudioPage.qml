@@ -197,6 +197,20 @@ Column {
             onMuteToggled: Audio.toggleMicMute()
         }
 
+        // The bar's privacy light can say *that* something is listening but not
+        // what, and "what" is the part you actually want.
+        StyledText {
+            x: Appearance.s(12)
+            width: parent.width - Appearance.s(24)
+            height: visible ? Appearance.s(24) : 0
+            visible: Audio.micUsers.length > 0
+            text: `In use by ${Audio.micUsers.join(", ")}`
+            color: Audio.micMuted ? Theme.surfaceFgDim : Theme.warn
+            font.pixelSize: Appearance.font.size.small
+            font.weight: Font.Normal
+            elide: Text.ElideRight
+        }
+
         ListView {
             id: sourceList
 
