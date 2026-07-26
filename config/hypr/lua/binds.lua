@@ -27,10 +27,15 @@ hl.bind(MS .. " + A",      dsp.exec_cmd("/home/ali/Games/audiorelay-0.27.5/bin/A
 hl.bind(M  .. " + D",     dsp.exec_cmd(apps.menu))       -- app launcher
 hl.bind(MS .. " + W",     dsp.exec_cmd(apps.wmenu))      -- window switcher
 hl.bind(M  .. " + Tab",   dsp.exec_cmd(apps.overview))   -- overview
+-- Physical Alt+Tab: Toshy's modmaps leave Alt untouched and its Cmd-Tab
+-- keymaps are commented out, so this reaches Hyprland as plain ALT — and it's
+-- the macOS Cmd+Tab position, which fits an overview/switcher.
+hl.bind("ALT + Tab",      dsp.exec_cmd(apps.overview))   -- overview (physical Alt)
 hl.bind(MS .. " + V",     dsp.exec_cmd(apps.clipboard))  -- clipboard history
 hl.bind(MS .. " + P",     dsp.exec_cmd(apps.colorpicker))-- color picker
 hl.bind(MS .. " + C",     dsp.exec_cmd(apps.bar))        -- toggle bar
 hl.bind(M  .. " + slash", dsp.exec_cmd(apps.keycheat))   -- shortcuts cheatsheet
+hl.bind(M  .. " + N",     dsp.exec_cmd("qs ipc -c qshell call popouts toggle notifs")) -- notification center
 
 -- ▸ Window
 hl.bind(M  .. " + Q",     dsp.window.close())                          -- close
@@ -79,9 +84,11 @@ hl.bind(MC .. " + left",  dsp.focus({ workspace = "e-1" }))  -- prev workspace
 hl.bind(MC .. " + right", dsp.focus({ workspace = "e+1" }))  -- next workspace
 
 -- ▸ Screen / display
-hl.bind(MS .. " + S", dsp.exec_cmd(apps.grab))              -- screenshot
-hl.bind(MS .. " + R", dsp.exec_cmd(apps.record))            -- screen record
+-- macOS Cmd+Shift+4/5 style; physical Cmd (Left Alt) is emitted as Ctrl by Toshy.
+hl.bind("CTRL + SHIFT + 4", dsp.exec_cmd(apps.grab))         -- area screenshot
+hl.bind("CTRL + SHIFT + 5", dsp.exec_cmd(apps.record))       -- area screen record (toggle)
 hl.bind(MS .. " + M", dsp.exec_cmd(apps.toggle_edp))        -- toggle eDP
+hl.bind(MS .. " + O", dsp.exec_cmd(apps.relight_displays))  -- relight stuck/blank display (panic)
 hl.bind(MS .. " + N", dsp.exec_cmd(apps.toggle_edp_refresh))-- toggle refresh rate
 hl.bind(MS .. " + n", dsp.exec_cmd(apps.toggle_edp_refresh))
 hl.bind(MC .. " + M", dsp.exec_cmd("/home/ali/labs/dotfiles/bin/hypr-monitor-manager.sh auto"))          -- monitors: auto
@@ -111,4 +118,8 @@ hl.bind("XF86AudioNext",  dsp.exec_cmd("playerctl next"),     { locked = true })
 
 -- ▸ Gestures (touchpad)
 hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
+-- NOTE: a "2-finger swipe from touchpad edge → notifications" gesture is not
+-- feasible: libinput reports 2-finger contact as scroll (no edge origin), and
+-- hl.gesture only supports built-in actions (workspace/fullscreen/special/…),
+-- not exec. Super+N toggles the notification center instead.
 hl.gesture({ fingers = 4, direction = "swipe",      action = "move" })

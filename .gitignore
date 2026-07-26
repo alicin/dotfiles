@@ -14,3 +14,7 @@ config/pacsea/logs
 .brew_cask_index
 btop.log
 __pycache__/
+
+# Apple-licensed. qshell used a patched SF Symbols build before moving to
+# Framework7; kept ignored so a stray local copy can never be committed.
+themes/fonts/SFSymbolsQS.otf

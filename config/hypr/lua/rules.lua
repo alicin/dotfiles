@@ -119,6 +119,10 @@ hl.window_rule({ match = { class = "^(looking-glass-client)$" }, immediate = tru
 -- animation leaf in lua/animations.lua (cranked up so it's snappy).
 hl.layer_rule({ match = { namespace = "^(wofi)$" }, animation = "fade" })
 
+-- qshell (bar + launcher): the shell animates its own content, so the layer
+-- surfaces themselves just fade.
+hl.layer_rule({ match = { namespace = "^(qshell:.*)$" }, animation = "fade" })
+
 -- ── Special workspace assignments ────────────────────────────────────────────
 hl.window_rule({
   match     = { title = "^(meet.google.com is sharing a window.)$" },

@@ -6,7 +6,8 @@ local theme = require("lua.theme")
 hl.config({
   general = {
     gaps_in                 = 4,
-    gaps_out                = 12,
+    -- Tight under the qshell bar, roomy on the other sides.
+    gaps_out                = { top = 4, right = 12, bottom = 12, left = 12 },
     border_size             = 4,
     layout                  = "dwindle",
     resize_on_border        = true,

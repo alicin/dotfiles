@@ -16,20 +16,23 @@ M.browser     = "google-chrome --disable-features=WaylandWpColorManagerV1"
 M.filemanager = M.term_float .. " -e yazi"
 M.calendar    = M.term_float .. " khal interactive"
 M.editor      = "code"
-M.overview    = "qs ipc -c overview call overview toggle"
+M.overview    = "qs ipc -c qshell call overview toggle"
 
 -- Menus.
 -- M.menu  = "ali"
--- `pkill wofi ||` makes the bind a toggle: if wofi is already open, the
--- keypress closes it instead of spawning a second instance.
-M.menu  = "pkill wofi || wofi --show drun --allow-images"
+-- qshell launcher (caelestia-style panel from ~/labs/src/nullsector/j4rv15/qshell,
+-- symlinked to ~/.config/quickshell/qshell). `toggle` closes it if already open.
+M.menu  = "qs ipc -c qshell call launcher toggle"
+-- Old wofi launcher, kept as fallback:
+-- M.menu  = "pkill wofi || wofi --show drun --allow-images"
 M.dmenu = "wofi -i --show dmenu"
 -- Window switcher: select a client via wofi and focus it. Uses [==[ ]==]
 -- (level-2 long brackets) because the shell snippet contains [[:blank:]].
 M.wmenu = [==[hyprctl dispatch focuswindow address:"$(hyprctl -j clients | jq 'map("\(.workspace.id) ∴ \(.workspace.name) ┇ \(.title) ┇ \(.address)")' | sed "s/,$//; s/^\[//; s/^\]//; s/^[[:blank:]]*//; s/^\"//; s/\"$//" | grep -v "^$" | wofi -idO alphabetical | grep -o "0x.*$")"]==]
 
--- Status bar.
-M.bar = "pkill hyprpanel || true; /usr/bin/hyprpanel"
+-- Status bar: qshell (Quickshell shell in the j4rv15 repo). Same restart
+-- semantics as the old hyprpanel line: kill any running instance, start fresh.
+M.bar = "qs kill -c qshell 2>/dev/null; qs -d -c qshell"
 
 -- On-screen volume/brightness indicator (wob).
 M.onscreen_bar = [[bash ~/labs/dotfiles/scripts/wob.sh "#EB8A7DFF" "#2C2440FF"]]
@@ -49,21 +52,28 @@ M.kb_brightness_off   = "brightnessctl -sd asus::kbd_backlight set 0"
 -- Audio.
 M.sink_volume   = "pactl get-sink-volume @DEFAULT_SINK@ | grep '^Volume:' | cut -d / -f 2 | tr -d ' ' | sed 's/%//'"
 M.source_volume = "pactl get-source-volume @DEFAULT_SOURCE@ | grep '^Volume:' | cut -d / -f 2 | tr -d ' ' | sed 's/%//'"
-M.volume_down   = "pactl set-sink-volume @DEFAULT_SINK@ -5%"
-M.volume_up     = "pactl set-sink-volume @DEFAULT_SINK@ +5%"
+-- wpctl with -l (limit) so repeated volume-up stops at exactly 100%.
+M.volume_down   = "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
+M.volume_up     = "wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%+"
 M.volume_mute   = "pactl set-sink-mute @DEFAULT_SINK@ toggle"
 M.mic_mute      = "pactl set-source-mute @DEFAULT_SOURCE@ toggle"
 
 -- Misc utilities.
 M.colorpicker    = "hyprpicker | wl-copy"
-M.clipboard      = "cliphist list | " .. M.dmenu .. " | cliphist decode | wl-copy"
-M.clipboard_del  = "cliphist list | " .. M.dmenu .. " | cliphist delete"
+-- Clipboard history: qshell's picker (same cliphist store as before, so the
+-- history carries over). Deleting an entry is Shift+Delete inside the panel,
+-- which is why there's no separate clipboard_del binding any more.
+M.clipboard      = "qs ipc -c qshell call clipboard toggle"
+-- Old wofi pickers, kept as fallback:
+-- M.clipboard     = "cliphist list | " .. M.dmenu .. " | cliphist decode | wl-copy"
+-- M.clipboard_del = "cliphist list | " .. M.dmenu .. " | cliphist delete"
 
 -- Monitor / screenshot scripts.
 M.toggle_edp         = "/home/ali/labs/dotfiles/bin/toggle-edp.sh"
 M.toggle_edp_refresh = "/home/ali/labs/dotfiles/bin/toggle-edp-refresh.sh"
-M.grab               = "/home/ali/labs/dotfiles/scripts/grab.sh"
-M.record             = "/home/ali/labs/dotfiles/scripts/record.sh"
+M.relight_displays   = "/home/ali/labs/dotfiles/bin/relight-displays.sh"
+M.grab               = "/home/ali/labs/dotfiles/scripts/screenshot.sh"      -- macOS Cmd+Shift+4 style: area screenshot
+M.record             = "/home/ali/labs/dotfiles/scripts/screen_record.sh toggle" -- macOS Cmd+Shift+5 style: area recording toggle
 M.keycheat           = "/home/ali/labs/dotfiles/bin/keycheat"   -- shortcuts overlay (toggle)
 
 -- Lock / idle daemons (singleton: only spawn if not already running).
