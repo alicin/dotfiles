@@ -26,7 +26,48 @@
     ],
 
     "hyprland/workspaces": {
-      "on-click": true
+      "on-click": true,
+      "all-outputs": true,
+      "active-only": false,
+      "format": "{icon}{windows}",
+      "format-window-separator": " ",
+      "window-rewrite-default": "",
+      "window-rewrite": {
+        "class<[Gg]oogle-chrome.*>": "",
+        "class<[Cc]hromium.*>": "",
+        "class<firefox.*>": "",
+        "class<[Bb]rave.*>": "",
+        "class<[Cc]ode>": "󰨞",
+        "class<code-url-handler>": "󰨞",
+        "class<kitty>": "",
+        "class<ghostty>": "",
+        "class<[Aa]lacritty>": "",
+        "class<org.wezfurlong.wezterm>": "",
+        "class<foot>": "",
+        "class<floating_shell>": "",
+        "class<[Ss]lack>": "",
+        "class<discord>": "",
+        "class<vesktop>": "",
+        "class<[Ss]potify>": "",
+        "class<virt-manager>": "󰢹",
+        "class<.*[Ll]ooking.?[Gg]lass.*>": "󰍹",
+        "title<.*[Ll]ooking.?[Gg]lass.*>": "󰍹",
+        "class<imv>": "",
+        "class<mpv>": "",
+        "class<[Oo]bsidian>": "",
+        "class<org.pwmt.zathura>": "",
+        "class<thunar>": "",
+        "class<org.gnome.Nautilus>": "",
+        "class<[Ff]ile.?[Rr]oller>": "",
+        "class<pavucontrol>": "",
+        "class<.*[Bb]lueberry.*>": "",
+        "class<org.telegram.desktop>": ""
+      },
+      "format-icons": {
+        "default": "",
+        "empty": "○",
+        "urgent": "󰀦"
+      }
     },
 
     "hyprland/window": {

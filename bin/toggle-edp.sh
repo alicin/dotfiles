@@ -41,11 +41,15 @@ load_monitor_state() {
 
 # Check if monitor is currently enabled
 if hyprctl monitors | grep -q "^Monitor $MONITOR"; then
-    # Monitor is on, disable it
+    # Monitor is on, disable it.
     save_monitor_state
     hyprctl -r eval "hl.monitor({ output = \"$MONITOR\", disabled = true })"
 else
-    # Monitor is off, enable it
-    load_monitor_state
-    hyprctl -r eval "hl.monitor({ output = \"$MONITOR\", disabled = false, mode = \"$MONITOR_MODE\", position = \"$MONITOR_POSITION\", scale = $MONITOR_SCALE })"
+    # Monitor is off, re-enable it.
+    #
+    # NOTE: `hl.monitor({ disabled = false, ... })` returns "ok" but does NOT
+    # re-add a disabled connector in the current Hyprland/aquamarine — the panel
+    # stays dark. So recover via `hyprctl reload`, which re-applies the host
+    # monitor config (canonical mode/position/scale) and forces a real modeset.
+    exec "$(dirname "$(readlink -f "$0")")/relight-displays.sh"
 fi

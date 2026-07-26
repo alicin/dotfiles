@@ -31,13 +31,28 @@ log "=== preparing win11 passthrough ==="
 #    so the GPU must go through supergfxd before we touch the NVMe.
 log "supergfxctl -m Vfio"
 supergfxctl -m Vfio || die "supergfxctl -m Vfio failed"
+
+# supergfxd's -m Vfio relies on the `ids=` in its modprobe.d taking effect when it (re)inserts
+# vfio-pci. That only happens if the module is actually inserted at switch time — if vfio_pci is
+# pinned in the initramfs and already resident, the modprobe is a no-op and NOTHING binds, so the
+# wait below would time out (see mkinitcpio MODULES: keep vfio_pci OUT so this insert is real).
+# Don't trust the ids path regardless: wait for the dGPU to reappear on the bus after the rescan,
+# then bind GPU+AUDIO explicitly via driver_override (same mechanism as the NVMe below).
 deadline=$((SECONDS + BIND_TIMEOUT))
+while [ ! -e "/sys/bus/pci/devices/$GPU" ] || [ ! -e "/sys/bus/pci/devices/$AUDIO" ]; do
+  [ "$SECONDS" -lt "$deadline" ] || die "timeout waiting for dGPU to reappear on the PCI bus (supergfxctl -m Vfio / rescan / hotplug_type)"
+  sleep 0.5
+done
+modprobe vfio-pci 2>/dev/null || true
+for d in "$GPU" "$AUDIO"; do
+  [ "$(driver_of "$d")" = "vfio-pci" ] || bind_vfio "$d"
+done
 while :; do
   if [ "$(driver_of "$GPU")" = "vfio-pci" ] && [ "$(driver_of "$AUDIO")" = "vfio-pci" ]; then
     log "dGPU $GPU + $AUDIO bound to vfio-pci"
     break
   fi
-  [ "$SECONDS" -lt "$deadline" ] || die "timeout waiting for dGPU on vfio-pci (check iommu=pt gate / supergfxd / hotplug_type)"
+  [ "$SECONDS" -lt "$deadline" ] || die "timeout waiting for dGPU on vfio-pci (check iommu=pt gate / supergfxd / driver_override)"
   sleep 0.5
 done
 

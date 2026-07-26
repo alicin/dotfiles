@@ -21,7 +21,7 @@
 #   * packages (libvirt/qemu/swtpm/edk2 + looking-glass/supergfxctl via yay)
 #   * user in libvirt/kvm/input groups
 #   * kernel cmdline: intel_iommu=on iommu=pt   (systemd-boot entries)
-#   * initramfs: vfio_pci vfio vfio_iommu_type1 (mkinitcpio)
+#   * initramfs: keep vfio_pci OUT of mkinitcpio MODULES (supergfxd inserts it per switch)
 #   * /etc/supergfxd.conf  (Vfio hot-plug: no_logind, vfio_save=false)
 #   * /etc/tmpfiles.d/looking-glass.conf   (/dev/shm/looking-glass 0660 ali:kvm)
 #   * libvirt hooks (dGPU hot-plug, NVMe bind, /mnt/fat unmount, CPU isolation)
@@ -126,18 +126,23 @@ if [ "$DO_KERNEL" = 1 ]; then
     fi
   fi
 
-  say "initramfs: vfio_pci vfio vfio_iommu_type1 (mkinitcpio)"
+  say "initramfs: keep vfio_pci OUT of mkinitcpio MODULES"
+  # DO NOT front-load vfio_pci. supergfxd hot-plugs the dGPU: in Integrated mode the card is
+  # removed from the bus and vfio-pci's `ids=` is (re)applied only when supergfxd modprobes it at
+  # the -m Vfio switch. A resident-from-initramfs vfio_pci makes that modprobe a no-op — it keeps
+  # whatever (empty) ids the initramfs modprobe.d snapshot had — so nothing binds and the prepare
+  # hook times out. Leaving it out means each switch inserts it fresh with the current ids.
   MKC=/etc/mkinitcpio.conf
-  if grep -qE '^MODULES=.*vfio_pci' "$MKC" 2>/dev/null; then
-    info "vfio modules already in MODULES=()"
-  elif [ -f "$MKC" ]; then
+  if [ -f "$MKC" ] && grep -qE '^MODULES=.*vfio_pci' "$MKC"; then
     backup_file "$MKC"
-    # insert the three modules at the front of the MODULES=() array
-    run "sudo sed -i -E 's/^MODULES=\\((.*)\\)/MODULES=(vfio_pci vfio vfio_iommu_type1 \\1)/' '$MKC'"
+    # drop vfio_pci / vfio / vfio_iommu_type1 from the MODULES=() array (in any order)
+    run "sudo sed -i -E 's/^(MODULES=\\()(.*)\\)/\\1\\2)/; s/\\b(vfio_pci|vfio_iommu_type1|vfio)\\b ?//g; s/^(MODULES=\\() +/\\1/; s/ +\\)/)/' '$MKC'"
     run "sudo mkinitcpio -P"
     REBOOT_NEEDED=1
+  elif [ -f "$MKC" ]; then
+    info "vfio_pci already absent from MODULES=() — good"
   else
-    warn "no $MKC (not mkinitcpio?) — ensure vfio_pci is loadable."
+    warn "no $MKC (not mkinitcpio?) — ensure supergfxd can modprobe vfio_pci at switch time."
   fi
 fi
 

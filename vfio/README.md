@@ -22,11 +22,12 @@ fresh Arch install, rebuilding the host side is one script:
 
 ```bash
 ./vfio/scripts/setup-host.sh        # idempotent; --dry-run to preview; asks for sudo once
-# reboot IF it says so (only when it had to add the IOMMU cmdline / initramfs vfio modules)
+# reboot IF it says so (only when it had to change the IOMMU cmdline / strip vfio from the initramfs)
 ./vfio/scripts/game.sh              # launch
 ```
 
-That installs packages, sets the IOMMU kernel cmdline + initramfs vfio modules, deploys the
+That installs packages, sets the IOMMU kernel cmdline, keeps vfio_pci out of the initramfs (so
+supergfxd inserts it with its `ids=` at each `-m Vfio` switch), deploys the
 `/etc` files (supergfxd, tmpfiles, libvirt hooks), the Looking Glass `client.ini`, enables the
 services, and `virsh define`s the VM. It **does not touch the guest**. The Hyprland-side latency
 tuning is *not* in the script — it's tracked Hyprland config (see below) that deploys with the
@@ -150,7 +151,9 @@ of `profile-install.sh`). Idempotent; re-run any time. Flags: `--dry-run`, `--no
 2. **Groups** — adds you to `libvirt`, `kvm`, `input`.
 3. **Kernel cmdline** — ensures `intel_iommu=on iommu=pt` on the systemd-boot Linux entries (backs
    up `entries/` first; skips `windows.conf`). **Reboot** if it changed anything.
-4. **initramfs** — ensures `vfio_pci vfio vfio_iommu_type1` in `mkinitcpio.conf` MODULES, rebuilds.
+4. **initramfs** — strips `vfio_pci vfio vfio_iommu_type1` from `mkinitcpio.conf` MODULES, rebuilds.
+   (Front-loading vfio_pci makes supergfxd's per-switch `modprobe` a no-op, so the `ids=` never
+   registers and the dGPU never binds — the prepare hook then times out. Let supergfxd own it.)
 5. **`/etc`** — `supergfxd.conf`, the `/dev/shm/looking-glass` tmpfiles rule, the libvirt hooks,
    and `qemu.conf` set to run QEMU as root (needed for raw PCI passthrough).
 6. **client.ini** → `~/.config/looking-glass/`.
@@ -205,6 +208,10 @@ service, disable VBS/HVCI/Memory-Integrity + Fullscreen Optimizations.
 
 ## Recovery
 
+- **VM won't start, `FATAL: timeout waiting for dGPU on vfio-pci`** (`journalctl -t vfio-hook`) → vfio_pci
+  is resident before supergfxd's switch, so its `ids=` never applied. Usually a kernel upgrade rebuilt
+  the initramfs with vfio_pci front-loaded. Fix: `grep MODULES= /etc/mkinitcpio.conf` should be `MODULES=()`
+  (re-run `setup-host.sh` to strip + rebuild), then reboot. Verify with `lsinitcpio /boot/initramfs-linux-zen.img | grep vfio.*\.ko` (should be empty).
 - **dGPU wedged / won't power down** → `supergfxctl -m Integrated`; if that fails, **reboot** (Blackwell reset bug).
 - **`/mnt/fat` missing after a crash** → `sudo /etc/libvirt/hooks/vfio/release.sh` re-runs the rebind + remount.
 - **Looking Glass shows a black/stale frame** → relaunch `looking-glass-client`; ensure the guest MTT VDD is active (2560×1600@240).
