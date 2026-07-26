@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import Quickshell.Bluetooth
 import Quickshell.Hyprland
 import Quickshell.Widgets
 import Quickshell.Services.Mpris
@@ -7,26 +8,64 @@ import qs.config
 import qs.components
 import qs.services
 
-// The things that *don't* already have their own bar module: focus/caffeine,
-// media, brightness, and session actions. Wi-Fi, Bluetooth, volume and power
-// profile all live in their own status icons up top, so duplicating them here
-// was two places to keep in sync for no gain.
+// Control Center home. Everything here is either a one-tap toggle or a slider —
+// anything that needs a list (sound devices, Bluetooth pairing, KDE Connect
+// actions) gets a row that drills into its own page, so the common case is
+// always reachable without leaving this screen.
 Column {
     id: root
 
+    signal navigate(string page)
+
     readonly property real tileW: (width - Appearance.s(8)) / 2
+
     // Filtered: a player that fails to register (bad MPRIS implementation)
     // can leave a null in the model, and every binding below would throw on it.
     readonly property var players: [...Mpris.players.values].filter(p => p)
 
-    width: Appearance.s(340)
+    readonly property BluetoothAdapter btAdapter: Bluetooth.defaultAdapter
+    readonly property bool btOn: btAdapter?.enabled ?? false
+    readonly property var btConnected: [...Bluetooth.devices.values].filter(d => d.connected)
+
+    // One phone is the interesting case; the page lists the rest.
+    readonly property var phone: KdeConnect.reachable[0] ?? KdeConnect.devices[0] ?? null
+
+    function btSubtitle(): string {
+        if (!root.btOn)
+            return "Off";
+        if (root.btConnected.length === 0)
+            return "On";
+        if (root.btConnected.length === 1)
+            return root.btConnected[0].name || root.btConnected[0].address;
+        return `${root.btConnected.length} devices`;
+    }
+
+    function phoneSubtitle(): string {
+        const d = root.phone;
+        if (!d)
+            return "No paired devices";
+        if (!d.reachable)
+            return "Not reachable";
+        const bits = [];
+        if (d.battery >= 0)
+            bits.push(`${d.battery}%${d.charging ? " charging" : ""}`);
+        if (d.network)
+            bits.push(d.network);
+        return bits.length ? bits.join(" · ") : "Connected";
+    }
+
     spacing: Appearance.s(8)
 
-    // Brightness is read by polling brightnessctl — only worth doing while
-    // this menu is actually on screen.
-    Component.onCompleted: Brightness.polling = true
+    // Brightness is read by polling brightnessctl, and KDE Connect's daemon
+    // poll is slow enough to look stale — both are only worth doing while this
+    // is actually on screen.
+    Component.onCompleted: {
+        Brightness.polling = true;
+        KdeConnect.refresh();
+    }
     Component.onDestruction: Brightness.polling = false
 
+    // Two-up toggle tile: badge, title, state line.
     component Tile: Rectangle {
         id: tile
 
@@ -48,30 +87,17 @@ Column {
             onClicked: tile.tapped()
         }
 
-        Rectangle {
-            id: badge
+        Badge {
+            id: tileBadge
 
             x: Appearance.s(10)
             anchors.verticalCenter: parent.verticalCenter
-            width: Appearance.s(34)
-            height: width
-            radius: width / 2
-            color: tile.active ? Theme.accent : Qt.alpha(Theme.surfaceFg, 0.14)
-
-            Behavior on color {
-                CAnim {}
-            }
-
-            FIcon {
-                anchors.centerIn: parent
-                icon: tile.fIcon
-                font.pixelSize: Appearance.s(16)
-                color: tile.active ? Theme.accentFg : Theme.surfaceFg
-            }
+            glyph: tile.fIcon
+            active: tile.active
         }
 
         Column {
-            anchors.left: badge.right
+            anchors.left: tileBadge.right
             anchors.leftMargin: Appearance.s(8)
             anchors.right: parent.right
             anchors.rightMargin: Appearance.s(8)
@@ -97,6 +123,162 @@ Column {
         }
     }
 
+    // Trailing "there's more behind this" affordance. A real button, not just
+    // a glyph — it's the only way into a page from a row that also has its own
+    // controls.
+    component Disclosure: Item {
+        id: disc
+
+        signal tapped
+
+        width: Appearance.s(26)
+        height: Appearance.s(30)
+
+        StateLayer {
+            radius: Appearance.s(8)
+            color: Theme.surfaceFg
+            onClicked: disc.tapped()
+        }
+
+        FIcon {
+            anchors.centerIn: parent
+            icon: "chevron_right"
+            font.pixelSize: Appearance.font.size.small
+            color: Theme.surfaceFgDim
+        }
+    }
+
+    // ── Connectivity ──
+    // Split hit targets, macOS-style: the badge toggles the radio, the rest of
+    // the row opens the page. Both get their own hover wash so which-does-what
+    // is visible before you commit to a click.
+    Card {
+        Item {
+            width: parent.width
+            height: Appearance.s(48)
+
+            StateLayer {
+                radius: Appearance.s(10)
+                color: Theme.surfaceFg
+                onClicked: root.navigate("bluetooth")
+            }
+
+            Badge {
+                id: btBadge
+
+                x: Appearance.s(8)
+                anchors.verticalCenter: parent.verticalCenter
+                // Framework7 has no bluetooth glyph at all — nerd runes here.
+                rune: !root.btOn ? "󰂲" : root.btConnected.length > 0 ? "󰂱" : "󰂯"
+                active: root.btOn
+                toggles: true
+                onTapped: {
+                    if (root.btAdapter)
+                        root.btAdapter.enabled = !root.btOn;
+                }
+            }
+
+            Column {
+                anchors.left: btBadge.right
+                anchors.leftMargin: Appearance.s(10)
+                anchors.right: btChevron.left
+                anchors.rightMargin: Appearance.s(6)
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 0
+
+                StyledText {
+                    width: parent.width
+                    text: "Bluetooth"
+                    color: Theme.surfaceFg
+                    font.pixelSize: Appearance.font.size.small
+                    elide: Text.ElideRight
+                }
+
+                StyledText {
+                    width: parent.width
+                    text: root.btSubtitle()
+                    color: root.btConnected.length > 0 ? Theme.ok : Theme.surfaceFgDim
+                    font.pixelSize: Appearance.font.size.small
+                    font.weight: Font.Normal
+                    elide: Text.ElideRight
+                }
+            }
+
+            FIcon {
+                id: btChevron
+
+                anchors.right: parent.right
+                anchors.rightMargin: Appearance.s(12)
+                anchors.verticalCenter: parent.verticalCenter
+                icon: "chevron_right"
+                font.pixelSize: Appearance.font.size.small
+                color: Theme.surfaceFgDim
+            }
+        }
+
+        MenuSeparator {
+            x: Appearance.s(52)
+            width: parent.width - Appearance.s(64)
+        }
+
+        Item {
+            width: parent.width
+            height: Appearance.s(48)
+
+            StateLayer {
+                radius: Appearance.s(10)
+                color: Theme.surfaceFg
+                onClicked: root.navigate("kdeconnect")
+            }
+
+            Badge {
+                id: phoneBadge
+
+                x: Appearance.s(8)
+                anchors.verticalCenter: parent.verticalCenter
+                glyph: "device_phone_portrait"
+                active: (root.phone?.reachable ?? false)
+            }
+
+            Column {
+                anchors.left: phoneBadge.right
+                anchors.leftMargin: Appearance.s(10)
+                anchors.right: phoneChevron.left
+                anchors.rightMargin: Appearance.s(6)
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 0
+
+                StyledText {
+                    width: parent.width
+                    text: root.phone?.name ?? "KDE Connect"
+                    color: Theme.surfaceFg
+                    font.pixelSize: Appearance.font.size.small
+                    elide: Text.ElideRight
+                }
+
+                StyledText {
+                    width: parent.width
+                    text: root.phoneSubtitle()
+                    color: (root.phone?.reachable ?? false) ? Theme.ok : Theme.surfaceFgDim
+                    font.pixelSize: Appearance.font.size.small
+                    font.weight: Font.Normal
+                    elide: Text.ElideRight
+                }
+            }
+
+            FIcon {
+                id: phoneChevron
+
+                anchors.right: parent.right
+                anchors.rightMargin: Appearance.s(12)
+                anchors.verticalCenter: parent.verticalCenter
+                icon: "chevron_right"
+                font.pixelSize: Appearance.font.size.small
+                color: Theme.surfaceFgDim
+            }
+        }
+    }
+
     // ── Focus / caffeine ──
     Row {
         spacing: Appearance.s(8)
@@ -104,7 +286,7 @@ Column {
         Tile {
             fIcon: "moon_fill"
             title: "Do Not Disturb"
-            subtitle: Notifs.dnd ? "on" : "off"
+            subtitle: Notifs.dnd ? "On" : "Off"
             active: Notifs.dnd
             onTapped: Notifs.toggleDnd()
         }
@@ -112,9 +294,154 @@ Column {
         Tile {
             fIcon: Idle.inhibited ? "eye_fill" : "moon_zzz_fill"
             title: "Keep Awake"
-            subtitle: Idle.inhibited ? "on" : "off"
+            subtitle: Idle.inhibited ? "On" : "Off"
             active: Idle.inhibited
             onTapped: Idle.toggle()
+        }
+    }
+
+    // ── Sound ──
+    // Master volume stays on home so the common case never needs the page; the
+    // chevron is for picking devices and per-app levels.
+    Card {
+        Item {
+            width: parent.width
+            height: Appearance.s(32)
+
+            Item {
+                id: muteBtn
+
+                x: Appearance.s(6)
+                width: Appearance.s(30)
+                height: parent.height
+
+                StateLayer {
+                    radius: Appearance.s(9)
+                    color: Theme.surfaceFg
+                    onClicked: Audio.toggleMute()
+                }
+
+                FIcon {
+                    anchors.centerIn: parent
+                    icon: Audio.muted ? "speaker_slash_fill" : Audio.volume < 0.34 ? "speaker_1_fill" : Audio.volume < 0.67 ? "speaker_2_fill" : "speaker_3_fill"
+                    color: Audio.muted ? Theme.surfaceFgDim : Theme.surfaceFg
+                }
+            }
+
+            StyledSlider {
+                anchors.left: muteBtn.right
+                anchors.leftMargin: Appearance.s(6)
+                anchors.right: volChevron.left
+                anchors.rightMargin: Appearance.s(8)
+                anchors.verticalCenter: parent.verticalCenter
+                value: Audio.volume
+                onMoved: value => Audio.setVolume(value)
+            }
+
+            Disclosure {
+                id: volChevron
+
+                anchors.right: parent.right
+                anchors.rightMargin: Appearance.s(6)
+                anchors.verticalCenter: parent.verticalCenter
+                onTapped: root.navigate("audio")
+            }
+        }
+
+        StyledText {
+            x: Appearance.s(42)
+            width: parent.width - Appearance.s(56)
+            text: `${Audio.sink?.description || "No output"} · ${Math.round(Audio.volume * 100)}%`
+            color: Theme.surfaceFgDim
+            font.pixelSize: Appearance.font.size.small
+            font.weight: Font.Normal
+            elide: Text.ElideRight
+        }
+    }
+
+    // ── Display brightness ──
+    Rectangle {
+        width: parent.width
+        height: Appearance.s(52)
+        radius: Appearance.s(14)
+        color: Theme.surfaceHoverBg
+
+        FIcon {
+            id: brightGlyph
+
+            x: Appearance.s(12)
+            anchors.verticalCenter: parent.verticalCenter
+            icon: "sun_max_fill"
+            color: Theme.surfaceFg
+        }
+
+        StyledSlider {
+            anchors.left: brightGlyph.right
+            anchors.leftMargin: Appearance.s(12)
+            anchors.right: parent.right
+            anchors.rightMargin: Appearance.s(14)
+            anchors.verticalCenter: parent.verticalCenter
+            value: Brightness.display
+            onMoved: value => Brightness.setDisplay(value)
+        }
+    }
+
+    // ── Keyboard backlight ──
+    Rectangle {
+        visible: Brightness.kbdAvailable
+        width: parent.width
+        height: Appearance.s(46)
+        radius: Appearance.s(14)
+        color: Theme.surfaceHoverBg
+
+        StateLayer {
+            radius: parent.radius
+            color: Theme.surfaceFg
+            onClicked: Brightness.cycleKbd()
+        }
+
+        FIcon {
+            id: kbdGlyph
+
+            x: Appearance.s(12)
+            anchors.verticalCenter: parent.verticalCenter
+            icon: "keyboard"
+            color: Brightness.kbd > 0 ? Theme.accent : Theme.surfaceFgDim
+        }
+
+        StyledText {
+            anchors.left: kbdGlyph.right
+            anchors.leftMargin: Appearance.s(12)
+            anchors.verticalCenter: parent.verticalCenter
+            text: "Keyboard"
+            color: Theme.surfaceFg
+            font.pixelSize: Appearance.font.size.small
+        }
+
+        // Level pips rather than a slider — the ROG backlight has exactly
+        // three steps plus off, and tapping cycles through them.
+        Row {
+            anchors.right: parent.right
+            anchors.rightMargin: Appearance.s(14)
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: Appearance.s(5)
+
+            Repeater {
+                model: Brightness.kbdMax
+
+                Rectangle {
+                    required property int index
+
+                    width: Appearance.s(8)
+                    height: width
+                    radius: width / 2
+                    color: index < Brightness.kbd ? Theme.accent : Qt.alpha(Theme.surfaceFg, 0.2)
+
+                    Behavior on color {
+                        CAnim {}
+                    }
+                }
+            }
         }
     }
 
@@ -358,6 +685,7 @@ Column {
             id: capRow
 
             readonly property int cols: 5
+            readonly property real cellW: width / cols
 
             anchors.left: parent.left
             anchors.leftMargin: Appearance.s(8)
@@ -366,8 +694,6 @@ Column {
             anchors.top: capTitle.bottom
             anchors.topMargin: Appearance.s(2)
             spacing: 0
-
-            readonly property real cellW: (width - Appearance.s(0)) / cols
 
             CaptureBtn {
                 width: capRow.cellW
@@ -479,92 +805,6 @@ Column {
         }
     }
 
-    // ── Display brightness ──
-    Rectangle {
-        width: parent.width
-        height: Appearance.s(52)
-        radius: Appearance.s(14)
-        color: Theme.surfaceHoverBg
-
-        FIcon {
-            id: brightGlyph
-
-            x: Appearance.s(12)
-            anchors.verticalCenter: parent.verticalCenter
-            icon: "sun_max_fill"
-            color: Theme.surfaceFg
-        }
-
-        StyledSlider {
-            anchors.left: brightGlyph.right
-            anchors.leftMargin: Appearance.s(12)
-            anchors.right: parent.right
-            anchors.rightMargin: Appearance.s(14)
-            anchors.verticalCenter: parent.verticalCenter
-            value: Brightness.display
-            onMoved: value => Brightness.setDisplay(value)
-        }
-    }
-
-    // ── Keyboard backlight ──
-    Rectangle {
-        visible: Brightness.kbdAvailable
-        width: parent.width
-        height: Appearance.s(46)
-        radius: Appearance.s(14)
-        color: Theme.surfaceHoverBg
-
-        StateLayer {
-            radius: parent.radius
-            color: Theme.surfaceFg
-            onClicked: Brightness.cycleKbd()
-        }
-
-        FIcon {
-            id: kbdGlyph
-
-            x: Appearance.s(12)
-            anchors.verticalCenter: parent.verticalCenter
-            icon: "keyboard"
-            color: Brightness.kbd > 0 ? Theme.accent : Theme.surfaceFgDim
-        }
-
-        StyledText {
-            anchors.left: kbdGlyph.right
-            anchors.leftMargin: Appearance.s(12)
-            anchors.verticalCenter: parent.verticalCenter
-            text: "Keyboard"
-            color: Theme.surfaceFg
-            font.pixelSize: Appearance.font.size.small
-        }
-
-        // Level pips rather than a slider — the ROG backlight has exactly
-        // three steps plus off, and tapping cycles through them.
-        Row {
-            anchors.right: parent.right
-            anchors.rightMargin: Appearance.s(14)
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: Appearance.s(5)
-
-            Repeater {
-                model: Brightness.kbdMax
-
-                Rectangle {
-                    required property int index
-
-                    width: Appearance.s(8)
-                    height: width
-                    radius: width / 2
-                    color: index < Brightness.kbd ? Theme.accent : Qt.alpha(Theme.surfaceFg, 0.2)
-
-                    Behavior on color {
-                        CAnim {}
-                    }
-                }
-            }
-        }
-    }
-
     // ── Session ──
     Row {
         spacing: Appearance.s(8)
@@ -573,7 +813,6 @@ Column {
             id: pw
 
             property string glyph: ""
-            property string tip: ""
             property bool danger: false
 
             signal tapped

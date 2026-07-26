@@ -5,6 +5,7 @@ import Quickshell.Hyprland
 import qs.config
 import qs.components
 import qs.services
+import qs.modules.control
 
 // Dropdown host for the bar: one permanently-mapped strip window under the
 // bar, input-masked to the panel while open. The panel slides down under the
@@ -19,7 +20,9 @@ Scope {
     // Outlives `current` for the length of the close animation — the Loader
     // keys off this so the menu doesn't blank out mid-fade.
     property string shown: ""
-    property var context: null // e.g. the SystemTrayItem for tray menus
+    // The SystemTrayItem for tray menus; the Control Center's initial page
+    // name for "control".
+    property var context: null
     property real anchorX: 0
 
     readonly property bool open: current !== ""
@@ -36,6 +39,21 @@ Scope {
         anchorX = item.mapToItem(null, item.width / 2, 0).x;
         current = name;
         shown = name;
+    }
+
+    // Opening the Control Center *on a page*. Separate from toggle() so a
+    // second press of the sound keybind while Bluetooth is showing switches
+    // pages instead of dismissing the whole panel — only the same page again
+    // closes it.
+    function openControl(page: string, item: Item): void {
+        if (current === "control" && context === page) {
+            close();
+            return;
+        }
+        context = page;
+        anchorX = item.mapToItem(null, item.width / 2, 0).x;
+        current = "control";
+        shown = "control";
     }
 
     function close(): void {
@@ -145,16 +163,10 @@ Scope {
                         switch (root.shown.startsWith("tray:") ? "tray" : root.shown) {
                         case "wifi":
                             return wifiMenu;
-                        case "bluetooth":
-                            return btMenu;
                         case "battery":
                             return batteryMenu;
-                        case "audio":
-                            return audioMenu;
                         case "notifs":
                             return notifsMenu;
-                        case "kdeconnect":
-                            return kdecMenu;
                         case "control":
                             return controlMenu;
                         case "tray":
@@ -174,21 +186,9 @@ Scope {
         }
 
         Component {
-            id: btMenu
-
-            BluetoothMenu {}
-        }
-
-        Component {
             id: batteryMenu
 
             BatteryMenu {}
-        }
-
-        Component {
-            id: audioMenu
-
-            AudioMenu {}
         }
 
         Component {
@@ -198,15 +198,13 @@ Scope {
         }
 
         Component {
-            id: kdecMenu
-
-            KdeConnectMenu {}
-        }
-
-        Component {
             id: controlMenu
 
-            ControlCenter {}
+            ControlCenter {
+                // `context` doubles as the tray item for tray menus, so only
+                // read it while the Control Center is the one showing.
+                requestedPage: root.shown === "control" ? (root.context ?? "") : ""
+            }
         }
 
         Component {

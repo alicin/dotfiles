@@ -74,26 +74,8 @@ Scope {
                             popouts: popouts
                         }
 
-                        KdecStatus {
-                            id: kdecMod
-
-                            popouts: popouts
-                        }
-
-                        BtStatus {
-                            id: btMod
-
-                            popouts: popouts
-                        }
-
                         WifiStatus {
                             id: wifiMod
-
-                            popouts: popouts
-                        }
-
-                        VolumeStatus {
-                            id: volMod
 
                             popouts: popouts
                         }
@@ -133,14 +115,27 @@ Scope {
                 target: "popouts"
 
                 function toggle(name: string): string {
+                    // Sound, Bluetooth and KDE Connect no longer have their own
+                    // bar module — the names still work and open the Control
+                    // Center straight onto that page, so existing keybinds
+                    // didn't have to change. "control" is the home screen, and
+                    // goes through the same path so calling it from a page
+                    // navigates back rather than dismissing.
+                    const pages = {
+                        control: "",
+                        audio: "audio",
+                        bluetooth: "bluetooth",
+                        kdeconnect: "kdeconnect"
+                    };
+                    if (name in pages) {
+                        popouts.openControl(pages[name], ctrlMod);
+                        return "ok";
+                    }
+
                     const anchors = {
                         notifs: notifMod,
-                        bluetooth: btMod,
                         wifi: wifiMod,
-                        audio: volMod,
-                        battery: batMod,
-                        kdeconnect: kdecMod,
-                        control: ctrlMod
+                        battery: batMod
                     };
                     const item = anchors[name];
                     if (!item)

@@ -4,7 +4,7 @@ Desktop shell for Hyprland on h4l9000, built with [Quickshell](https://quickshel
 (QML). Successor to the AGS prototype in the j4rv15 repo (`shell/`).
 
 Transparent top bar drawn over the wallpaper — workspaces left, clock center,
-tray / notifications / bluetooth / wifi / audio / battery right — plus a
+tray / notifications / control center / battery / wifi right — plus a
 [caelestia](https://github.com/caelestia-dots/shell)-style app launcher and
 dropdown menus for every status module. Motion is caelestia's Material 3
 expressive token set (curves + durations in `config/Appearance.qml`).
@@ -37,6 +37,9 @@ Hyprland wiring (`~/.config/hypr/lua/`):
   fast, trailing at 2× duration, M3 emphasized — caelestia's ActiveIndicator
   turned horizontal). Urgent → red tint. Click focuses, scroll cycles. On the
   hyprland-lua config, dispatches go through `hl.dsp.*` (`Hyprland.usingLua`).
+  Icons come from `Apps.toplevelIcon`: window class → desktop entry, and when
+  that misses (`kitty --class=com.ali.floating_shell`) the pid's `/proc`
+  argv[0] is looked up instead, so custom-class windows keep their real icon.
 - **Tray** — collapsed behind an ellipsis, items slide out on hover. Leftward,
   because the status Row is right-anchored: growing left leaves the ellipsis
   and every icon after it in place instead of shoving the trigger out from
@@ -53,13 +56,6 @@ Hyprland wiring (`~/.config/hypr/lua/`):
     open with a manual refresh, connect (inline password field for secured
     networks), ethernet devices, Tailscale, VPN/WireGuard toggles (nmcli).
     Past 6 networks the list scrolls instead of growing the menu.
-  - *Bluetooth* — adapter toggle, paired devices with battery and a
-    tap-to-reveal Connect/Forget row, plus a discovery toggle that lists
-    nearby unpaired devices to pair with. BlueZ's `Discovering` is
-    adapter-global, so the switch can flip on by itself when something else
-    scans; the menu only stops a scan it started.
-  - *Audio* — master + per-app stream sliders, output/input device pickers
-    (`Pipewire.preferredDefaultAudioSink/Source`).
   - *Battery* — Power Saver / Balanced / Performance via power-profiles-daemon,
     charge estimate. Bar shows a drawn horizontal battery. Below that, the ROG
     platform knobs (`services/Asus.qml`): **fan profile**, **charge limit**
@@ -74,19 +70,37 @@ Hyprland wiring (`~/.config/hypr/lua/`):
     are turned into separators, or every mode concatenates into one string.
   - *Notifications* — DND toggle, clear-all, full history.
   - *Tray* — custom-drawn DBus menus (QsMenuOpener), one inline submenu level.
-- **KDE Connect** — device list with battery, charging and cell network, plus
-  ring / ping / push-clipboard actions and an app launcher (kdeconnectd is
-  autostarted from hyprland's startup.lua). State comes from the daemon over
-  DBus (`busctl --json=short`), *not* `kdeconnect-cli --list-devices` — that
-  prints prose whose shape shifts between releases, and its "on … via …"
-  clause silently broke parsing so the menu claimed "No paired devices" with
-  the phone plainly connected.
-- **Control Center** (the sliders glyph, next to the bell) — deliberately only
-  what has no bar module of its own: Do Not Disturb and Keep Awake tiles, a
-  media card, display brightness, keyboard backlight, and a session row
-  (shutdown / restart / sleep / log out). Wi-Fi, Bluetooth, volume and power
-  profile were removed — they each own a status icon already, and duplicating
-  them meant two places to keep in sync.
+- **Control Center** (the sliders glyph, next to the bell — `modules/control/`)
+  — a home screen plus drill-down pages, macOS Control Centre style. Home is
+  only one-tap toggles and sliders; anything that needs a *list* (sound
+  devices, Bluetooth pairing, KDE Connect actions) gets a row that pushes its
+  own page, so the common case never leaves the first screen.
+  - *Navigation* is an iOS-style push: home parallaxes left at a third of the
+    speed while the page slides in from the right, and the panel morphs to the
+    new height (320ms, M3 emphasized). Both screens live in one clipped Item —
+    two x offsets and an opacity, no window resize, because the `qshell:.*`
+    layer rule would animate a resize underneath. The height Behavior stays
+    *disabled until the first navigation*: the opening layout pass arrives at
+    home's height from zero, and animating that plays a grow on every open.
+  - *Connectivity card* — Bluetooth and the phone, with split hit targets: the
+    round badge toggles the radio, the rest of the row opens the page. Both get
+    their own hover wash so which-does-what is visible before you commit.
+  - *Sound* — master slider on home (with the output name and level under it);
+    the chevron opens output/input pickers
+    (`Pipewire.preferredDefaultAudioSink/Source`) and the per-app mixer.
+  - *Bluetooth page* — paired devices with battery and a tap-to-reveal
+    Connect/Forget row, plus a discovery toggle that lists nearby unpaired
+    devices to pair with. BlueZ's `Discovering` is adapter-global, so the
+    switch can flip on by itself when something else scans; the page only stops
+    a scan it started — and leaving the page destroys it, so navigating back
+    tears the scan down too.
+  - *KDE Connect page* — one card per device with a battery bar, cell signal
+    bars, and labelled Ring / Ping / Send clipboard chips (bare icon buttons
+    left you guessing which was which). State comes from the daemon over DBus
+    (`busctl --json=short`), *not* `kdeconnect-cli --list-devices` — that prints
+    prose whose shape shifts between releases, and its "on … via …" clause
+    silently broke parsing so the menu claimed "No paired devices" with the
+    phone plainly connected.
   - *Keep Awake* holds a wayland idle-inhibit surface, so hypridle never sees
     the idle event and its dim/lock/suspend listeners all stay parked. The
     inhibitor lives on the **bar** window (`modules/bar/Bar.qml`), not here —
@@ -105,6 +119,14 @@ Hyprland wiring (`~/.config/hypr/lua/`):
     than one button with a hidden default, because guessing wrong costs a
     retake. While recording, the row collapses to a single Stop.
   - *Theme* — latte / mocha chips, writing `Settings.theme` live.
+  - The bar's own trigger takes a **scroll** for volume: the speaker module
+    that used to own that gesture is a page in here now, and losing a working
+    wheel-over-the-bar shortcut to a reorganisation would be a straight
+    downgrade.
+  - `qs ipc call popouts toggle audio|bluetooth|kdeconnect` still works and
+    opens the panel straight onto that page, so keybinds from when these were
+    their own dropdowns didn't have to change. A second call for the *same*
+    page closes it; a different one switches pages instead of dismissing.
 - **Record overlay** (`modules/capture/`) — while an *area* recording is live,
   everything outside the region is dimmed, with a red frame and a blinking
   size pill. Four rectangles around the region, not one with a hole: there's no
@@ -146,7 +168,10 @@ Hyprland wiring (`~/.config/hypr/lua/`):
 ```sh
 qs ipc -c qshell call launcher toggle       # also: open / close
 qs ipc -c qshell call clipboard toggle      # clipboard history (Super+Shift+V)
-qs ipc -c qshell call popouts toggle wifi   # bluetooth / audio / battery / notifs
+qs ipc -c qshell call popouts toggle wifi   # battery / notifs
+qs ipc -c qshell call popouts toggle control # control center; also: audio /
+                                             # bluetooth / kdeconnect open it
+                                             # straight onto that page
 qs ipc -c qshell call overview toggle       # workspace overview (Alt+Tab)
 qs ipc -c qshell call theme set catppuccin-mocha
 qs ipc -c qshell call theme list            # / get
@@ -185,7 +210,8 @@ shell.qml             root: Bar + Launcher + ClipboardHistory + NotificationPopu
 settings.json         live-reloaded settings (theme, workspaces, scale, …)
 config/               Settings (FileView+JsonAdapter), Theme, Appearance (tokens + scale)
 components/           Anim/CAnim, StyledText, StateLayer (hover + ripple), StyledSwitch,
-                      StyledSlider, MenuSeparator, NotificationCard, FIcon (Framework7
+                      StyledSlider, Chip (pill button), MenuSeparator, NotificationCard,
+                      WheelScroll (trackpad scroll factor), FIcon (Framework7
                       glyph), NIcon (nerd-rune glyph, for what F7 lacks), Elevation
                       (RectangularShadow drop shadow — must sit BEHIND the surface as a
                       sibling; as a child it paints over the parent's fill)
@@ -198,9 +224,11 @@ services/             Audio (Pipewire sink), Net (wifi/ethernet — named Net be
                       Asus (fan profile / charge limit / GPU mode), Capture (grim,
                       slurp, wf-recorder + the live region geometry)
 modules/bar/          Bar, Workspaces + WorkspaceSlot, Clock, Tray + TrayItem, NotifsStatus,
-                      WifiStatus, BtStatus, VolumeStatus, BatteryStatus
-modules/bar/popouts/  Popouts (dropdown host) + WifiMenu, BluetoothMenu, AudioMenu,
-                      BatteryMenu, NotifsMenu, TrayMenu
+                      WifiStatus, BatteryStatus, ControlStatus
+modules/bar/popouts/  Popouts (dropdown host) + WifiMenu, BatteryMenu, NotifsMenu, TrayMenu
+modules/control/      ControlCenter (push navigation host) + Home, AudioPage,
+                      BluetoothPage, KdeConnectPage, and the shared Card / Badge /
+                      PageHeader the pages are built from
 modules/launcher/     Launcher, AppItem
 modules/clipboard/    ClipboardHistory, ClipItem (cliphist-backed, launcher styling,
                       lazy image thumbnails)
@@ -217,7 +245,7 @@ modules/overview/     Overview (grid, drag/drop plumbing), OverviewWindow (live 
   OperatorMono Nerd Font, `rose-pine-dawn-icons` (pinned via pragma in
   `shell.qml`).
 - Pipewire gotcha: node properties (`media.class`) only populate for nodes
-  held by a `PwObjectTracker` — the audio menu tracks all nodes while open.
+  held by a `PwObjectTracker` — the Sound page tracks all nodes while open.
 - Animation token values are from caelestia-dots/shell
   (`plugin/src/Caelestia/Config/tokens.hpp`) — Material 3 expressive motion
   tokens; the QML here is original.
