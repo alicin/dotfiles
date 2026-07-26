@@ -97,10 +97,9 @@ ShellRoot {
 
         function wsicons(): string {
             return Hyprland.toplevels.values.map(t => {
-                const c = t.lastIpcObject?.class ?? "<null>";
-                const n = DesktopEntries.heuristicLookup(c)?.icon;
-                const src = (n && Quickshell.iconPath(n, true)) || Quickshell.iconPath("application-x-executable", true) || "";
-                return `ws${t.lastIpcObject?.workspace?.id} class=${c} icon=${n} src=${src}`;
+                const pid = t.lastIpcObject?.pid ?? 0;
+                const c = t.lastIpcObject?.class ?? t.wayland?.appId ?? "<null>";
+                return `ws${t.workspace?.id} class=${c} pid=${pid} exe=${Apps.exeName(pid) || "-"} src=${Apps.toplevelIcon(t)}`;
             }).join("\n");
         }
 
