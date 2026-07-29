@@ -110,7 +110,9 @@ BEGIN {
     next
   }
 
-  # If it's commented MAKEFLAGS (e.g. #MAKEFLAGS="-j2"), keep it as-is
+  # If it is commented MAKEFLAGS (e.g. #MAKEFLAGS="-j2"), keep it as-is
+  # (no apostrophes in here: the whole awk program is single-quoted, and one
+  # would end the quote and spill the rest of it into the shell)
   # and we will add our MAKEFLAGS at the end if not set.
   if ($0 ~ /^[[:space:]]*#[[:space:]]*MAKEFLAGS=/) {
     print $0
