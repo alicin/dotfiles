@@ -4101,6 +4101,20 @@ keymap("ALI - Super = Option key (arrows nav/select, Enter)", {
     cnfg.screen_has_focus and
     not ctx_app_is_remote )
 
+# Address bar: physical Alt is Cmd, so Alt+Enter reaches the browser as Ctrl+Enter -- which
+# is Chrome's "add www. and .com, open in the CURRENT tab", not "open in a new tab". Restate
+# it as the combo Chrome/Firefox actually document for a new tab. The Shift variant is left
+# alone on purpose: it already arrives as Ctrl+Shift+Enter, which opens a new window.
+# TRADE-OFF: this claims Cmd+Enter browser-wide, so it no longer arrives as Ctrl+Enter in
+# page content -- the submit combo on GitHub comments, Gmail, Linear, Jira. Delete the line
+# below to get that back (at the cost of Alt+Enter in the address bar).
+keymap("ALI - browsers: Alt+Enter opens a new tab", {
+    C("RC-Enter"):              C("Alt-Enter"),                 # Cmd+Enter -> open in new tab
+}, when = lambda ctx:
+    cnfg.screen_has_focus and
+    ctx_ovl_browser_shortcuts and
+    hmp_is_browser(ctx) )
+
 # yazi is a file manager, but it runs inside a terminal, so "General File Managers -
 # Finder Mods" never sees it (that keymap matches on GUI file manager window classes)
 # and "General Terminals" claims the Cmd combos instead: Cmd+C -> Ctrl+Shift+C,
