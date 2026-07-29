@@ -81,8 +81,12 @@ M.clipboard      = "qs ipc -c qshell call clipboard toggle"
 M.toggle_edp         = "/home/ali/labs/dotfiles/bin/toggle-edp.sh"
 M.toggle_edp_refresh = "/home/ali/labs/dotfiles/bin/toggle-edp-refresh.sh"
 M.relight_displays   = "/home/ali/labs/dotfiles/bin/relight-displays.sh"
-M.grab               = "/home/ali/labs/dotfiles/scripts/screenshot.sh"      -- macOS Cmd+Shift+4 style: area screenshot
-M.record             = "/home/ali/labs/dotfiles/scripts/screen_record.sh toggle" -- macOS Cmd+Shift+5 style: area recording toggle
+-- Capture. Both go through the shell when it's up — only it can pull the bar
+-- and toasts out of the picture first, dim around a recording region, and show
+-- elapsed time — and fall back to the same scripts underneath when it isn't, so
+-- the behaviour is identical either way. (Same idiom as the brightness keys.)
+M.grab               = "qs -c qshell ipc call capture shot area 2>/dev/null || /home/ali/labs/dotfiles/scripts/screenshot.sh area"     -- macOS Cmd+Shift+4 style: area screenshot
+M.record             = "qs -c qshell ipc call capture record 2>/dev/null || /home/ali/labs/dotfiles/scripts/screen_record.sh toggle"   -- macOS Cmd+Shift+5 style: area recording toggle
 M.keycheat           = "/home/ali/labs/dotfiles/bin/keycheat"   -- shortcuts overlay (toggle)
 
 -- Lock / idle daemons (singleton: only spawn if not already running).

@@ -139,35 +139,18 @@ Singleton {
             root.startRecorder(root.regionGeom);
     }
 
-    // Wrapper every capture script gets: whatever happens, the shell finds out
-    // and stops hiding itself.
-    function trapDone(): string {
-        return `trap 'qs -c qshell ipc call capture done >/dev/null 2>&1' EXIT`;
-    }
-
-    // Posts a notification with Open / Show-in-folder buttons, as a shell
-    // snippet to be embedded where `$f` holds the path.
+    // The capture scripts. They are the implementation — grim, slurp,
+    // wf-recorder, the notification, the EXIT trap that reports back here — and
+    // the Ctrl+Shift+4/5 binds run the same ones, so a capture behaves
+    // identically whether it came from this menu or from the keyboard. What
+    // stays on this side is only what needs the shell: getting the UI out of
+    // the picture first, the countdown OSD, and the dim overlay's geometry.
     //
-    // gdbus rather than notify-send: notify-send's own --action support makes
-    // it sit in a glib loop waiting for the click, then hands the key back over
-    // DBus — and it exits when the notification expires, so the buttons are
-    // dead a few seconds later when you find the card in the notification
-    // center. Posting the raw Notify call returns immediately and leaves the
-    // actions to the shell (Notifs.runAction), where they keep working for as
-    // long as the notification exists.
-    //
-    // The body is deliberately the bare path: that's what the actions operate
-    // on, so what the card shows and what the buttons do can't disagree.
-    function notifySnippet(summary: string, icon: string): string {
-        return `
-            gdbus call --session --dest org.freedesktop.Notifications \
-                --object-path /org/freedesktop/Notifications \
-                --method org.freedesktop.Notifications.Notify \
-                qshell 0 "${icon}" "${summary}" "$f" \
-                "['qshell-open','Open','qshell-reveal','Show in folder']" \
-                "{}" 8000 >/dev/null
-        `;
-    }
+    // Absolute path because the config is reached through a symlink
+    // (~/.config/quickshell/qshell), so Quickshell.shellDir points at the link
+    // and not at the repo the scripts live in. Same convention hypr's apps.lua
+    // uses for these.
+    readonly property string scriptsDir: `${Quickshell.env("HOME")}/labs/dotfiles/scripts`
 
     // ── Screenshots ──
 
@@ -191,34 +174,7 @@ Singleton {
     }
 
     function grab(mode: string): void {
-        let geom = "";
-        if (mode === "area") {
-            geom = `-g "$(slurp)" `;
-        } else if (mode === "window") {
-            // Boxes for mapped, non-hidden windows on whichever workspaces are
-            // currently visible — one per monitor, so this stays right with
-            // more than one screen.
-            geom = `-g "$(
-                ws=$(hyprctl -j monitors | jq -c '[.[].activeWorkspace.id]')
-                hyprctl -j clients | jq -r --argjson ws "$ws" '
-                    .[] | select(.mapped and (.hidden | not)
-                                 and (.workspace.id as $i | $ws | index($i)))
-                    | "\\(.at[0]),\\(.at[1]) \\(.size[0])x\\(.size[1])"' \
-                    | slurp -r -f '%x,%y %wx%h'
-            )" `;
-        }
-
-        // slurp exits non-zero when the selection is cancelled — `set -e` keeps
-        // that from producing an empty screenshot and a bogus notification.
-        root.run(`
-            set -e
-            ${root.trapDone()}
-            mkdir -p '${root.shotDir}'
-            f="${root.shotDir}/screenshot_$(date +%Y-%m-%d_%H-%M-%S).png"
-            grim ${geom}"$f"
-            wl-copy < "$f"
-            ${root.notifySnippet("Screenshot saved", "$f")}
-        `);
+        root.run(`'${root.scriptsDir}/screenshot.sh' ${mode}`);
     }
 
     // ── Recording ──
@@ -237,61 +193,35 @@ Singleton {
     // ["slurp"] }` came up and drew nothing you could click.
     function recordArea(): void {
         root.withUiHidden(() => root.run(`
-            set -e
-            ${root.trapDone()}
-            g=$(slurp)
+            g=$('${root.scriptsDir}/screen_record.sh' region) || exit 0
             [ -n "$g" ] || exit 0
             qs -c qshell ipc call capture region "$g" >/dev/null 2>&1
         `));
     }
 
-    // wf-recorder takes exactly one --audio device, so recording the desktop
-    // *and* the mic together needs them mixed first: a null sink with a
-    // loopback from each, recorded through its monitor. The modules are torn
-    // down in an EXIT trap, so a crash or a kill doesn't leave a phantom output
-    // device in your sound settings.
+    // The audio prefs are the shell's (they're toggles on the overlay), so they
+    // travel as flags — mixing desktop + mic through a null sink is the
+    // script's problem, and the keybind gets the same behaviour by passing the
+    // same flags.
     function startRecorder(geom: string): void {
-        const g = geom ? `-g "${geom}" ` : "";
-        const both = root.recordSystem && root.recordMic;
+        const g = geom ? ` -g '${geom}'` : "";
+        let audio = " --no-audio";
+        if (root.recordSystem && root.recordMic)
+            audio = " --system --mic";
+        else if (root.recordSystem)
+            audio = " --system";
+        else if (root.recordMic)
+            audio = " --mic";
 
-        let audioSetup = "";
-        let audioArg = "";
-        if (both) {
-            audioSetup = `
-                mods=""
-                cleanup() {
-                    for m in $mods; do pactl unload-module "$m" 2>/dev/null; done
-                }
-                trap cleanup EXIT INT TERM
-                # Order matters: the sink has to exist before anything loops
-                # into it, and it unloads last (the list is prepended to).
-                m=$(pactl load-module module-null-sink sink_name=qshell_rec \
-                        sink_properties=device.description=qshell-recording) || exit 1
-                mods="$m"
-                m=$(pactl load-module module-loopback source="$(pactl get-default-sink).monitor" \
-                        sink=qshell_rec latency_msec=50) && mods="$m $mods"
-                m=$(pactl load-module module-loopback source="$(pactl get-default-source)" \
-                        sink=qshell_rec latency_msec=50) && mods="$m $mods"
-            `;
-            audioArg = `--audio=qshell_rec.monitor `;
-        } else if (root.recordSystem) {
-            audioArg = `--audio="$(pactl get-default-sink).monitor" `;
-        } else if (root.recordMic) {
-            audioArg = `--audio="$(pactl get-default-source)" `;
-        }
-
-        Quickshell.execDetached(["sh", "-c", `
-            mkdir -p '${root.videoDir}'
-            ${audioSetup}
-            wf-recorder ${g}${audioArg}\
-                -f '${root.videoDir}'/recording_$(date +%Y-%m-%d_%H-%M-%S).mp4 \
-                >/dev/null 2>&1
-        `]);
+        Quickshell.execDetached(["sh", "-c", `'${root.scriptsDir}/screen_record.sh' start${g}${audio}`]);
         poll.restart();
     }
 
+    // Through the script rather than a bare pkill, so a recording stopped from
+    // the overlay announces the file the same way one stopped from the keyboard
+    // does — the notification is the only thing that tells you where it went.
     function stopRecording(): void {
-        Quickshell.execDetached(["pkill", "-INT", "-x", "wf-recorder"]);
+        Quickshell.execDetached(["sh", "-c", `'${root.scriptsDir}/screen_record.sh' stop`]);
         root.regionGeom = "";
         poll.restart();
     }

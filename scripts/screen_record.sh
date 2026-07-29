@@ -1,164 +1,172 @@
 #!/usr/bin/bash
-# Requires wf-recorder: https://github.com/ammen99/wf-recorder
+# Screen recording with wf-recorder, macOS Cmd+Shift+5 style: the first press
+# selects a region and starts, the second stops and saves.
+#
+#   screen_record.sh toggle [opts]        select a region, or stop if rolling
+#   screen_record.sh start [opts]         start (full screen unless -g)
+#   screen_record.sh stop                 stop and announce the file
+#   screen_record.sh region               print a slurp selection, nothing else
+#   screen_record.sh status               "recording" / "not recording"
+#
+#   opts: -g "x,y wxh"   record this region instead of the whole screen
+#         --system       mix in desktop audio   (default when neither is given)
+#         --mic          mix in the microphone
+#         --no-audio     record silent
+#
+# This is the only recording implementation: qshell's Control Center overlay
+# runs it (services/Capture.qml) and so does the Ctrl+Shift+5 bind, which
+# prefers the shell's IPC — it can dim around the region and show elapsed time —
+# and falls back to running this directly when the shell isn't up.
 
-# Get the default audio sink
-defaultSink=$(pactl get-default-sink)
-WF_RECORDER_OPTS="--audio=$defaultSink.monitor"
-outputFile=""
-outputDir=""
+# shellcheck source=lib/capture.sh
+. "$(dirname "$(readlink -f "$0")")/lib/capture.sh"
 
-# Function to check if recording is active
-checkRecording() {
-    pgrep -f "wf-recorder" >/dev/null
+videoDir="${videoDir:-$HOME/Videos}"
+lastPath=/tmp/last_recording_path
+
+geom=""
+want_system=""
+want_mic=""
+
+checkRecording() { pgrep -x wf-recorder >/dev/null; }
+
+parseOpts() {
+    while [ $# -gt 0 ]; do
+        case "$1" in
+        -g)
+            geom="$2"
+            shift 2
+            ;;
+        --system)
+            want_system=1
+            shift
+            ;;
+        --mic)
+            want_mic=1
+            shift
+            ;;
+        --no-audio)
+            want_system=""
+            want_mic=""
+            no_audio=1
+            shift
+            ;;
+        *) shift ;;
+        esac
+    done
+    # Desktop audio is the sane default, and what this script did before it
+    # learned about the mic.
+    [ -z "$want_system$want_mic${no_audio:-}" ] && want_system=1
+    return 0
 }
 
-# Function to start screen recording
 startRecording() {
     if checkRecording; then
-        echo "A recording is already in progress."
+        echo "A recording is already in progress." >&2
         exit 1
     fi
 
-    target="$2"
+    mkdir -p "$videoDir"
+    outputPath="$videoDir/recording_$(date +%Y-%m-%d_%H-%M-%S).mp4"
+    echo "$outputPath" >"$lastPath"
 
-    if [ "$target" == "screen" ]; then
-        monitor_name="$3"
-        outputDir="$4"
-    elif [ "$target" == "region" ]; then
-        outputDir="$3"
+    # An array, not a string: the geometry has a space in it ("x,y wxh"), so an
+    # unquoted expansion splits it in two and wf-recorder quietly records the
+    # whole screen instead of the region you selected.
+    args=()
+    [ -n "$geom" ] && args+=(--geometry "$geom")
+
+    # wf-recorder takes exactly one --audio device, so recording the desktop
+    # *and* the mic together needs them mixed first: a null sink with a loopback
+    # from each, recorded through its monitor. The modules are torn down in an
+    # EXIT trap, so a crash or a kill doesn't leave a phantom output device
+    # sitting in your sound settings.
+    if [ -n "$want_system" ] && [ -n "$want_mic" ]; then
+        setsid -f bash -c '
+            out=$1; geom=$2
+            args=()
+            [ -n "$geom" ] && args+=(--geometry "$geom")
+
+            mods=""
+            cleanup() { for m in $mods; do pactl unload-module "$m" 2>/dev/null; done; }
+            trap cleanup EXIT INT TERM
+            # Order matters: the sink has to exist before anything loops into
+            # it, and it unloads last (the list is prepended to).
+            m=$(pactl load-module module-null-sink sink_name=qshell_rec \
+                    sink_properties=device.description=qshell-recording) || exit 1
+            mods="$m"
+            m=$(pactl load-module module-loopback source="$(pactl get-default-sink).monitor" \
+                    sink=qshell_rec latency_msec=50) && mods="$m $mods"
+            m=$(pactl load-module module-loopback source="$(pactl get-default-source)" \
+                    sink=qshell_rec latency_msec=50) && mods="$m $mods"
+            wf-recorder "${args[@]}" --audio=qshell_rec.monitor -f "$out" >/dev/null 2>&1
+        ' _ "$outputPath" "$geom"
     else
-        echo "Usage: $0 start {screen <monitor_name> | region} <output_directory>"
-        exit 1
+        [ -n "$want_system" ] && args+=(--audio="$(pactl get-default-sink).monitor")
+        [ -n "$want_mic" ] && args+=(--audio="$(pactl get-default-source)")
+        setsid -f wf-recorder "${args[@]}" -f "$outputPath" >/dev/null 2>&1
     fi
 
-    # Set a default output directory if not provided
-    outputDir="${outputDir:-$HOME/Videos}"
-
-    # Expand ~ to $HOME if present in outputDir
-    outputDir="${outputDir/#\~/$HOME}"
-
-    # Ensure output directory exists
-    if [ ! -d "$outputDir" ]; then
-        echo "Error: Output directory '$outputDir' does not exist."
-        exit 1
-    fi
-
-    # Generate output filename and path
-    outputFile="recording_$(date +%Y-%m-%d_%H-%M-%S).mp4"
-    outputPath="$outputDir/$outputFile"
-
-    echo "Target: $target"
-    echo "Monitor: ${monitor_name:-N/A}"
-    echo "Output dir: $outputDir"
-    echo "Output file: $outputPath"
-
-    # Start screen recording
-    if [ "$target" == "screen" ]; then
-        if [ -z "$monitor_name" ]; then
-            echo "Error: Monitor name is required for screen recording."
-            exit 1
-        fi
-
-        monitor_info=$(hyprctl -j monitors | jq -r ".[] | select(.name == \"$monitor_name\")")
-        if [ -z "$monitor_info" ]; then
-            echo "Error: Monitor '$monitor_name' not found."
-            exit 1
-        fi
-
-        w=$(echo "$monitor_info" | jq -r '.width')
-        h=$(echo "$monitor_info" | jq -r '.height')
-        scale=$(echo "$monitor_info" | jq -r '.scale')
-        x=$(echo "$monitor_info" | jq -r '.x')
-        y=$(echo "$monitor_info" | jq -r '.y')
-
-        transform=$(echo "$monitor_info" | jq -r '.transform')
-        rotation_filter=""
-
-        if [ "$transform" -eq 1 ] || [ "$transform" -eq 3 ]; then
-            scaled_width=$(awk "BEGIN { print $h / $scale }")
-            scaled_height=$(awk "BEGIN { print $w / $scale }")
-        else
-            scaled_width=$(awk "BEGIN { print $w / $scale }")
-            scaled_height=$(awk "BEGIN { print $h / $scale }")
-        fi
-
-        case "$transform" in
-        1)
-            rotation_filter="-F transpose=1"
-            ;;
-        3)
-            rotation_filter="-F transpose=2"
-            ;;
-        esac
-
-        wf-recorder $WF_RECORDER_OPTS $rotation_filter --geometry "${x},${y} ${scaled_width}x${scaled_height}" --file "$outputPath" &
-    elif [ "$target" == "region" ]; then
-        wf-recorder $WF_RECORDER_OPTS --geometry "$(slurp)" --file "$outputPath" &
-    fi
-
-    disown "$(jobs -p | tail -n 1)"
-    echo "Recording started. Saving to $outputPath"
-    echo "$outputPath" >/tmp/last_recording_path
+    echo "$outputPath"
 }
 
-# Function to stop screen recording
 stopRecording() {
     if ! checkRecording; then
-        echo "No recording in progress."
+        echo "No recording in progress." >&2
         exit 1
     fi
 
-    pkill -SIGINT -f wf-recorder
-    sleep 1 # Allow wf-recorder time to terminate before proceeding
+    pkill -INT -x wf-recorder
+    # wf-recorder needs a moment to finalise the container; a file announced
+    # before that is one you can't play yet.
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+        checkRecording || break
+        sleep 0.2
+    done
 
-    outputPath=$(cat /tmp/last_recording_path 2>/dev/null)
+    outputPath=$(cat "$lastPath" 2>/dev/null)
 
     if [ -z "$outputPath" ] || [ ! -f "$outputPath" ]; then
-        notify-send "Recording stopped" "No recent recording found." \
-            -i video-x-generic \
-            -a "Screen Recorder" \
-            -t 10000
+        notify_plain "Recording stopped" "No recording was saved."
         exit 1
     fi
 
-    notify-send "Recording stopped" "Saved to: $outputPath" \
-        -i video-x-generic \
-        -a "Screen Recorder" \
-        -t 10000 \
-        --action="scriptAction:-xdg-open $(dirname "$outputPath")=Open Directory" \
-        --action="scriptAction:-xdg-open $outputPath=Play"
+    notify_capture "Recording saved" "$outputPath" 10000
 }
 
-# Handle script arguments
 case "$1" in
 start)
-    startRecording "$@"
+    shift
+    parseOpts "$@"
+    startRecording
     ;;
 stop)
     stopRecording
     ;;
+region)
+    # Just the selection: qshell asks for this so it can dim around the region
+    # and arm the overlay's Start button before anything records.
+    trap capture_done EXIT
+    slurp || exit 1
+    ;;
 toggle)
-    # macOS Cmd+Shift+5 style: first press selects a region and starts
-    # recording; second press stops and saves it.
+    shift
+    parseOpts "$@"
+    trap capture_done EXIT
     if checkRecording; then
         stopRecording
     else
-        startRecording "$1" region "$HOME/Videos" >/dev/null
-        notify-send "Recording started" "Region — press the shortcut again to stop." \
-            -i video-x-generic \
-            -a "Screen Recorder" \
-            -t 4000
+        geom="$(slurp)" || exit 0
+        [ -n "$geom" ] || exit 0
+        startRecording >/dev/null
+        notify_plain "Recording started" "Press the shortcut again to stop."
     fi
     ;;
 status)
-    if checkRecording; then
-        echo "recording"
-    else
-        echo "not recording"
-    fi
+    if checkRecording; then echo recording; else echo "not recording"; fi
     ;;
 *)
-    echo "Usage: $0 {start [screen <monitor_name> | region] <output_directory> | stop | status}"
+    sed -n '2,20p' "$0" >&2
     exit 1
     ;;
 esac
