@@ -20,7 +20,17 @@ Singleton {
     // pressing anything.
     property bool armed: false
 
+    // The launcher and clipboard picker occupy the OSD's bottom-center spot;
+    // a volume key while one is open would draw the pill over their rows —
+    // and there's a visible slider two inches away anyway.
+    property bool launcherOpen: false
+    property bool clipboardOpen: false
+
     function show(k: string): void {
+        // The countdown is exempt: it's the only feedback that a shutter is
+        // about to fire, and suppressing it doesn't stop the screenshot.
+        if ((root.launcherOpen || root.clipboardOpen) && k !== "countdown")
+            return;
         root.kind = k;
         autoHide.restart();
     }

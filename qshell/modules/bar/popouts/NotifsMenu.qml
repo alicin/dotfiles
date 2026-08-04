@@ -21,7 +21,7 @@ Column {
 
         interval: 600
         running: true
-        onTriggered: Notifs.popups = []
+        onTriggered: Notifs.absorbPopups()
     }
 
     Component.onDestruction: {

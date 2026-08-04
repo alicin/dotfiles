@@ -58,5 +58,9 @@ Item {
 
         anchors.centerIn: parent
         icon: "equal_square_fill"
+        // Lit while Keep Awake holds the machine — otherwise the only
+        // indicator lived inside the closed panel, and nothing on screen
+        // reminded you it will no longer dim, lock or suspend.
+        color: Idle.inhibited ? Theme.accent : Theme.barFg
     }
 }

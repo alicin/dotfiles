@@ -5,7 +5,7 @@ the actual code, with file:line refs where it helps. ★ = highest daily-use pay
 
 ## Bug — fix regardless
 
-- [ ] `services/Capture.qml:342` calls `notifySnippet()`, deleted in the capture
+- [x] `services/Capture.qml:342` calls `notifySnippet()`, deleted in the capture
   refactor — throws a TypeError every time the pgrep poll sees a recording end,
   so the externally-killed-recording path (wl-copy + toast) is dead. Script-driven
   stops still notify, which is why testing didn't catch it. Either delete the
@@ -127,60 +127,60 @@ the actual code, with file:line refs where it helps. ★ = highest daily-use pay
 
 ### Notifications
 
-- [ ] ★ Hover doesn't pause toast expiry — a toast can vanish mid-reach for
+- [x] ★ Hover doesn't pause toast expiry — a toast can vanish mid-reach for
   its button (`NotificationPopups.qml:87-91`)
-- [ ] Critical notifications don't bypass DND — they file silently into
+- [x] Critical notifications don't bypass DND — they file silently into
   history (`services/Notifs.qml:119-120`)
-- [ ] Toasts pop out of existence — add an exit animation to match the
+- [x] Toasts pop out of existence — add an exit animation to match the
   entrance (`NotificationPopups.qml:52-72`)
-- [ ] Icon fallback skips the desktop entry and goes straight to the generic
+- [x] Icon fallback skips the desktop entry and goes straight to the generic
   bell — resolve `n.desktopEntry` via DesktopEntries first
   (`NotificationCard.qml:24-30`)
-- [ ] Flat mode zeroes the border — critical loses its only marking in the
+- [x] Flat mode zeroes the border — critical loses its only marking in the
   history list; add a dot or tinted summary
-- [ ] Action pill row can overflow the card (Row with no cap/wrap → Flow)
-- [ ] Body links render styled but clicking one dismisses the notification —
+- [x] Action pill row can overflow the card (Row with no cap/wrap → Flow)
+- [x] Body links render styled but clicking one dismisses the notification —
   `onLinkActivated` (`NotificationCard.qml:146-157`)
-- [ ] `transient` hint ignored — volume/progress spam pollutes history and the
+- [x] `transient` hint ignored — volume/progress spam pollutes history and the
   badge (`services/Notifs.qml:111-121`)
 
 ### Clipboard / OSD / Capture
 
-- [ ] ★ Record pill's audio toggles animate mid-recording but the audio graph
+- [x] ★ Record pill's audio toggles animate mid-recording but the audio graph
   is built once at launch — disable while recording
   (`RecordOverlay.qml:322-334`)
-- [ ] Second-monitor record overlay: duplicate functional pill clamps to the
+- [x] Second-monitor record overlay: duplicate functional pill clamps to the
   other screen's edge, shade bands dim it in stray strips — gate on region
   intersection (`RecordOverlay.qml:69-171`)
-- [ ] Armed record state is mouse-only — Enter=start, Esc=disarm; the keybind's
+- [x] Armed record state is mouse-only — Enter=start, Esc=disarm; the keybind's
   second press starts rather than cancels (`Capture.qml:229-236`)
-- [ ] Clipboard deletion undiscoverable (Shift+Delete / middle-click, zero
+- [x] Clipboard deletion undiscoverable (Shift+Delete / middle-click, zero
   affordance) — hover-revealed × on rows
-- [ ] Truncated clipboard entries aren't searchable by their visible text —
+- [x] Truncated clipboard entries aren't searchable by their visible text —
   search scores the 100-char preview only (`services/Clipboard.qml:80-88`)
-- [ ] Large preview for the highlighted image entry — 58px thumbs are
+- [x] Large preview for the highlighted image entry — 58px thumbs are
   indistinguishable after a screenshot session (`ClipItem.qml:92-136`)
-- [ ] Volume OSD doesn't say which output device it's driving —
+- [x] Volume OSD doesn't say which output device it's driving —
   `Audio.sink.description` is right there (`OsdPanel.qml:156-205`)
-- [ ] OSD floats visually over the launcher/clipboard panels (same
+- [x] OSD floats visually over the launcher/clipboard panels (same
   bottom-center band) — suppress or raise while a panel is open
-- [ ] Full-screenshot 3s countdown can't be cancelled — second keypress or Esc
+- [x] Full-screenshot 3s countdown can't be cancelled — second keypress or Esc
   aborts, hint it in the label (`Capture.qml:164-174,271-297`)
-- [ ] First clipboard open flashes "Clipboard is empty" while cliphist is
+- [x] First clipboard open flashes "Clipboard is empty" while cliphist is
   still listing — loading flag (`ClipboardHistory.qml:138`)
 
 ### Cross-cutting
 
-- [ ] ★ Visible surfaces follow focus across monitors: toasts, OSD, launcher,
+- [x] ★ Visible surfaces follow focus across monitors: toasts, OSD, launcher,
   clipboard, overview all bind `screen:` live to `Hyprland.focusedMonitor` —
   a toast you're reading teleports when the cursor crosses. Latch the screen
   when shown. (`NotificationPopups.qml:16`, `OsdPanel.qml:69`,
   `Launcher.qml:54`, `ClipboardHistory.qml:64`, `Overview.qml:98`)
-- [ ] ★ Keep Awake: no bar indicator once the panel closes (only consumer is
+- [x] ★ Keep Awake: no bar indicator once the panel closes (only consumer is
   the invisible IdleInhibitor) *and* it resets on every shell reload — the one
   toggle sibling not in `PersistentProperties` (`services/Idle.qml:16`,
   `Bar.qml:41-44`)
-- [ ] ASUS profile/charge-limit writes that fail snap back with no message —
+- [x] ASUS profile/charge-limit writes that fail snap back with no message —
   the GPU path already notifies; compare settle read vs optimistic value
   (`services/Asus.qml:40-74`)
 

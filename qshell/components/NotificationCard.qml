@@ -33,17 +33,27 @@ Item {
 
     // The default action, with the same destroyed-mid-handler care as the
     // pills: invoke() usually closes the notification, killing this delegate.
+    // In popup mode the animated exit starts BEFORE invoking — doDismiss with
+    // requestDismiss set only starts an animation, nothing dies synchronously,
+    // and the exit's own dismissal is null-guarded. In flat mode dismissal is
+    // immediate, so it must stay AFTER invoke, using locals.
     function invokeDefault(): void {
         const notif = root.n;
         const act = root.defaultAction;
         const resident = notif?.resident ?? false;
-        const dismissAfter = !root.flat;
         if (!act)
             return;
-        if (!Notifs.runAction(notif, act.identifier))
-            act.invoke();
-        if (dismissAfter && notif && !resident)
-            notif.dismiss();
+        if (root.requestDismiss) {
+            if (notif && !resident)
+                root.doDismiss();
+            if (!Notifs.runAction(notif, act.identifier))
+                act.invoke();
+        } else {
+            if (!Notifs.runAction(notif, act.identifier))
+                act.invoke();
+            if (!root.flat && notif && !resident)
+                notif.dismiss();
+        }
     }
 
     // What a body click (or Enter, from the menu's keyboard nav) does. Never
@@ -61,14 +71,39 @@ Item {
         else if (root.flat && root.expanded)
             root.expanded = false;
         else if (!root.flat)
-            root.n?.dismiss();
+            root.doDismiss();
     }
     readonly property string imageSource: {
         if (n?.image)
             return n.image;
         if (n?.appIcon)
             return Quickshell.iconPath(n.appIcon, true) || "";
-        return "";
+        // Chat clients and portal-mediated Flatpaks often send no appIcon but
+        // a valid desktopEntry (or at least a resolvable appName) — try both
+        // before every card gets the same dim bell.
+        const e = Apps.entryFor(n?.desktopEntry ?? "") ?? Apps.entryFor(n?.appName ?? "");
+        return e?.icon ? (Quickshell.iconPath(e.icon, true) || "") : "";
+    }
+
+    // The popup stack swaps in an animated exit before the real dismissal —
+    // everything that dismisses goes through here so both paths animate.
+    property var requestDismiss: null
+
+    function doDismiss(): void {
+        if (root.requestDismiss)
+            root.requestDismiss();
+        else
+            root.n?.dismiss();
+    }
+
+    // Via a HoverHandler on the root, NOT cardArea.containsMouse: the close
+    // button and action pills are hover-enabled MouseAreas stacked above the
+    // card area that steal mouse hover — and pausing expiry is needed most
+    // exactly while the pointer rests on those targets.
+    readonly property bool hovered: hh.hovered
+
+    HoverHandler {
+        id: hh
     }
 
     function ago(): string {
@@ -102,7 +137,11 @@ Item {
     }
 
     MouseArea {
+        id: cardArea
+
         anchors.fill: parent
+        // Hover state feeds the popup stack's expiry pause.
+        hoverEnabled: true
         // The hand only where a click does something, so an inert card
         // doesn't advertise one.
         cursorShape: !root.flat || root.defaultAction || body.truncated || root.expanded ? Qt.PointingHandCursor : Qt.ArrowCursor
@@ -160,10 +199,26 @@ Item {
                     width: parent.width
                     implicitHeight: appLabel.implicitHeight
 
+                    // Critical treatment in the menu: flat mode has no border,
+                    // so once a critical toast landed in the bell menu it
+                    // looked like everything else.
+                    Rectangle {
+                        id: urgentDot
+
+                        visible: root.flat && root.critical
+                        anchors.left: parent.left
+                        anchors.verticalCenter: appLabel.verticalCenter
+                        width: Appearance.s(7)
+                        height: width
+                        radius: width / 2
+                        color: Theme.urgent
+                    }
+
                     StyledText {
                         id: appLabel
 
                         anchors.left: parent.left
+                        anchors.leftMargin: urgentDot.visible ? Appearance.s(11) : 0
                         anchors.right: timeLabel.left
                         text: root.n?.appName || "notification"
                         color: Theme.surfaceFgDim
@@ -203,6 +258,11 @@ Item {
                     // (the whole shell had nowhere to read a long body).
                     maximumLineCount: root.expanded ? 10000 : 3
                     elide: Text.ElideRight
+                    // Links used to render styled and then dismiss the
+                    // notification when clicked — the card MouseArea sits
+                    // below this Text, so link clicks stop here.
+                    linkColor: Theme.accent
+                    onLinkActivated: link => Qt.openUrlExternally(link)
                 }
             }
 
@@ -216,7 +276,7 @@ Item {
                 StateLayer {
                     radius: width / 2
                     color: Theme.surfaceFg
-                    onClicked: root.n?.dismiss()
+                    onClicked: root.doDismiss()
                 }
 
                 FIcon {
@@ -228,7 +288,10 @@ Item {
             }
         }
 
-        Row {
+        // Flow, not Row: three actions or long localized labels used to paint
+        // straight past the card's rounded edge.
+        Flow {
+            width: parent.width
             visible: root.pillActions.length > 0
             spacing: Appearance.s(6)
 
@@ -238,10 +301,11 @@ Item {
                 Rectangle {
                     required property NotificationAction modelData
 
-                    implicitWidth: actionLabel.implicitWidth + Appearance.s(20)
+                    implicitWidth: Math.min(actionLabel.implicitWidth + Appearance.s(20), Appearance.s(220))
                     implicitHeight: Appearance.s(26)
                     radius: height / 2
                     color: Theme.surfaceHoverBg
+                    clip: true
 
                     StateLayer {
                         radius: parent.radius
@@ -254,13 +318,24 @@ Item {
                         // `root` — the card — resolves to nothing.
                         // (Observed: "ReferenceError: root is not defined",
                         // which is why action buttons appeared to do nothing.)
+                        // Popup mode starts the animated exit before invoking
+                        // (safe: it only starts an animation); flat mode keeps
+                        // dismissal after, via the locals.
                         onClicked: {
                             const notif = root.n;
+                            const act = parent.modelData;
                             const resident = notif?.resident ?? false;
-                            if (!Notifs.runAction(notif, parent.modelData.identifier))
-                                parent.modelData.invoke();
-                            if (notif && !resident)
-                                notif.dismiss();
+                            if (root.requestDismiss) {
+                                if (notif && !resident)
+                                    root.doDismiss();
+                                if (!Notifs.runAction(notif, act.identifier))
+                                    act.invoke();
+                            } else {
+                                if (!Notifs.runAction(notif, act.identifier))
+                                    act.invoke();
+                                if (notif && !resident)
+                                    notif.dismiss();
+                            }
                         }
                     }
 

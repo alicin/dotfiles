@@ -9,6 +9,7 @@ Item {
     id: root
 
     required property var modelData
+    required property int index
 
     // Cache file holding the decoded bytes of a binary entry.
     property string thumb: ""
@@ -47,7 +48,9 @@ Item {
     }
 
     signal activated
-    signal removed
+    // Carries the row's index from BEFORE the removal: the model reset snaps
+    // currentIndex to 0, and the handler restores the position from this.
+    signal removed(int at)
 
     width: ListView.view ? ListView.view.width : 0
     height: Appearance.sizes.launcherItemHeight
@@ -74,17 +77,61 @@ Item {
     }
 
     StateLayer {
+        id: rowLayer
+
         radius: Appearance.s(16)
         color: Theme.surfaceFg
         acceptedButtons: Qt.LeftButton | Qt.MiddleButton
         onClicked: mouse => {
             if (mouse.button === Qt.MiddleButton) {
+                const at = root.index;
                 Clipboard.remove(root.modelData.id);
-                root.removed();
+                root.removed(at);
             } else {
                 Clipboard.copy(root.modelData.id);
                 root.activated();
             }
+        }
+    }
+
+    // Hover-revealed delete: middle-click and Shift+Delete both existed, but
+    // nothing on screen ever said so — and a touchpad has no comfortable
+    // middle-click anyway.
+    Item {
+        id: delBtn
+
+        visible: rowLayer.containsMouse || delLayer.containsMouse
+        anchors.right: parent.right
+        anchors.rightMargin: Appearance.s(8)
+        anchors.verticalCenter: parent.verticalCenter
+        width: Appearance.s(24)
+        height: Appearance.s(24)
+
+        // Solid backing so the × stays legible over elided text.
+        Rectangle {
+            anchors.fill: parent
+            radius: width / 2
+            color: Theme.surfaceBg
+            opacity: 0.92
+        }
+
+        StateLayer {
+            id: delLayer
+
+            radius: width / 2
+            color: Theme.urgent
+            onClicked: {
+                const at = root.index;
+                Clipboard.remove(root.modelData.id);
+                root.removed(at);
+            }
+        }
+
+        FIcon {
+            anchors.centerIn: parent
+            icon: "xmark"
+            font.pixelSize: Appearance.font.size.small
+            color: Theme.surfaceFgDim
         }
     }
 

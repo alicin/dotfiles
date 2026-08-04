@@ -17,7 +17,14 @@ Scope {
     property bool open: false
 
     onOpenChanged: {
+        // The OSD shares this panel's bottom-center spot.
+        Osd.clipboardOpen = open;
         if (open) {
+            // Latched per open (severs the live binding, on purpose): see
+            // the launcher's identical latch.
+            win.screen = Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? Quickshell.screens[0] ?? null;
+            if (Osd.kind !== "countdown")
+                Osd.hide();
             Clipboard.refresh();
             field.text = "";
             list.currentIndex = 0;
@@ -64,7 +71,11 @@ Scope {
         screen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? Quickshell.screens[0] ?? null
         color: "transparent"
         implicitWidth: Appearance.sizes.launcherWidth + Appearance.s(40)
-        implicitHeight: Appearance.s(700)
+        // Tall enough for the full 8-row panel PLUS the floating image
+        // preview above it — at s(700) the preview clipped at the window's
+        // top edge. Free: the surface is transparent and the input mask
+        // covers only the panel.
+        implicitHeight: Appearance.s(1000)
 
         anchors {
             bottom: true
@@ -93,6 +104,36 @@ Scope {
             level: 4
             visible: panel.visible
             opacity: panel.opacity
+        }
+
+        // Enlarged look at the highlighted image entry — the 58px row thumbs
+        // are indistinguishable after a screenshot session, and picking the
+        // wrong one means pasting the wrong one. Purely visual (outside the
+        // input mask), floating above the panel.
+        Rectangle {
+            visible: root.open && (list.currentItem?.showsThumb ?? false) && preview.status === Image.Ready
+            anchors.horizontalCenter: parent.horizontalCenter
+            y: panel.y - height - Appearance.s(10)
+            width: preview.paintedWidth + Appearance.s(16)
+            height: preview.paintedHeight + Appearance.s(16)
+            radius: Appearance.s(12)
+            color: Theme.surfaceBg
+            border.width: 1
+            border.color: Theme.surfaceBorder
+            opacity: panel.opacity
+
+            Image {
+                id: preview
+
+                anchors.centerIn: parent
+                width: Appearance.s(420)
+                height: Appearance.s(260)
+                source: list.currentItem?.thumbSource ?? ""
+                fillMode: Image.PreserveAspectFit
+                asynchronous: true
+                cache: false
+                sourceSize.width: Appearance.s(840)
+            }
         }
 
         Rectangle {
@@ -135,7 +176,10 @@ Scope {
                     visible: list.count === 0
                     height: Appearance.s(40)
                     anchors.horizontalCenter: parent.horizontalCenter
-                    text: field.text ? "No matches" : "Clipboard is empty"
+                    // Blank until the first listing lands — flashing
+                    // "Clipboard is empty" for the round trip read as data
+                    // loss for a beat.
+                    text: field.text ? "No matches" : Clipboard.loaded ? "Clipboard is empty" : ""
                     color: Theme.surfaceFgDim
                 }
 
@@ -174,6 +218,9 @@ Scope {
 
                     delegate: ClipItem {
                         onActivated: root.open = false
+                        // The model reset yanked the highlight to the top on
+                        // every hover-× delete — stay where the user was.
+                        onRemoved: at => list.currentIndex = Math.min(at, list.count - 1)
                     }
 
                     WheelScroll {

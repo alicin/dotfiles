@@ -13,9 +13,21 @@ import Quickshell
 Singleton {
     id: root
 
-    property bool inhibited: false
+    // Persisted like its sibling toggles (DND, the record-audio prefs): a
+    // config reload — constant while hacking on this shell — used to silently
+    // drop Keep Awake, and the machine then dimmed or suspended mid-download
+    // with no warning.
+    readonly property bool inhibited: persist.inhibited
 
     function toggle(): void {
-        inhibited = !inhibited;
+        persist.inhibited = !persist.inhibited;
+    }
+
+    PersistentProperties {
+        id: persist
+
+        reloadableId: "qshellIdle"
+
+        property bool inhibited: false
     }
 }

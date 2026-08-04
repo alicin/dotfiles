@@ -37,13 +37,26 @@ Singleton {
         reader.running = true;
     }
 
+    // What the last optimistic write asked for, so the settle poll can tell
+    // a silent revert from an echo. Cleared on success, or after the final
+    // settle read nags about the mismatch — the chip used to just snap back
+    // with no explanation. ("" / 0 = nothing outstanding.)
+    property string wantProfile: ""
+    property int wantLimit: 0
+
+    function nag(what: string, wanted: string, actual: string): void {
+        Quickshell.execDetached(["notify-send", "-a", "qshell", `${what} didn't stick`, `Asked for ${wanted}, hardware reports ${actual} — is asusd running?`]);
+    }
+
     function setProfile(p: string): void {
+        root.wantProfile = p;
         root.profile = p;
         Quickshell.execDetached(["asusctl", "profile", "set", p]);
         settle.restart();
     }
 
     function setChargeLimit(pct: int): void {
+        root.wantLimit = pct;
         root.chargeLimit = pct;
         Quickshell.execDetached(["asusctl", "battery", "limit", `${pct}`]);
         settle.restart();
@@ -118,9 +131,24 @@ Singleton {
                         break;
                     case "PROFILE":
                         root.profile = val;
+                        // Mid-settle mismatches are just the daemon catching
+                        // up; one that survives the whole settle window is a
+                        // write that didn't take.
+                        if (root.wantProfile !== "" && val === root.wantProfile) {
+                            root.wantProfile = "";
+                        } else if (root.wantProfile !== "" && !settle.running) {
+                            root.nag("Fan profile", root.wantProfile, val);
+                            root.wantProfile = "";
+                        }
                         break;
                     case "LIMIT":
                         root.chargeLimit = parseInt(val, 10) || 100;
+                        if (root.wantLimit > 0 && root.chargeLimit === root.wantLimit) {
+                            root.wantLimit = 0;
+                        } else if (root.wantLimit > 0 && !settle.running) {
+                            root.nag("Charge limit", `${root.wantLimit}%`, `${root.chargeLimit}%`);
+                            root.wantLimit = 0;
+                        }
                         break;
                     case "GPUMODES":
                         // "[Integrated, Hybrid, Vfio, AsusMuxDgpu]" once the

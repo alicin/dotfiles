@@ -27,11 +27,17 @@ Singleton {
     // "x,y wxh" as slurp prints it; empty for a full-screen recording.
     property string regionGeom: ""
 
+    // A start was issued but the 1s pgrep poll hasn't seen wf-recorder yet.
+    // Without this, `armed` stayed true through that window: Esc could unmap
+    // the whole overlay while the recorder came up headless, and a held Enter
+    // could race a second `start` past the script's pgrep guard.
+    property bool startPending: false
+
     // Region picked but not rolling yet. Selecting an area and *immediately*
     // recording meant the first seconds were always you letting go of the mouse
     // and getting out of the way, so the selection now only arms it — the
     // overlay puts a Start button on screen and you begin when you're ready.
-    readonly property bool armed: regionGeom !== "" && !recording
+    readonly property bool armed: regionGeom !== "" && !recording && !startPending
 
     // Audio sources to mix in. Persisted, because this is a preference about
     // how you record rather than a per-clip decision.
@@ -145,9 +151,11 @@ Singleton {
         root.regionGeom = geom;
     }
 
-    // Throw away an armed region without recording it.
+    // Throw away an armed region without recording it. Not while a start is
+    // in flight — that would unmap the overlay and leave the recorder that's
+    // just coming up with no indicator and no Stop button.
     function disarm(): void {
-        if (!root.recording)
+        if (!root.recording && !root.startPending)
             root.regionGeom = "";
     }
 
@@ -179,6 +187,15 @@ Singleton {
     // full   — whole screen, after a 3-second countdown, because the thing you
     //          want to photograph is usually not reachable while a menu is open.
     function shoot(mode: string): void {
+        // A second press while the countdown ticks cancels it — once armed
+        // there used to be no way out, the shutter fired no matter what.
+        if (root.countdown > 0) {
+            ticker.stop();
+            root.countdown = 0;
+            Osd.hide();
+            root.finished();
+            return;
+        }
         if (mode === "full") {
             root.withUiHidden(() => {
                 root.countdown = 3;
@@ -230,8 +247,19 @@ Singleton {
         else if (root.recordMic)
             audio = " --mic";
 
+        root.startPending = true;
+        startFallback.restart();
         Quickshell.execDetached(["sh", "-c", `'${root.scriptsDir}/screen_record.sh' start${g}${audio}`]);
         poll.restart();
+    }
+
+    // A failed launch (script exits, wf-recorder missing) must not latch
+    // startPending — that would leave the Start button dead forever.
+    Timer {
+        id: startFallback
+
+        interval: 3000
+        onTriggered: root.startPending = false
     }
 
     // Through the script rather than a bare pkill, so a recording stopped from
@@ -348,16 +376,17 @@ Singleton {
                 if (!was && root.recording) {
                     root.recordingSince = Date.now();
                     root.now = root.recordingSince;
+                    root.startPending = false;
+                    startFallback.stop();
                 }
+                // State reset only — the stop script owns the "Recording
+                // saved" notification, and this poll fires on every stop
+                // including script-driven ones, so notifying here would
+                // double up. (An externally SIGKILLed recorder gets no toast;
+                // it also gets no playable file.)
                 if (was && !root.recording) {
                     root.recordingSince = 0;
                     root.regionGeom = "";
-                    Quickshell.execDetached(["sh", "-c", `
-                        f=$(ls -t '${root.videoDir}'/recording_*.mp4 2>/dev/null | head -1)
-                        [ -n "$f" ] || exit 0
-                        printf %s "$f" | wl-copy
-                        ${root.notifySnippet("Recording saved", "video-x-generic")}
-                    `]);
                 }
             }
         }

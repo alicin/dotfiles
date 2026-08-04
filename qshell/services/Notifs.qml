@@ -77,6 +77,25 @@ Singleton {
 
     function dropPopup(w: var): void {
         root.popups = root.popups.filter(p => p !== w);
+        root.retire(w);
+    }
+
+    // A transient notification lives only in `popups` — when its toast
+    // retires without an explicit dismissal, the server would otherwise keep
+    // the object tracked forever and the sender never hears
+    // NotificationClosed. Anything still in `list` stays: the bell menu owns
+    // its lifetime.
+    function retire(w: var): void {
+        if (!root.list.includes(w))
+            w.n?.expire();
+    }
+
+    // The bell menu absorbing pending toasts must retire the transient ones
+    // too, not just empty the array.
+    function absorbPopups(): void {
+        const gone = root.popups;
+        root.popups = [];
+        gone.forEach(w => root.retire(w));
     }
 
     // Actions on notifications the *shell* posts (screenshots, recordings) are
@@ -117,8 +136,11 @@ Singleton {
 
     function clearAll(): void {
         const all = [...root.list];
+        // Popup-only (transient) wrappers aren't in `list` and would leak.
+        const orphans = root.popups.filter(w => !all.includes(w));
         root.list = [];
         root.popups = [];
+        orphans.forEach(w => w.n?.expire());
         all.forEach(w => w.n.dismiss());
     }
 
@@ -155,9 +177,26 @@ Singleton {
                 n: notif,
                 at: notif.lastGeneration ? persist.lastSeen : Date.now()
             };
-            root.list = [w, ...root.list].slice(0, 80);
-            if (!persist.dnd && !notif.lastGeneration)
-                root.popups = [...root.popups, w].slice(-5);
+            // Transient notifications (volume spam, progress ticks) show as
+            // toasts but skip the history — apps set the hint precisely
+            // because the daemon should show-and-forget them. Critical
+            // pierces DND: a battery-critical alert filed silently into
+            // history defeats both features at once.
+            const inList = !notif.transient;
+            const inPopups = (!persist.dnd || notif.urgency === NotificationUrgency.Critical) && !notif.lastGeneration;
+            if (inList)
+                root.list = [w, ...root.list].slice(0, 80);
+            if (inPopups) {
+                const next = [...root.popups, w];
+                // Wrappers the cap evicts leave the screen for good — retire
+                // them, or capped-out transients leak in the server.
+                next.slice(0, Math.max(0, next.length - 5)).forEach(p => root.retire(p));
+                root.popups = next.slice(-5);
+            }
+            // Neither container (DND-suppressed transient, transient replay):
+            // nothing will ever show or dismiss it — close it out now.
+            if (!inList && !inPopups)
+                notif.expire();
         }
     }
 

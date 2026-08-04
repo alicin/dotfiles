@@ -17,7 +17,15 @@ Scope {
     property bool open: false
 
     onOpenChanged: {
+        // The OSD shares this panel's bottom-center spot.
+        Osd.launcherOpen = open;
         if (open) {
+            // Latched per open (this assignment severs the live binding, on
+            // purpose): with focus-follows-mouse, an open panel used to remap
+            // to the other monitor the moment the cursor crossed.
+            win.screen = Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? Quickshell.screens[0] ?? null;
+            if (Osd.kind !== "countdown")
+                Osd.hide();
             field.text = "";
             list.currentIndex = 0;
             list.lastHoverPos = Qt.point(-1e9, -1e9);

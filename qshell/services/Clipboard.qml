@@ -16,6 +16,16 @@ Singleton {
     // newest first, as cliphist lists them.
     property var entries: []
 
+    // False until the first listing lands — the picker shows nothing instead
+    // of flashing "Clipboard is empty" during the round trip.
+    property bool loaded: false
+
+    // id -> full decoded text of truncated TEXT entries. cliphist previews
+    // cap at 100 chars and a path's filename is exactly what falls off the
+    // end — so the row showed "report-final.pdf" while typing "report" never
+    // matched. Filled in one batched decode after each listing.
+    property var fullText: ({})
+
     readonly property var imageExts: ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "avif", "tif", "tiff"]
 
     function isImagePath(p: string): bool {
@@ -83,7 +93,9 @@ Singleton {
             return root.entries;
         return root.entries.map(e => ({
                     e,
-                    score: Apps.scoreText(e.preview, q)
+                    // Full text when the preview was cut — search matches what
+                    // the row visibly says.
+                    score: Apps.scoreText(root.fullText[e.id] ?? e.preview, q)
                 })).filter(r => r.score > 0).sort((a, b) => b.score - a.score).slice(0, 64).map(r => r.e);
     }
 
@@ -126,6 +138,39 @@ Singleton {
                     });
                 }
                 root.entries = out;
+                root.loaded = true;
+
+                // Batch-decode the truncated text entries search can't see
+                // yet (bounded, ids are numeric so the interpolation is safe).
+                const need = out.filter(e => e.truncated && !e.image && root.fullText[e.id] === undefined).map(e => e.id).slice(0, 64);
+                if (need.length > 0) {
+                    decoder.command = ["sh", "-c", `for id in ${need.join(" ")}; do printf '%s\\t' "$id"; cliphist decode "$id" 2>/dev/null | head -c 400 | tr '\\n\\t' '  '; printf '\\n'; done`];
+                    decoder.running = true;
+                }
+            }
+        }
+    }
+
+    Process {
+        id: decoder
+
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const m = Object.assign({}, root.fullText);
+                for (const line of text.split("\n")) {
+                    const tab = line.indexOf("\t");
+                    if (tab < 1)
+                        continue;
+                    // A failed decode (db briefly locked by the store watcher)
+                    // still emits "id\t" — caching "" would make the entry
+                    // permanently unsearchable AND block the retry. Leave it
+                    // undefined so search falls back to the preview and the
+                    // next listing re-queues it.
+                    const payload = line.slice(tab + 1);
+                    if (payload.trim())
+                        m[line.slice(0, tab)] = payload;
+                }
+                root.fullText = m;
             }
         }
     }

@@ -73,6 +73,10 @@ Scope {
     onOpenChanged: {
         selWin = null;
         if (open) {
+            // Latched per open (severs the live binding, on purpose): the
+            // grid used to remap to the other monitor mid-use when
+            // focus-follows-mouse crossed screens.
+            win.screen = Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? Quickshell.screens[0] ?? null;
             rev++;
             refetch();
         } else {

@@ -25,6 +25,14 @@ Scope {
 
     readonly property bool shown: Osd.kind !== ""
 
+    // Pinned per showing (the assignment severs the window's live screen
+    // binding on first use, on purpose) — the pill used to jump screens
+    // mid-fade when the cursor crossed monitors.
+    onShownChanged: {
+        if (shown)
+            win.screen = Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? Quickshell.screens[0] ?? null;
+    }
+
     readonly property string mode: {
         if (Osd.kind === "kbd")
             return "steps";
@@ -36,6 +44,10 @@ Scope {
     readonly property bool muted: (Osd.kind === "volume" && Audio.muted) || (Osd.kind === "mic" && Audio.micMuted)
 
     readonly property real value: Osd.kind === "brightness" ? Brightness.display : Audio.volume
+
+    // Which sink the volume is actually driving — with BT headphones and
+    // speakers both present, a bare bar doesn't say what just changed.
+    readonly property string device: Osd.kind === "volume" ? (Audio.sink?.description ?? "") : ""
 
     readonly property string label: {
         if (Osd.kind === "mic")
@@ -109,7 +121,15 @@ Scope {
             // muted" adrift in it reads as a layout bug. Animated, so switching
             // kinds while one is already up morphs instead of snapping.
             width: root.mode === "label" ? Math.max(Appearance.s(190), Appearance.s(78) + label.implicitWidth) : Appearance.s(320)
-            height: Appearance.s(58)
+            // A touch taller for volume, to carry the device line.
+            height: root.device !== "" ? Appearance.s(72) : Appearance.s(58)
+
+            Behavior on height {
+                Anim {
+                    duration: Appearance.anim.durations.expressiveFastSpatial
+                    curve: Appearance.anim.curves.emphasized
+                }
+            }
             radius: height / 2
             color: Theme.surfaceBg
             border.width: 1
@@ -143,7 +163,7 @@ Scope {
 
                 x: Appearance.s(18)
                 width: Appearance.s(26)
-                height: parent.height
+                height: Appearance.s(58)
 
                 FIcon {
                     anchors.centerIn: parent
@@ -151,6 +171,21 @@ Scope {
                     font.pixelSize: Appearance.s(20)
                     color: root.muted ? Theme.surfaceFgDim : Theme.surfaceFg
                 }
+            }
+
+            StyledText {
+                visible: root.device !== ""
+                anchors.left: glyphSlot.right
+                anchors.leftMargin: Appearance.s(14)
+                anchors.right: parent.right
+                anchors.rightMargin: Appearance.s(20)
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: Appearance.s(9)
+                text: root.device
+                color: Theme.surfaceFgDim
+                font.pixelSize: Appearance.font.size.small
+                font.weight: Font.Normal
+                elide: Text.ElideRight
             }
 
             // ── Continuous: volume, display brightness ──
@@ -161,7 +196,7 @@ Scope {
                 anchors.leftMargin: Appearance.s(14)
                 anchors.right: pct.left
                 anchors.rightMargin: Appearance.s(12)
-                anchors.verticalCenter: parent.verticalCenter
+                anchors.verticalCenter: glyphSlot.verticalCenter
                 height: Appearance.s(8)
                 radius: height / 2
                 color: Qt.alpha(Theme.surfaceFg, 0.16)
@@ -195,7 +230,7 @@ Scope {
 
                 anchors.right: parent.right
                 anchors.rightMargin: Appearance.s(20)
-                anchors.verticalCenter: parent.verticalCenter
+                anchors.verticalCenter: glyphSlot.verticalCenter
                 width: Appearance.s(44)
                 horizontalAlignment: Text.AlignRight
                 visible: root.mode === "bar"
@@ -210,7 +245,7 @@ Scope {
 
                 anchors.left: glyphSlot.right
                 anchors.leftMargin: Appearance.s(14)
-                anchors.verticalCenter: parent.verticalCenter
+                anchors.verticalCenter: glyphSlot.verticalCenter
                 visible: root.mode === "label"
                 text: root.label
                 color: Theme.surfaceFg
@@ -227,7 +262,7 @@ Scope {
                 anchors.leftMargin: Appearance.s(14)
                 anchors.right: parent.right
                 anchors.rightMargin: Appearance.s(20)
-                anchors.verticalCenter: parent.verticalCenter
+                anchors.verticalCenter: glyphSlot.verticalCenter
                 height: Appearance.s(11)
                 visible: root.mode === "steps"
 

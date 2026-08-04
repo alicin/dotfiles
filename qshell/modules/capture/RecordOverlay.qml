@@ -78,11 +78,21 @@ Scope {
             readonly property int gy: Capture.ry - win.screen.y
             readonly property int bw: root.borderWidth
 
+            // This window only maps on screens the region actually touches —
+            // the other monitor used to get a fully functional duplicate pill
+            // parked at its edge and stray dimming bands.
+            readonly property bool holdsRegion: Capture.regionGeom !== "" && Capture.rx < win.screen.x + win.screen.width && Capture.rx + Capture.rw > win.screen.x && Capture.ry < win.screen.y + win.screen.height && Capture.ry + Capture.rh > win.screen.y
+
+            // The pill (and the keyboard, while armed) belong to the screen
+            // holding the region's center, so a region spanning an edge still
+            // gets exactly one of each.
+            readonly property bool primaryHere: holdsRegion && Capture.rx + Capture.rw / 2 >= win.screen.x && Capture.rx + Capture.rw / 2 < win.screen.x + win.screen.width && Capture.ry + Capture.rh / 2 >= win.screen.y && Capture.ry + Capture.rh / 2 < win.screen.y + win.screen.height
+
             screen: modelData
             // Up for the armed state too, not just while rolling: that's the
             // whole point of arming — you see exactly what's framed, and what
             // audio is going in, before anything is committed to disk.
-            visible: Capture.regionGeom !== ""
+            visible: holdsRegion
             color: "transparent"
 
             anchors {
@@ -97,12 +107,32 @@ Scope {
 
             WlrLayershell.namespace: "qshell:recordoverlay"
             WlrLayershell.layer: WlrLayer.Overlay
-            WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+            // OnDemand, not Exclusive: the window maps fresh on arming, so
+            // Hyprland hands it the keyboard immediately — Enter/Esc work
+            // right after slurp exits — but clicking any app window releases
+            // the keys to it instead of the overlay swallowing every
+            // keystroke system-wide for the whole armed state.
+            WlrLayershell.keyboardFocus: Capture.armed && win.primaryHere ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
 
             // Input only where the pill is — the Stop button needs clicks, and
             // everything else must stay transparent to them.
             mask: Region {
                 item: pill
+            }
+
+            Item {
+                anchors.fill: parent
+                focus: true
+                // isAutoRepeat: a held Enter is one start, not a stream.
+                Keys.onReturnPressed: event => {
+                    if (!event.isAutoRepeat)
+                        Capture.startArmed();
+                }
+                Keys.onEnterPressed: event => {
+                    if (!event.isAutoRepeat)
+                        Capture.startArmed();
+                }
+                Keys.onEscapePressed: Capture.disarm()
             }
 
             component Shade: Rectangle {
@@ -165,6 +195,7 @@ Scope {
                 readonly property int gap: win.bw + Appearance.s(6)
                 readonly property bool below: win.gy - gap < height
 
+                visible: win.primaryHere
                 x: Math.min(Math.max(Appearance.s(8), win.gx), win.width - width - Appearance.s(8))
                 y: below ? win.gy + Capture.rh + gap : win.gy - height - gap
                 implicitWidth: pillRow.implicitWidth + Appearance.s(18)
@@ -232,7 +263,10 @@ Scope {
                     }
                 }
 
-                // Audio source toggle — lit when it will be captured.
+                // Audio source toggle — lit when it will be captured. Locked
+                // once rolling: the audio graph is wired at launch, and a
+                // toggle that animates mid-recording while changing nothing
+                // in the file is a lie you only discover at playback.
                 component AudioToggle: Rectangle {
                     id: tog
 
@@ -240,12 +274,15 @@ Scope {
                     property string offGlyph: ""
                     property bool on: false
 
+                    readonly property bool locked: Capture.recording
+
                     signal tapped
 
                     anchors.verticalCenter: parent?.verticalCenter ?? undefined
                     implicitWidth: Appearance.s(24)
                     implicitHeight: Appearance.s(22)
                     radius: height / 2
+                    opacity: locked ? 0.45 : 1
                     color: tog.on ? "#40ffffff" : (togArea.containsMouse ? "#26ffffff" : "transparent")
 
                     Behavior on color {
@@ -256,8 +293,9 @@ Scope {
                         id: togArea
 
                         anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
+                        enabled: !tog.locked
+                        hoverEnabled: !tog.locked
+                        cursorShape: tog.locked ? Qt.ArrowCursor : Qt.PointingHandCursor
                         onClicked: tog.tapped()
                     }
 
