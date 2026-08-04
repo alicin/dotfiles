@@ -14,16 +14,26 @@ Row {
 
     property var popouts: null
 
+    // Bumped by items whose status flips in place — `values` alone only
+    // re-notifies on add/remove, so a some() over it would sleep through an
+    // existing item raising its hand.
+    property int attnRev: 0
+
     // Don't retract while one of our own menus is open — it's anchored to an
     // item that would otherwise slide away underneath it.
     readonly property bool menuOpen: (popouts?.current ?? "").startsWith("tray:")
-    readonly property bool expanded: hover.hovered || menuOpen
+    // NeedsAttention pierces the collapse: the point of the status is that you
+    // see it *without* having hovered first.
+    readonly property bool attention: attnRev >= 0 && SystemTray.items.values.some(i => i.status === Status.NeedsAttention)
+    readonly property bool expanded: hover.hovered || menuOpen || attention
 
     spacing: 0
     visible: SystemTray.items.values.length > 0
 
     HoverHandler {
         id: hover
+
+        margin: Appearance.sizes.barSlop
     }
 
     Item {
@@ -31,7 +41,6 @@ Row {
 
         width: root.expanded ? items.implicitWidth : 0
         height: Appearance.sizes.barInner
-        clip: true
 
         Behavior on width {
             Anim {
@@ -40,19 +49,33 @@ Row {
             }
         }
 
-        Row {
-            id: items
+        // The clip lives on this vertically-extended inner item, not on
+        // reveal: reveal is a Row child (positioners own their implicit
+        // sizes), and clipping at its 26px bounds swallowed clicks in the
+        // bar-edge slop strips that TrayItem's hit areas extend into —
+        // making tray icons the only bar controls that ignored edge slams.
+        Item {
+            y: -Appearance.sizes.barSlop
+            width: parent.width
+            height: parent.height + 2 * Appearance.sizes.barSlop
+            clip: true
 
-            // Right-aligned inside the clip so items emerge from behind the
-            // glyph rather than sliding in from the far left.
-            x: reveal.width - implicitWidth
-            spacing: 0
+            Row {
+                id: items
 
-            Repeater {
-                model: SystemTray.items
+                // Right-aligned inside the clip so items emerge from behind
+                // the glyph rather than sliding in from the far left.
+                x: parent.width - implicitWidth
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 0
 
-                TrayItem {
-                    popouts: root.popouts
+                Repeater {
+                    model: SystemTray.items
+
+                    TrayItem {
+                        popouts: root.popouts
+                        tray: root
+                    }
                 }
             }
         }
@@ -71,6 +94,18 @@ Row {
             anchors.centerIn: parent
             icon: "ellipsis"
             color: Theme.barFg
+        }
+
+        // Why the row auto-expanded: some item wants attention.
+        Rectangle {
+            visible: root.attention
+            anchors.top: parent.top
+            anchors.right: parent.right
+            anchors.topMargin: Appearance.s(3)
+            width: Appearance.s(6)
+            height: width
+            radius: width / 2
+            color: Theme.barWarn
         }
     }
 }

@@ -20,16 +20,59 @@ Singleton {
     // fine for a hide flag.
     property bool menuOpen: false
 
+    // Marking seen shrinks the bell badge, and a bar relayout under a parked
+    // cursor while hover-slide is armed reads as a fresh hover and switches
+    // menus by itself — so the actual write waits until every bar menu is
+    // closed, when the hover-slide handlers are all disarmed.
+    property bool seenPending: false
+
+    // What the bar actually renders: `unseen` latched while a menu is open,
+    // in BOTH directions — dismissing (or receiving) notifications mid-menu
+    // would otherwise resize the bell module and cause the same
+    // relayout-as-hover self-switch that seenPending guards against.
+    property int badgeUnseen: 0
+
+    onUnseenChanged: {
+        if (!menuOpen)
+            badgeUnseen = unseen;
+    }
+
+    onMenuOpenChanged: {
+        if (!menuOpen) {
+            if (seenPending) {
+                seenPending = false;
+                markSeen();
+            }
+            badgeUnseen = unseen;
+        }
+    }
+
+    function requestSeen(): void {
+        if (menuOpen)
+            seenPending = true;
+        else
+            markSeen();
+    }
+
     // Toasts hide while a bar popout covers the same top-right corner, and
     // while a capture is pending — a toast is exactly the sort of thing you
     // don't want immortalised in a screenshot.
     readonly property bool popupsHidden: menuOpen || Capture.hidingUi
 
     readonly property int count: list.length
+    readonly property real lastSeenAt: persist.lastSeen
+    // What the bar badge shows: notifications that arrived since the bell menu
+    // was last open. Badging `count` meant the number never went down short of
+    // Clear, and a badge that permanently reads "23" carries no signal.
+    readonly property int unseen: list.filter(w => w.at > persist.lastSeen).length
     readonly property bool dnd: persist.dnd
 
     function toggleDnd(): void {
         persist.dnd = !persist.dnd;
+    }
+
+    function markSeen(): void {
+        persist.lastSeen = Date.now();
     }
 
     function dropPopup(w: var): void {
@@ -79,23 +122,13 @@ Singleton {
         all.forEach(w => w.n.dismiss());
     }
 
-    // Notifications survive config reloads inside the server (keepOnReload);
-    // re-adopt them into our wrapper list when the singleton reinitializes.
-    Component.onCompleted: {
-        const existing = server.trackedNotifications.values;
-        if (existing.length > 0)
-            root.list = existing.map(n => ({
-                n,
-                at: Date.now()
-            }));
-    }
-
     PersistentProperties {
         id: persist
 
         reloadableId: "qshellNotifs"
 
         property bool dnd: false
+        property real lastSeen: 0
     }
 
     NotificationServer {
@@ -108,15 +141,22 @@ Singleton {
         imageSupported: true
         persistenceSupported: true
 
+        // Notifications survive config reloads inside the server
+        // (keepOnReload) and are *replayed* through this handler on the next
+        // load, flagged lastGeneration — there is no separate re-adopt hook
+        // (an onCompleted read of trackedNotifications sees an empty list;
+        // that was tried). Replays are stamped as already-seen and skip the
+        // popups, or every reload would relight the badge and re-toast up to
+        // five old notifications.
         onNotification: notif => {
             notif.tracked = true;
             root.now = Date.now();
             const w = {
                 n: notif,
-                at: Date.now()
+                at: notif.lastGeneration ? persist.lastSeen : Date.now()
             };
             root.list = [w, ...root.list].slice(0, 80);
-            if (!persist.dnd)
+            if (!persist.dnd && !notif.lastGeneration)
                 root.popups = [...root.popups, w].slice(-5);
         }
     }

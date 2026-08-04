@@ -13,20 +13,47 @@ Singleton {
     // [{ name, type, active }]
     property var connections: []
 
+    // The connection currently toggling (drives the row's "…"), and the last
+    // one whose toggle failed, with nmcli's first error line. execDetached
+    // threw the exit status away, so a missing secret or unreachable endpoint
+    // looked exactly like success.
+    property string busyFor: ""
+    property string failedFor: ""
+    property string failedMsg: ""
+
     function refresh(): void {
         lister.running = true;
     }
 
     function toggle(conn: var): void {
-        Quickshell.execDetached(["nmcli", "connection", conn.active ? "down" : "up", conn.name]);
-        refreshSoon.restart();
+        // One toggle at a time: the toggler is a single Process, and a second
+        // flip mid-flight would clobber its command.
+        if (busyFor !== "")
+            return;
+        busyFor = conn.name;
+        failedFor = "";
+        failedMsg = "";
+        // --wait caps how long a stuck `up` can hold the row busy; nmcli's
+        // default is 90s of silence.
+        toggler.command = ["nmcli", "--wait", "15", "connection", conn.active ? "down" : "up", conn.name];
+        toggler.running = true;
     }
 
-    Timer {
-        id: refreshSoon
+    Process {
+        id: toggler
 
-        interval: 1500
-        onTriggered: root.refresh()
+        stderr: StdioCollector {
+            id: togErr
+        }
+
+        onExited: exitCode => {
+            if (exitCode !== 0) {
+                root.failedFor = root.busyFor;
+                root.failedMsg = (togErr.text.trim().split("\n")[0] || `nmcli exited ${exitCode}`).replace(/^Error: */, "");
+            }
+            root.busyFor = "";
+            root.refresh();
+        }
     }
 
     Process {

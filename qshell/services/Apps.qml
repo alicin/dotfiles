@@ -4,6 +4,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Hyprland
+import qs.config
 
 // Desktop entry list + fuzzy search for the launcher, and the window -> icon
 // lookup the workspace pills and the overview share.
@@ -17,8 +18,72 @@ Singleton {
     // change, so the /proc read is cached; only a recycled pid can go stale.
     property var exeByPid: ({})
 
+    // Launch counts + last-launch times, persisted to the Quickshell state
+    // dir (NOT settings.json — that lives in the dotfiles repo and this is
+    // churn, not configuration). Drives the empty-query ordering and a small
+    // ranked-search boost: the five daily apps used to sit alphabetized under
+    // everything else, always needing typing.
+    function frecency(id: string): real {
+        const u = usage.apps[id];
+        if (!u)
+            return 0;
+        const days = (Date.now() - u.last) / 86400000;
+        // Log-damped count with a ~2-week recency half-life: heavy use keeps
+        // an app up, but abandoning it lets it sink rather than squat forever.
+        return Math.log1p(u.n) * Math.exp(-days / 14);
+    }
+
     function launch(entry: DesktopEntry): void {
+        // In place, without notifying: reassigning `apps` re-sorts the
+        // empty-query list (and resets the selection) while the panel is
+        // still fading out — the launcher calls flushUsage() once hidden.
+        // Bookkeeping is skipped until the store has loaded; recording into
+        // the default empty map would overwrite the history on the next
+        // write. The launch itself is never skipped.
+        if (usageFile.ready) {
+            const apps = usage.apps;
+            const cur = apps[entry.id] ?? {
+                n: 0,
+                last: 0
+            };
+            apps[entry.id] = {
+                n: cur.n + 1,
+                last: Date.now()
+            };
+        }
         entry.execute();
+    }
+
+    // Re-sorts every consumer and persists (adapterUpdated → writeAdapter).
+    function flushUsage(): void {
+        usage.appsChanged();
+    }
+
+    FileView {
+        id: usageFile
+
+        property bool ready: false
+
+        path: Quickshell.statePath("launcher-usage.json")
+        // Temp-file + rename: a crash mid-write must never replace the last
+        // good history with a truncated file.
+        atomicWrites: true
+        onAdapterUpdated: writeAdapter()
+        onLoaded: ready = true
+        onLoadFailed: error => {
+            // Only a genuinely missing file gets defaults written over it —
+            // any other failure must not let the next write clobber data.
+            if (error === FileViewError.FileNotFound)
+                writeAdapter();
+            ready = true;
+        }
+
+        adapter: JsonAdapter {
+            id: usage
+
+            // id -> { n: launches, last: ms }
+            property var apps: ({})
+        }
     }
 
     // Blocking, always-fresh reads: /proc is memory-backed (~20µs a read), and
@@ -126,17 +191,45 @@ Singleton {
 
     function search(query: string): var {
         const q = query.trim();
+        // Empty query: frecent apps first, the rest alphabetical under them.
         if (!q)
-            return root.all;
+            return [...root.all].sort((a, b) => (frecency(b.id) - frecency(a.id)) || a.name.localeCompare(b.name));
 
         return root.all.map(e => {
             const name = scoreText(e.name, q);
             const alt = Math.max(scoreText(e.genericName, q), scoreText(e.comment, q), scoreText(e.keywords, q));
-            const score = Math.max(name * 2, alt);
+            // Frecency is a capped nudge among REAL matches only — boosting
+            // the -1 no-match sentinel let daily apps pass the score filter
+            // for queries they don't match at all.
+            const base = Math.max(name * 2, alt);
+            const score = base > 0 ? base + Math.min(4, frecency(e.id)) : base;
             return {
                 entry: e,
                 score
             };
         }).filter(r => r.score > 0).sort((a, b) => b.score - a.score).slice(0, 48).map(r => r.entry);
+    }
+
+    // The scorer knows which characters matched; render them. Rich-text
+    // markup over the app name — accent on the matched subsequence — so a
+    // fuzzy hit like "gcr" → "Google ChRome" reads as a match, not noise.
+    function markMatches(text: string, query: string): string {
+        const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        const q = query.trim().toLowerCase();
+        if (!q)
+            return esc(text);
+        const t = text.toLowerCase();
+        let out = "";
+        let pos = 0;
+        for (let qi = 0; qi < q.length; qi++) {
+            const idx = t.indexOf(q[qi], pos);
+            // The name alone doesn't contain the subsequence (matched via
+            // comment/keywords) — no marks to draw.
+            if (idx === -1)
+                return esc(text);
+            out += esc(text.slice(pos, idx)) + `<font color="${Theme.accent}">${esc(text[idx])}</font>`;
+            pos = idx + 1;
+        }
+        return out + esc(text.slice(pos));
     }
 }

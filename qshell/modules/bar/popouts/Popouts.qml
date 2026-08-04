@@ -105,9 +105,12 @@ Scope {
             onCleared: root.close()
         }
 
-        // Each menu appears in place under its own icon — position and size
-        // snap, and it scales+fades in over 300ms, growing from the top edge so
-        // it reads as coming out of the bar rather than floating in.
+        // Each menu appears in place under its own icon — geometry snaps on
+        // first open (the panel must materialize under the clicked module, not
+        // glide over from wherever it last was), then scales+fades in over
+        // 300ms, growing from the top edge so it reads as coming out of the
+        // bar. Once fully open, x/width/height DO animate — switching menus
+        // morphs the panel between them instead of teleporting it.
         //
         // The window height is deliberately NOT content-derived: sizing the
         // layer surface to the panel made the surface resize on every open, and
@@ -132,6 +135,10 @@ Scope {
             // can't drift apart.
             property real anim: root.open ? 1 : 0
 
+            // Geometry animates only in this state; during the open/close
+            // animation it must snap (see the comment above).
+            readonly property bool settled: root.open && anim === 1
+
             onAnimChanged: {
                 if (anim <= 0.001 && !root.open)
                     root.shown = "";
@@ -139,12 +146,32 @@ Scope {
 
             Behavior on anim {
                 Anim {
-                    duration: 300
-                    curve: Appearance.anim.curves.emphasizedDecel
+                    // Deceleration is an entrance curve; on dismiss it read as
+                    // the panel lingering. Out goes faster, on an exit curve.
+                    duration: root.open ? 300 : Appearance.anim.durations.expressiveDefaultEffects
+                    curve: root.open ? Appearance.anim.curves.emphasizedDecel : Appearance.anim.curves.expressiveDefaultEffects
                 }
             }
 
-            x: Math.max(Appearance.s(8), Math.min(root.anchorX - width / 2, win.width - width - Appearance.s(8)))
+            // The anchor is what animates, not x itself: x derives from both
+            // the anchor and width, and a Behavior on x would be restarted by
+            // every frame of the width morph — the panel then crawls through
+            // the emphasized curve's flat start over and over and lurches in
+            // late. With the anchor and width each retargeting exactly once,
+            // x re-derives smoothly per frame and the edge clamp holds
+            // throughout the morph.
+            property real ax: root.anchorX
+
+            Behavior on ax {
+                enabled: panel.settled
+
+                Anim {
+                    duration: 300
+                    curve: Appearance.anim.curves.emphasized
+                }
+            }
+
+            x: Math.max(Appearance.s(8), Math.min(ax - width / 2, win.width - width - Appearance.s(8)))
             y: Appearance.s(6)
             visible: anim > 0.001
             opacity: anim
@@ -157,11 +184,51 @@ Scope {
             color: Theme.surfaceBg
             border.width: 1
             border.color: Theme.surfaceBorder
+            // Mid-morph the new menu is already at full size while the panel
+            // is still en route — keep it from poking past the edges. (Content
+            // is inset by `pad`, so the rectangular clip never shows against
+            // the rounded corners in steady state.)
+            clip: true
+
+            Behavior on width {
+                enabled: panel.settled
+
+                Anim {
+                    duration: 300
+                    curve: Appearance.anim.curves.emphasized
+                }
+            }
+
+            Behavior on height {
+                enabled: panel.settled
+
+                Anim {
+                    duration: 300
+                    curve: Appearance.anim.curves.emphasized
+                }
+            }
 
             FocusScope {
                 anchors.fill: parent
                 focus: true
-                Keys.onEscapePressed: root.close()
+                // Esc gives the menu first refusal (the Control Center pops a
+                // detail page back to home) and only then dismisses the panel.
+                Keys.onEscapePressed: {
+                    if (loader.item?.navBack?.())
+                        return;
+                    root.close();
+                }
+                // Optional per-menu keyboard nav: menus that define
+                // navMove/navActivate/navRemove get arrows, Enter and Delete;
+                // the rest ignore them. NB a focused TextInput only consumes
+                // *character* keys on its own — the wifi password field
+                // explicitly swallows arrows and Return so typing never
+                // navigates (see its Keys handlers).
+                Keys.onUpPressed: loader.item?.navMove?.(-1)
+                Keys.onDownPressed: loader.item?.navMove?.(1)
+                Keys.onReturnPressed: loader.item?.navActivate?.()
+                Keys.onEnterPressed: loader.item?.navActivate?.()
+                Keys.onDeletePressed: loader.item?.navRemove?.()
 
                 Loader {
                     id: loader

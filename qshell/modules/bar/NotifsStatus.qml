@@ -3,7 +3,7 @@ import qs.config
 import qs.components
 import qs.services
 
-// Notification bell + count; click opens the notification center.
+// Notification bell + unseen count; click opens the notification center.
 Item {
     id: root
 
@@ -13,7 +13,14 @@ Item {
     implicitHeight: Appearance.sizes.barInner
 
     StateLayer {
+        hitSlop: Appearance.sizes.barSlop
         onClicked: root.popouts?.toggle("notifs", root)
+        // macOS menubar: once any bar menu is open, sliding along the bar
+        // switches menus without another click.
+        onContainsMouseChanged: {
+            if (containsMouse && root.popouts?.open && root.popouts.current !== "notifs")
+                root.popouts.toggle("notifs", root);
+        }
     }
 
     Row {
@@ -28,11 +35,15 @@ Item {
             color: Notifs.dnd ? Theme.barFgDim : Theme.barFg
         }
 
-        // Same size/style as the battery percentage and clock text.
+        // Same size/style as the battery percentage and clock text. Unseen,
+        // not total: the retained-history count only ever went up, and a
+        // number that never resets stops meaning anything. (badgeUnseen, not
+        // unseen: the service latches it while a menu is open so this module
+        // can't resize under a parked cursor mid-interaction.)
         StyledText {
-            visible: Notifs.count > 0
+            visible: Notifs.badgeUnseen > 0
             anchors.verticalCenter: parent.verticalCenter
-            text: `${Notifs.count}`
+            text: `${Notifs.badgeUnseen}`
             color: Theme.barFg
             font.weight: Font.Bold
         }

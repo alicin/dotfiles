@@ -21,6 +21,48 @@ Item {
     // every read below is null-guarded.
     readonly property var n: wrapper?.n ?? null
     readonly property bool critical: n?.urgency === NotificationUrgency.Critical
+
+    // The freedesktop "default" action is the body-click verb, not a button:
+    // rendered as a pill it shows up literally labeled "default". It gets
+    // filtered out of the pill row and wired to clicks instead.
+    readonly property var defaultAction: (n?.actions ?? []).find(a => a.identifier === "default") ?? null
+    readonly property var pillActions: (n?.actions ?? []).filter(a => a.identifier !== "default")
+
+    // Menu mode only: a click unfolds the 3-line body cap.
+    property bool expanded: false
+
+    // The default action, with the same destroyed-mid-handler care as the
+    // pills: invoke() usually closes the notification, killing this delegate.
+    function invokeDefault(): void {
+        const notif = root.n;
+        const act = root.defaultAction;
+        const resident = notif?.resident ?? false;
+        const dismissAfter = !root.flat;
+        if (!act)
+            return;
+        if (!Notifs.runAction(notif, act.identifier))
+            act.invoke();
+        if (dismissAfter && notif && !resident)
+            notif.dismiss();
+    }
+
+    // What a body click (or Enter, from the menu's keyboard nav) does. Never
+    // dismissal: destroying the notification was the old behavior, and in the
+    // bell menu a misclick while scrolling silently ate it with no undo — the
+    // × is the only dismissal now. Order matters: expand first, THEN the
+    // default action on the next activation — a long-body notification with a
+    // default action needs both reachable, and collapse loses to invoke (the
+    // primary action beats re-folding; × still dismisses).
+    function activate(): void {
+        if (root.flat && body.truncated && !root.expanded)
+            root.expanded = true;
+        else if (root.defaultAction)
+            root.invokeDefault();
+        else if (root.flat && root.expanded)
+            root.expanded = false;
+        else if (!root.flat)
+            root.n?.dismiss();
+    }
     readonly property string imageSource: {
         if (n?.image)
             return n.image;
@@ -61,7 +103,10 @@ Item {
 
     MouseArea {
         anchors.fill: parent
-        onClicked: root.n?.dismiss()
+        // The hand only where a click does something, so an inert card
+        // doesn't advertise one.
+        cursorShape: !root.flat || root.defaultAction || body.truncated || root.expanded ? Qt.PointingHandCursor : Qt.ArrowCursor
+        onClicked: root.activate()
     }
 
     Column {
@@ -144,6 +189,8 @@ Item {
                 }
 
                 StyledText {
+                    id: body
+
                     width: parent.width
                     visible: (root.n?.body?.length ?? 0) > 0
                     text: root.n?.body ?? ""
@@ -152,7 +199,9 @@ Item {
                     font.pixelSize: Appearance.font.size.small
                     font.weight: Font.Normal
                     wrapMode: Text.Wrap
-                    maximumLineCount: 3
+                    // Toasts stay capped; in the menu a click unfolds the rest
+                    // (the whole shell had nowhere to read a long body).
+                    maximumLineCount: root.expanded ? 10000 : 3
                     elide: Text.ElideRight
                 }
             }
@@ -180,11 +229,11 @@ Item {
         }
 
         Row {
-            visible: (root.n?.actions?.length ?? 0) > 0
+            visible: root.pillActions.length > 0
             spacing: Appearance.s(6)
 
             Repeater {
-                model: root.n?.actions ?? []
+                model: root.pillActions
 
                 Rectangle {
                     required property NotificationAction modelData

@@ -13,21 +13,29 @@ MouseArea {
     property real radius: Appearance.rounding.normal
     property real hoverOpacity: 0.08
     property real rippleOpacity: 0.12
+    // Extends the hit area this far above and below the visual pill (the wash
+    // and ripple stay put). Bar modules pass barSlop so the strip of pixels
+    // against the screen edge takes the click too.
+    property real hitSlop: 0
 
     readonly property real maxRippleRadius: Math.sqrt(width * width + height * height)
 
     anchors.fill: parent
+    anchors.topMargin: -hitSlop
+    anchors.bottomMargin: -hitSlop
     hoverEnabled: true
     cursorShape: Qt.PointingHandCursor
 
     onPressed: mouse => {
         ripple.cx = mouse.x;
-        ripple.cy = mouse.y;
+        ripple.cy = mouse.y - root.hitSlop;
         rippleAnim.restart();
     }
 
     ClippingRectangle {
         anchors.fill: parent
+        anchors.topMargin: root.hitSlop
+        anchors.bottomMargin: root.hitSlop
         radius: root.radius
         color: "transparent"
 

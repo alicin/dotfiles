@@ -30,6 +30,33 @@ Singleton {
 
     property int users: 0
 
+    // Who has the camera, by name — refcnt can't attribute, so this comes from
+    // fuser over the video devices, resolved through /proc/<pid>/comm.
+    // Re-probed on every handle-count change, not just the rising edge: a
+    // second app joining (1→2) or one of two leaving must refresh the list
+    // while the light stays on.
+    property list<string> apps: []
+
+    onUsersChanged: {
+        if (users > 0) {
+            whoProc.running = true;
+        } else {
+            root.apps = [];
+        }
+    }
+
+    Process {
+        id: whoProc
+
+        command: ["sh", "-c", "fuser /dev/video* 2>/dev/null | tr ' ' '\\n' | sort -u | while read -r p; do cat \"/proc/$p/comm\" 2>/dev/null; done | sort -u"]
+
+        stdout: StdioCollector {
+            // The users guard covers a probe that finishes after the camera
+            // already closed — it mustn't repopulate a cleared list.
+            onStreamFinished: root.apps = root.users > 0 && text.trim() ? text.trim().split("\n") : []
+        }
+    }
+
     FileView {
         id: refcnt
 

@@ -37,17 +37,51 @@ Column {
     width: Appearance.s(330)
     spacing: Appearance.s(2)
 
+    // What tapping a network row does — shared by mouse and keyboard nav.
+    function rowClicked(net: var): void {
+        // Mid-connect the row is deliberately frozen; an impatient second
+        // click/Enter must not collapse it or stack a duplicate connect.
+        if (net.stateChanging ?? false)
+            return;
+        root.failedFor = "";
+        if (net.known || (net.security ?? 0) === 0) {
+            net.connect();
+            root.pskFor = "";
+        } else {
+            root.pskFor = root.pskFor === net.name ? "" : net.name;
+        }
+    }
+
+    // Keyboard nav over the network list (arrows + Enter via the Popouts
+    // FocusScope). Enter mirrors a click: connect, or open the password row —
+    // which then takes text focus, so typing and Esc behave as expected.
+    function navMove(d: int): void {
+        if (!netList.visible || netList.count === 0)
+            return;
+        netList.currentIndex = Math.max(0, Math.min(netList.count - 1, netList.currentIndex + d));
+        netList.positionViewAtIndex(netList.currentIndex, ListView.Contain);
+    }
+
+    function navActivate(): void {
+        const net = root.networks[netList.currentIndex];
+        if (!net)
+            return;
+        root.rowClicked(net);
+        // Re-position after the psk row has expanded the delegate — on the
+        // last visible row the password field otherwise opens below the clip
+        // and takes focus while invisible.
+        Qt.callLater(() => netList.positionViewAtIndex(netList.currentIndex, ListView.Contain));
+    }
+
     Component.onCompleted: {
-        if (Net.wifi)
-            Net.wifi.scannerEnabled = true;
+        // rescan() rather than bare scannerEnabled: it also raises
+        // Net.scanning, which is what keeps the filler text below honest.
+        Net.rescan();
         Vpn.refresh();
         Tailscale.refresh();
     }
 
-    Component.onDestruction: {
-        if (Net.wifi)
-            Net.wifi.scannerEnabled = false;
-    }
+    Component.onDestruction: Net.stopScan()
 
     Item {
         width: parent.width
@@ -159,9 +193,15 @@ Column {
                     to: 360
                     duration: 900
                     loops: Animation.Infinite
+                    // try, not a null-check: stopScan() on menu close flips
+                    // this false mid-teardown, and the glyph can be a
+                    // destroyed-but-non-null wrapper by then — the write
+                    // itself throws.
                     onRunningChanged: {
-                        if (!running)
-                            target.rotation = 0;
+                        try {
+                            if (!running)
+                                target.rotation = 0;
+                        } catch (e) {}
                     }
                 }
             }
@@ -185,6 +225,15 @@ Column {
         clip: true
         interactive: contentHeight > height
         boundsBehavior: Flickable.StopAtBounds
+        // No phantom selection until the keyboard asks for one.
+        currentIndex: -1
+        highlightMoveDuration: Appearance.anim.durations.expressiveFastEffects
+        highlightResizeDuration: Appearance.anim.durations.expressiveFastEffects
+
+        highlight: Rectangle {
+            radius: Appearance.rounding.normal
+            color: Theme.surfaceHoverBg
+        }
 
         model: ScriptModel {
             values: Networking.wifiEnabled ? root.networks : []
@@ -216,15 +265,7 @@ Column {
                 StateLayer {
                     radius: Appearance.rounding.normal
                     color: Theme.surfaceFg
-                    onClicked: {
-                        root.failedFor = "";
-                        if (netItem.modelData.known || !netItem.secure) {
-                            netItem.modelData.connect();
-                            root.pskFor = "";
-                        } else {
-                            root.pskFor = netItem.expanded ? "" : netItem.modelData.name;
-                        }
-                    }
+                    onClicked: root.rowClicked(netItem.modelData)
                 }
 
                 FIcon {
@@ -287,6 +328,12 @@ Column {
             Rectangle {
                 id: pskBox
 
+                // Mid-connect the row stays open with the field frozen, so
+                // success/failure lands somewhere visible instead of the row
+                // collapsing on submit and "…" being the whole story.
+                readonly property bool connecting: netItem.modelData.stateChanging ?? false
+                property bool reveal: false
+
                 anchors.top: netRow.bottom
                 anchors.topMargin: Appearance.s(4)
                 x: Appearance.s(8)
@@ -301,28 +348,102 @@ Column {
                         psk.forceActiveFocus();
                 }
 
+                function submit(): void {
+                    if (!psk.text || pskBox.connecting)
+                        return;
+                    root.failedFor = "";
+                    // Text and row survive the attempt — a failure comes back
+                    // to an editable field, not a collapsed one.
+                    netItem.modelData.connectWithPsk(psk.text);
+                }
+
                 TextInput {
                     id: psk
 
                     anchors.fill: parent
                     anchors.leftMargin: Appearance.s(14)
-                    anchors.rightMargin: Appearance.s(14)
+                    anchors.rightMargin: trailing.width + Appearance.s(18)
                     verticalAlignment: TextInput.AlignVCenter
-                    echoMode: TextInput.Password
+                    echoMode: pskBox.reveal ? TextInput.Normal : TextInput.Password
+                    enabled: !pskBox.connecting
                     color: Theme.surfaceFg
                     font.family: Appearance.font.family
                     font.pixelSize: Appearance.font.size.normal
-                    onAccepted: {
-                        netItem.modelData.connectWithPsk(text);
-                        root.pskFor = "";
-                        text = "";
-                    }
+                    // Backing out of the password shouldn't cost the whole
+                    // menu — that Esc is scoped to the row; the next one (from
+                    // the panel FocusScope) closes the popout.
+                    Keys.onEscapePressed: root.pskFor = ""
+                    // A single-line TextInput does NOT consume arrows or
+                    // Return — they'd bubble to the FocusScope's nav handlers
+                    // (Return via onAccepted would fire twice: submit here,
+                    // then navActivate collapsing this very row). Keys
+                    // handlers run first and accept by default.
+                    Keys.onUpPressed: event => event.accepted = true
+                    Keys.onDownPressed: event => event.accepted = true
+                    Keys.onReturnPressed: pskBox.submit()
+                    Keys.onEnterPressed: pskBox.submit()
 
                     StyledText {
                         visible: !psk.text
                         anchors.verticalCenter: parent.verticalCenter
                         text: "Password…"
                         color: Theme.surfaceFgDim
+                    }
+                }
+
+                Row {
+                    id: trailing
+
+                    anchors.right: parent.right
+                    anchors.rightMargin: Appearance.s(8)
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Appearance.s(2)
+
+                    StyledText {
+                        visible: pskBox.connecting
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "…"
+                        color: Theme.surfaceFgDim
+                    }
+
+                    Item {
+                        width: Appearance.s(24)
+                        height: Appearance.s(24)
+
+                        StateLayer {
+                            radius: width / 2
+                            color: Theme.surfaceFg
+                            onClicked: {
+                                pskBox.reveal = !pskBox.reveal;
+                                psk.forceActiveFocus();
+                            }
+                        }
+
+                        FIcon {
+                            anchors.centerIn: parent
+                            icon: pskBox.reveal ? "eye_slash_fill" : "eye_fill"
+                            font.pixelSize: Appearance.font.size.normal
+                            color: Theme.surfaceFgDim
+                        }
+                    }
+
+                    Item {
+                        visible: !pskBox.connecting
+                        width: Appearance.s(24)
+                        height: Appearance.s(24)
+
+                        StateLayer {
+                            radius: width / 2
+                            color: Theme.surfaceFg
+                            onClicked: pskBox.submit()
+                        }
+
+                        FIcon {
+                            anchors.centerIn: parent
+                            icon: "arrow_right_circle_fill"
+                            font.pixelSize: Appearance.font.size.normal
+                            color: psk.text ? Theme.accent : Theme.surfaceFgDim
+                        }
                     }
                 }
             }
@@ -341,12 +462,27 @@ Column {
 
                 function onConnectionFailed() {
                     root.failedFor = netItem.modelData.name;
+                    // A stale saved password (router changed, hotel rotated
+                    // it) otherwise retries the same credential forever with
+                    // no way to type a new one.
+                    if (netItem.secure)
+                        root.pskFor = netItem.modelData.name;
+                }
+
+                function onConnectedChanged() {
+                    if (netItem.modelData.connected && root.pskFor === netItem.modelData.name) {
+                        root.pskFor = "";
+                        root.failedFor = "";
+                    }
                 }
             }
         }
 
         // Thin scroll indicator — only while there's more than fits.
+        // Explicitly parented to the viewport: children declared inside a
+        // Flickable get reparented to contentItem and scroll away with it.
         Rectangle {
+            parent: netList
             anchors.right: parent.right
             anchors.rightMargin: Appearance.s(2)
             width: Appearance.s(3)
@@ -367,7 +503,9 @@ Column {
 
         StyledText {
             anchors.centerIn: parent
-            text: "Scanning…"
+            // Only claim to scan while actually scanning — in a sparse RF
+            // environment this used to say "Scanning…" forever.
+            text: !Net.wifi ? "No Wi-Fi adapter" : Net.scanning ? "Scanning…" : "No other networks"
             color: Theme.surfaceFgDim
         }
     }
@@ -383,20 +521,16 @@ Column {
             values: Net.ethernetDevices
         }
 
+        // A switch, like the VPN rows below — the old row had a full hover
+        // affordance whose only action was disconnect, and once down it
+        // offered no way back up.
         Item {
+            id: ethRow
+
             required property var modelData
 
             width: parent.width
             height: Appearance.sizes.menuRowHeight
-
-            StateLayer {
-                radius: Appearance.rounding.normal
-                color: Theme.surfaceFg
-                onClicked: {
-                    if (parent.modelData.connected)
-                        parent.modelData.disconnect();
-                }
-            }
 
             FIcon {
                 id: ethGlyph
@@ -404,24 +538,32 @@ Column {
                 x: Appearance.s(8)
                 anchors.verticalCenter: parent.verticalCenter
                 icon: "globe"
-                color: parent.modelData.connected ? Theme.surfaceFg : Theme.surfaceFgDim
+                color: ethRow.modelData.connected ? Theme.surfaceFg : Theme.surfaceFgDim
             }
 
             StyledText {
                 anchors.left: ethGlyph.right
                 anchors.leftMargin: Appearance.s(10)
+                anchors.right: ethSwitch.left
+                anchors.rightMargin: Appearance.s(8)
                 anchors.verticalCenter: parent.verticalCenter
-                text: parent.modelData.name
+                text: ethRow.modelData.name
                 color: Theme.surfaceFg
+                elide: Text.ElideRight
             }
 
-            StyledText {
+            StyledSwitch {
+                id: ethSwitch
+
                 anchors.right: parent.right
-                anchors.rightMargin: Appearance.s(10)
                 anchors.verticalCenter: parent.verticalCenter
-                text: parent.modelData.connected ? "connected" : "off"
-                color: parent.modelData.connected ? Theme.ok : Theme.surfaceFgDim
-                font.pixelSize: Appearance.font.size.small
+                checked: ethRow.modelData.connected
+                onToggled: checked => {
+                    if (checked)
+                        Net.connectDevice(ethRow.modelData.name);
+                    else
+                        ethRow.modelData.disconnect();
+                }
             }
         }
     }
@@ -444,15 +586,36 @@ Column {
             color: Tailscale.up ? Theme.accent : Theme.surfaceFgDim
         }
 
-        StyledText {
+        Column {
             anchors.left: tsGlyph.right
             anchors.leftMargin: Appearance.s(10)
+            anchors.right: tsBusy.visible ? tsBusy.left : tsSwitch.left
+            anchors.rightMargin: Appearance.s(8)
             anchors.verticalCenter: parent.verticalCenter
-            text: "Tailscale"
-            color: Theme.surfaceFg
+
+            StyledText {
+                width: parent.width
+                text: "Tailscale"
+                color: Theme.surfaceFg
+                elide: Text.ElideRight
+            }
+
+            // NeedsLogin, a stopped daemon and a missing CLI used to render
+            // identically to a clean "off" — a switch that just wouldn't move.
+            StyledText {
+                width: parent.width
+                visible: text !== ""
+                text: Tailscale.stateLabel
+                color: Theme.surfaceFgDim
+                font.pixelSize: Appearance.font.size.small
+                font.weight: Font.Normal
+                elide: Text.ElideRight
+            }
         }
 
         StyledText {
+            id: tsBusy
+
             anchors.right: tsSwitch.left
             anchors.rightMargin: Appearance.s(10)
             anchors.verticalCenter: parent.verticalCenter
@@ -471,6 +634,18 @@ Column {
         }
     }
 
+    // A toggle whose ~30s settle window expired with nothing happening —
+    // most likely a dismissed pkexec prompt.
+    StyledText {
+        visible: Tailscale.lastError !== ""
+        x: Appearance.s(8)
+        width: parent.width - Appearance.s(16)
+        text: Tailscale.lastError
+        color: Theme.urgent
+        font.pixelSize: Appearance.font.size.small
+        elide: Text.ElideRight
+    }
+
     // ── VPN ──
     MenuSeparator {
         visible: Vpn.connections.length > 0
@@ -483,38 +658,70 @@ Column {
         }
 
         Item {
+            id: vpnRow
+
             required property var modelData
 
+            readonly property bool busy: Vpn.busyFor === modelData.name
+            readonly property bool failed: Vpn.failedFor === modelData.name
+
             width: parent.width
-            height: Appearance.sizes.menuRowHeight
+            height: Appearance.sizes.menuRowHeight + (failed ? Appearance.s(18) : 0)
 
             FIcon {
                 id: vpnGlyph
 
                 x: Appearance.s(8)
-                anchors.verticalCenter: parent.verticalCenter
+                y: (Appearance.sizes.menuRowHeight - height) / 2
                 icon: "shield_lefthalf_fill"
-                color: parent.modelData.active ? Theme.accent : Theme.surfaceFgDim
+                color: vpnRow.modelData.active ? Theme.accent : Theme.surfaceFgDim
             }
 
             StyledText {
                 anchors.left: vpnGlyph.right
                 anchors.leftMargin: Appearance.s(10)
-                anchors.right: vpnSwitch.left
+                anchors.right: vpnBusy.visible ? vpnBusy.left : vpnSwitch.left
                 anchors.rightMargin: Appearance.s(8)
-                anchors.verticalCenter: parent.verticalCenter
-                text: parent.modelData.name
+                anchors.verticalCenter: vpnGlyph.verticalCenter
+                text: vpnRow.modelData.name
                 color: Theme.surfaceFg
                 elide: Text.ElideRight
+            }
+
+            StyledText {
+                id: vpnBusy
+
+                anchors.right: vpnSwitch.left
+                anchors.rightMargin: Appearance.s(10)
+                anchors.verticalCenter: vpnGlyph.verticalCenter
+                visible: vpnRow.busy
+                text: "…"
+                color: Theme.surfaceFgDim
             }
 
             StyledSwitch {
                 id: vpnSwitch
 
                 anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                checked: parent.modelData.active
-                onToggled: Vpn.toggle(parent.modelData)
+                anchors.verticalCenter: vpnGlyph.verticalCenter
+                checked: vpnRow.modelData.active
+                // One at a time — the service refuses a second toggle
+                // mid-flight anyway; don't render a switch that looks willing.
+                enabled: Vpn.busyFor === ""
+                onToggled: Vpn.toggle(vpnRow.modelData)
+            }
+
+            // nmcli's first error line (missing secrets, unreachable
+            // endpoint) — the exit status used to be thrown away entirely.
+            StyledText {
+                visible: vpnRow.failed
+                x: Appearance.s(8)
+                width: parent.width - Appearance.s(16)
+                anchors.bottom: parent.bottom
+                text: Vpn.failedMsg || "Failed"
+                color: Theme.urgent
+                font.pixelSize: Appearance.font.size.small
+                elide: Text.ElideRight
             }
         }
     }

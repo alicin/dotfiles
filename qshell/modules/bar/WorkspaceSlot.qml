@@ -15,7 +15,8 @@ Item {
     readonly property int wsId: index + 1
     readonly property var tops: bar.rev >= 0 ? Hyprland.toplevels.values.filter(t => t.workspace?.id === slot.wsId) : []
     readonly property bool occupied: tops.length > 0
-    readonly property bool isActive: (Hyprland.focusedWorkspace?.id ?? -1) === wsId
+    // The bar's own monitor, so each screen's row shows its own state.
+    readonly property bool isActive: (bar.monitor?.activeWorkspace?.id ?? -1) === wsId
     readonly property bool isUrgent: bar.urgentIds.includes(wsId)
 
     // 1:1 slot by default (width == bar inner height); grows only when the
@@ -31,6 +32,7 @@ Item {
 
     StateLayer {
         radius: Appearance.s(11)
+        hitSlop: Appearance.sizes.barSlop
         onClicked: slot.bar.focusWorkspace(slot.wsId.toString())
     }
 
@@ -102,6 +104,17 @@ Item {
                 asynchronous: true
                 source: Apps.toplevelIcon(modelData)
             }
+        }
+
+        // Three icons was presented as the whole story; a workspace holding
+        // six windows deserves an honest row.
+        StyledText {
+            visible: slot.tops.length > 3
+            anchors.verticalCenter: parent.verticalCenter
+            text: `+${slot.tops.length - 3}`
+            color: slot.isActive ? Theme.wsActiveFg : Theme.barFgDim
+            font.pixelSize: Appearance.s(10)
+            font.weight: Font.Bold
         }
     }
 }

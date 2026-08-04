@@ -43,6 +43,16 @@ Item {
     // animate the very first layout.
     onRequestedPageChanged: page = requestedPage
 
+    // Esc peels one layer — page back to home — before the next Esc closes
+    // the panel. Called by the Popouts FocusScope, which owns the key.
+    function navBack(): bool {
+        if (page !== "") {
+            go("");
+            return true;
+        }
+        return false;
+    }
+
     onPageChanged: {
         if (page !== "")
             shownPage = page;

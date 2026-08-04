@@ -39,6 +39,11 @@ Singleton {
         readonly property int slotEmpty: root.s(22) // empty workspace slot width
         readonly property int trayCell: root.s(24)
         readonly property int modulePad: root.s(18) // total h padding of a status pill
+        // The strip between a module pill (barInner) and the bar edge
+        // (barHeight). Modules extend their hit areas by this much so a click
+        // slammed against the screen edge still lands — the edge is the
+        // easiest target on the screen and was a dead zone.
+        readonly property int barSlop: root.s(4)
 
         readonly property int launcherWidth: root.s(620)
         readonly property int launcherItemHeight: root.s(56)

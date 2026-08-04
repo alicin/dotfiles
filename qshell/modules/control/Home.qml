@@ -378,11 +378,26 @@ Column {
         StyledSlider {
             anchors.left: brightGlyph.right
             anchors.leftMargin: Appearance.s(12)
-            anchors.right: parent.right
-            anchors.rightMargin: Appearance.s(14)
+            anchors.right: brightPct.left
+            anchors.rightMargin: Appearance.s(8)
             anchors.verticalCenter: parent.verticalCenter
             value: Brightness.display
             onMoved: value => Brightness.setDisplay(value)
+        }
+
+        // Same readout the volume card and Sound page sliders carry — this
+        // was the odd one out with no visible setpoint.
+        StyledText {
+            id: brightPct
+
+            anchors.right: parent.right
+            anchors.rightMargin: Appearance.s(12)
+            anchors.verticalCenter: parent.verticalCenter
+            width: Appearance.s(36)
+            horizontalAlignment: Text.AlignRight
+            text: `${Math.round(Brightness.display * 100)}%`
+            color: Theme.surfaceFgDim
+            font.pixelSize: Appearance.font.size.small
         }
     }
 
@@ -483,6 +498,24 @@ Column {
 
                 width: mediaList.width
                 height: mediaList.height
+
+                // Click the art or title to raise the player window — every
+                // other daily-driver shell does this, and pause-only cards
+                // make you go hunt the window yourself. Behind the content,
+                // stops at the transport controls.
+                Item {
+                    anchors.left: parent.left
+                    anchors.right: controls.left
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+
+                    StateLayer {
+                        radius: Appearance.s(10)
+                        color: Theme.surfaceFg
+                        enabled: page.player?.canRaise ?? false
+                        onClicked: page.player?.raise()
+                    }
+                }
 
                 ClippingRectangle {
                     id: artBox
@@ -594,7 +627,40 @@ Column {
                         onTapped: page.player?.next()
                     }
                 }
+
+                // Track position, ticked once a second while the card is on
+                // screen (the comma dependency forces the re-read — position
+                // itself doesn't notify continuously).
+                Rectangle {
+                    visible: (page.player?.length ?? 0) > 0 && (page.player?.positionSupported ?? false)
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.leftMargin: Appearance.s(10)
+                    anchors.rightMargin: Appearance.s(10)
+                    anchors.bottom: parent.bottom
+                    height: Math.max(2, Appearance.s(2))
+                    radius: height / 2
+                    color: Qt.alpha(Theme.surfaceFg, 0.15)
+
+                    Rectangle {
+                        width: parent.width * (posTick.tick, Math.max(0, Math.min(1, (page.player?.position ?? 0) / Math.max(1, page.player?.length ?? 1))))
+                        height: parent.height
+                        radius: parent.radius
+                        color: Theme.accent
+                    }
+                }
             }
+        }
+
+        Timer {
+            id: posTick
+
+            property int tick: 0
+
+            running: root.players.length > 0
+            interval: 1000
+            repeat: true
+            onTriggered: tick++
         }
 
         // Page dots, only when there's more than one player to page between.
@@ -735,7 +801,9 @@ Column {
                 width: capRow.cellW
                 glyph: "eyedropper_halffull"
                 label: "Color"
-                onTapped: Quickshell.execDetached(["sh", "-c", `c=$(hyprpicker -a) && [ -n "$c" ] && notify-send "Copied $c" "Colour picked" -a qshell -t 5000`])
+                // Through Capture, not a bare exec: the open panel's focus
+                // grab used to eat hyprpicker's first click.
+                onTapped: Capture.pickColor()
             }
         }
     }
@@ -807,46 +875,100 @@ Column {
 
     // ── Session ──
     Row {
+        id: sessionRow
+
+        // One armed button at a time, owned by the row: per-button state let
+        // two "Sure?" pills sit live at once, and a stale armed poweroff
+        // would fire on a single click for up to 2.5s.
+        property Item armedBtn: null
+
         spacing: Appearance.s(8)
+
+        Timer {
+            id: disarmTimer
+
+            interval: 2500
+            onTriggered: sessionRow.armedBtn = null
+        }
 
         component PowerButton: Rectangle {
             id: pw
 
             property string glyph: ""
             property bool danger: false
+            // Destructive verbs arm on the first tap — the button turns into
+            // a labelled "Sure?" that auto-reverts — and fire on the second.
+            // One stray click on an icon-only pill used to power the machine
+            // off with no undo.
+            property bool confirm: false
+
+            readonly property bool armed: sessionRow.armedBtn === pw
 
             signal tapped
 
-            width: (root.width - Appearance.s(24)) / 4
+            width: (root.width - Appearance.s(32)) / 5
             height: Appearance.s(46)
             radius: Appearance.s(14)
-            color: Theme.surfaceHoverBg
+            color: pw.armed ? Qt.alpha(Theme.urgent, 0.16) : Theme.surfaceHoverBg
+
+            Behavior on color {
+                CAnim {}
+            }
 
             StateLayer {
                 radius: pw.radius
-                color: pw.danger ? Theme.urgent : Theme.surfaceFg
-                onClicked: pw.tapped()
+                color: pw.danger || pw.armed ? Theme.urgent : Theme.surfaceFg
+                onClicked: {
+                    if (!pw.confirm || pw.armed) {
+                        sessionRow.armedBtn = null;
+                        disarmTimer.stop();
+                        pw.tapped();
+                    } else {
+                        sessionRow.armedBtn = pw;
+                        disarmTimer.restart();
+                    }
+                }
             }
 
             FIcon {
+                visible: !pw.armed
                 anchors.centerIn: parent
                 icon: pw.glyph
                 font.pixelSize: Appearance.s(17)
                 color: pw.danger ? Theme.urgent : Theme.surfaceFg
             }
+
+            StyledText {
+                visible: pw.armed
+                anchors.centerIn: parent
+                text: "Sure?"
+                color: Theme.urgent
+                font.pixelSize: Appearance.font.size.small
+                font.weight: Font.Bold
+            }
+        }
+
+        // Lock leads: it's the most common session action and used to be
+        // reachable only through the Super+Shift+E submap.
+        PowerButton {
+            glyph: "lock_fill"
+            onTapped: Quickshell.execDetached(["loginctl", "lock-session"])
         }
 
         PowerButton {
             glyph: "power"
             danger: true
+            confirm: true
             onTapped: Quickshell.execDetached(["systemctl", "poweroff"])
         }
 
         PowerButton {
             glyph: "arrow_2_circlepath"
+            confirm: true
             onTapped: Quickshell.execDetached(["systemctl", "reboot"])
         }
 
+        // Suspend stays one-tap: it's the only fully reversible verb here.
         PowerButton {
             glyph: "moon_zzz_fill"
             onTapped: Quickshell.execDetached(["systemctl", "suspend"])
@@ -854,6 +976,7 @@ Column {
 
         PowerButton {
             glyph: "square_arrow_right"
+            confirm: true
             // The hyprland-lua config routes dispatches through `hl.dsp.*`;
             // plain `exit` isn't valid lua there.
             onTapped: Hyprland.dispatch(Hyprland.usingLua ? "hl.dsp.exit()" : "exit")

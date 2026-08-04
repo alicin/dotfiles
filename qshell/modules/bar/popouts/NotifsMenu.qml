@@ -11,8 +11,23 @@ Column {
     width: Appearance.s(400)
     spacing: Appearance.s(2)
 
-    // Opening the center absorbs pending toasts — they're all in the list.
-    Component.onCompleted: Notifs.popups = []
+    // Only after the menu has dwelt open does it count as "the user saw
+    // these": hover-slide can flash this menu for 50ms in transit to another
+    // module, and a pass-through must neither absorb toasts nor clear the
+    // badge. The badge write itself is further deferred by requestSeen until
+    // every menu is closed — see the note in services/Notifs.qml.
+    Timer {
+        id: dwell
+
+        interval: 600
+        running: true
+        onTriggered: Notifs.popups = []
+    }
+
+    Component.onDestruction: {
+        if (!dwell.running)
+            Notifs.requestSeen();
+    }
 
     Item {
         width: parent.width
@@ -99,6 +114,43 @@ Column {
         visible: Notifs.count > 0
         clip: true
         spacing: Appearance.s(4)
+        // Short lists shouldn't drag-bounce; long ones stop at their ends —
+        // same treatment as the wifi network list.
+        interactive: contentHeight > height
+        boundsBehavior: Flickable.StopAtBounds
+        // No phantom selection until the keyboard asks for one.
+        currentIndex: -1
+        highlightMoveDuration: Appearance.anim.durations.expressiveFastEffects
+        highlightResizeDuration: Appearance.anim.durations.expressiveFastEffects
+
+        highlight: Rectangle {
+            radius: Appearance.s(10)
+            color: Theme.surfaceHoverBg
+        }
+
+        // Dismissals slide out the way toasts slide in; survivors glide up
+        // instead of teleporting.
+        remove: Transition {
+            Anim {
+                properties: "opacity"
+                to: 0
+                duration: Appearance.anim.durations.expressiveFastEffects
+            }
+
+            Anim {
+                properties: "x"
+                to: Appearance.s(24)
+                duration: Appearance.anim.durations.expressiveFastEffects
+            }
+        }
+
+        displaced: Transition {
+            Anim {
+                properties: "y"
+                curve: Appearance.anim.curves.emphasized
+                duration: Appearance.anim.durations.small
+            }
+        }
 
         WheelScroll {
             view: list
@@ -115,5 +167,37 @@ Column {
             wrapper: modelData
             flat: true
         }
+
+        // Thin scroll indicator — only while there's more than fits.
+        // Explicitly parented to the viewport: children declared inside a
+        // Flickable get reparented to contentItem and scroll away with it.
+        Rectangle {
+            parent: list
+            anchors.right: parent.right
+            anchors.rightMargin: Appearance.s(2)
+            width: Appearance.s(3)
+            radius: width / 2
+            color: Qt.alpha(Theme.surfaceFg, 0.28)
+            visible: list.interactive
+            height: list.height * (list.height / Math.max(list.contentHeight, 1))
+            y: list.contentY * (list.height / Math.max(list.contentHeight, 1))
+        }
+    }
+
+    // Keyboard nav, driven by the Popouts FocusScope: arrows select, Enter
+    // opens (the card's default action / expand), Delete dismisses.
+    function navMove(d: int): void {
+        if (list.count === 0)
+            return;
+        list.currentIndex = Math.max(0, Math.min(list.count - 1, list.currentIndex + d));
+        list.positionViewAtIndex(list.currentIndex, ListView.Contain);
+    }
+
+    function navActivate(): void {
+        list.currentItem?.activate();
+    }
+
+    function navRemove(): void {
+        list.currentItem?.n?.dismiss();
     }
 }

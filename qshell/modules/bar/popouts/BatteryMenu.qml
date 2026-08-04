@@ -16,6 +16,7 @@ Column {
 
     readonly property var device: UPower.displayDevice
     readonly property bool charging: (device?.state ?? 0) === UPowerDeviceState.Charging
+    readonly property bool full: (device?.state ?? 0) === UPowerDeviceState.FullyCharged
 
     // Names and glyphs come from the Power service, not from a list here: the
     // bar badge and the OSD show the same profile, and three private copies of
@@ -124,11 +125,17 @@ Column {
         StyledText {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
+            // Always carries a reading: right after unplugging, UPower has no
+            // estimate yet (timeToEmpty is 0), and this header used to render
+            // an empty string in a menu literally titled "Power".
             text: {
+                const pct = `${Math.round((root.device?.percentage ?? 0) * 100)}%`;
                 const eta = root.fmtEta(root.charging ? (root.device?.timeToFull ?? 0) : (root.device?.timeToEmpty ?? 0));
-                if (!eta)
-                    return root.charging ? "charging" : "";
-                return root.charging ? `${eta} until full` : `${eta} left`;
+                if (eta)
+                    return `${pct} · ${root.charging ? `${eta} until full` : `${eta} left`}`;
+                if (root.full)
+                    return `${pct} · charged`;
+                return `${pct} · ${root.charging ? "charging" : "estimating…"}`;
             }
             color: Theme.surfaceFgDim
             font.pixelSize: Appearance.font.size.small
@@ -139,6 +146,22 @@ Column {
         width: parent.width
     }
 
+    // Keyboard nav (arrows + Enter via the Popouts FocusScope) walks the
+    // profile rows — the one thing in this menu you flip several times a day.
+    property int navIdx: -1
+
+    function navMove(d: int): void {
+        const n = root.profiles.length;
+        if (n === 0)
+            return;
+        navIdx = navIdx < 0 ? (d > 0 ? 0 : n - 1) : (navIdx + d + n) % n;
+    }
+
+    function navActivate(): void {
+        if (navIdx >= 0 && navIdx < root.profiles.length)
+            Power.set(root.profiles[navIdx]);
+    }
+
     Repeater {
         model: root.profiles
 
@@ -146,11 +169,19 @@ Column {
             id: profileItem
 
             required property int modelData
+            required property int index
 
             readonly property bool active: Power.profile === modelData
 
             width: parent.width
             height: Appearance.sizes.menuRowHeight
+
+            Rectangle {
+                anchors.fill: parent
+                radius: Appearance.rounding.normal
+                color: Theme.surfaceHoverBg
+                visible: root.navIdx === profileItem.index
+            }
 
             StateLayer {
                 radius: Appearance.rounding.normal

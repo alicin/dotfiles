@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Services.Pipewire
+import Quickshell.Widgets
 import qs.config
 import qs.components
 import qs.services
@@ -26,6 +27,15 @@ Column {
 
     function streamName(n: var): string {
         return (n.properties["application.name"] ?? "") || n.description || n.name;
+    }
+
+    // App icon for a stream, through the same desktop-entry heuristics the
+    // workspace icons use. "" when nothing matches — the row falls back to
+    // text-only.
+    function streamIcon(n: var): string {
+        const name = ((n.properties["application.name"] ?? "") + "") || ((n.properties["application.process.binary"] ?? "") + "");
+        const icon = name ? Apps.entryFor(name)?.icon : "";
+        return icon ? (Quickshell.iconPath(icon, true) || "") : "";
     }
 
     spacing: Appearance.s(8)
@@ -275,26 +285,69 @@ Column {
 
                 required property var modelData
 
+                readonly property bool muted: modelData.audio?.muted ?? false
+
                 width: streamList.width
                 height: Appearance.s(44)
 
+                // One-tap mute per stream, same affordance as the Output and
+                // Input rows above — silencing an app used to mean dragging
+                // its slider to zero and losing the level.
+                Item {
+                    id: streamMute
+
+                    x: Appearance.s(6)
+                    width: Appearance.s(30)
+                    height: parent.height
+
+                    StateLayer {
+                        radius: Appearance.s(9)
+                        color: Theme.surfaceFg
+                        onClicked: {
+                            if (streamItem.modelData.audio)
+                                streamItem.modelData.audio.muted = !streamItem.muted;
+                        }
+                    }
+
+                    FIcon {
+                        anchors.centerIn: parent
+                        icon: streamItem.muted ? "speaker_slash_fill" : "speaker_2_fill"
+                        color: streamItem.muted ? Theme.surfaceFgDim : Theme.surfaceFg
+                    }
+                }
+
+                IconImage {
+                    id: streamAppIcon
+
+                    anchors.left: streamMute.right
+                    anchors.leftMargin: Appearance.s(6)
+                    y: Appearance.s(3)
+                    implicitSize: Appearance.s(15)
+                    asynchronous: true
+                    source: root.streamIcon(streamItem.modelData)
+                    visible: status === Image.Ready
+                }
+
                 StyledText {
-                    x: Appearance.s(12)
-                    y: 0
-                    width: parent.width - Appearance.s(70)
+                    anchors.left: streamMute.right
+                    anchors.leftMargin: streamAppIcon.visible ? Appearance.s(26) : Appearance.s(6)
+                    y: Appearance.s(2)
+                    anchors.right: parent.right
+                    anchors.rightMargin: Appearance.s(70)
                     text: root.streamName(streamItem.modelData)
-                    color: Theme.surfaceFg
+                    color: streamItem.muted ? Theme.surfaceFgDim : Theme.surfaceFg
                     font.pixelSize: Appearance.font.size.small
                     elide: Text.ElideRight
                 }
 
                 StyledSlider {
-                    anchors.left: parent.left
-                    anchors.leftMargin: Appearance.s(12)
+                    anchors.left: streamMute.right
+                    anchors.leftMargin: Appearance.s(6)
                     anchors.right: streamPct.left
                     anchors.rightMargin: Appearance.s(8)
                     anchors.bottom: parent.bottom
                     anchors.bottomMargin: Appearance.s(2)
+                    opacity: streamItem.muted ? 0.45 : 1
                     value: streamItem.modelData.audio?.volume ?? 0
                     onMoved: value => {
                         if (streamItem.modelData.audio)
@@ -311,7 +364,7 @@ Column {
                     anchors.bottomMargin: Appearance.s(6)
                     width: Appearance.s(36)
                     horizontalAlignment: Text.AlignRight
-                    text: `${Math.round((streamItem.modelData.audio?.volume ?? 0) * 100)}%`
+                    text: streamItem.muted ? "mute" : `${Math.round((streamItem.modelData.audio?.volume ?? 0) * 100)}%`
                     color: Theme.surfaceFgDim
                     font.pixelSize: Appearance.font.size.small
                 }

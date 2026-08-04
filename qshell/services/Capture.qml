@@ -114,6 +114,23 @@ Singleton {
         settle.restart();
     }
 
+    // The color picker rides the same close-popouts path as the shooters: a
+    // popout holding a HyprlandFocusGrab eats hyprpicker's selection click,
+    // and the panel itself covers part of the screen being picked. The trap
+    // mirrors the capture scripts' EXIT convention so busy/hidingUi clear on
+    // every path out, cancellation included.
+    function pickColor(): void {
+        withUiHidden(() => {
+            // Through run(), not a bare execDetached: run() arms the 120s
+            // deadman, so a killed picker whose trap never fires can't latch
+            // busy/hidingUi forever the way it would here.
+            root.run(`
+                trap 'qs -c qshell ipc call capture done' EXIT
+                c=$(hyprpicker -a) && [ -n "$c" ] && notify-send "Copied $c" "Colour picked" -a qshell -t 5000
+            `);
+        });
+    }
+
     // Called from the capture script's EXIT trap, so it runs on *every* path
     // out — success, a cancelled selection, a failure mid-script.
     function finished(): void {

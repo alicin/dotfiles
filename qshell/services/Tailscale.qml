@@ -18,6 +18,34 @@ Singleton {
     property bool up: false
     property bool busy: false
 
+    // BackendState verbatim ("Running", "Stopped", "NeedsLogin",
+    // "NeedsMachineAuth", "Starting"), or "Unavailable" when the CLI/daemon
+    // gives no JSON. The switch used to collapse all of these into "off",
+    // which made NeedsLogin and a dismissed pkexec prompt indistinguishable
+    // from a clean stop.
+    property string state: ""
+
+    // Set when a toggle's ~30s settle window expires with no state change —
+    // the only failure signal execDetached leaves us.
+    property string lastError: ""
+
+    // What the wifi menu prints under the row; "" when there's nothing to say
+    // (Running and Stopped are the two *expected* states).
+    readonly property string stateLabel: {
+        switch (state) {
+        case "NeedsLogin":
+            return "Needs login — run: tailscale up";
+        case "NeedsMachineAuth":
+            return "Awaiting device approval";
+        case "Starting":
+            return "Starting…";
+        case "Unavailable":
+            return "Daemon unreachable";
+        default:
+            return "";
+        }
+    }
+
     property int settleTicks: 0
 
     function refresh(): void {
@@ -26,6 +54,7 @@ Singleton {
 
     function toggle(): void {
         busy = true;
+        lastError = "";
         const cmd = up ? "down" : "up";
         Quickshell.execDetached(["sh", "-c", `tailscale ${cmd} || pkexec tailscale ${cmd}`]);
         // The polkit prompt can sit open for a while, so poll for the state
@@ -47,6 +76,12 @@ Singleton {
             if (root.settleTicks >= 25) {
                 stop();
                 root.busy = false;
+                // The switch was flipped and nothing happened — before this,
+                // that outcome was rendered identically to success. Only when
+                // no stateLabel already explains the stall (NeedsLogin etc.
+                // would make "no response" a wrong diagnosis).
+                if (root.stateLabel === "")
+                    root.lastError = "No response — was the auth prompt dismissed?";
             }
         }
     }
@@ -59,14 +94,16 @@ Singleton {
         stdout: StdioCollector {
             onStreamFinished: {
                 const was = root.up;
+                let st = "Unavailable";
                 try {
-                    root.up = JSON.parse(text).BackendState === "Running";
-                } catch (e) {
-                    root.up = false;
-                }
+                    st = JSON.parse(text).BackendState ?? "Unavailable";
+                } catch (e) {}
+                root.state = st;
+                root.up = st === "Running";
                 if (root.up !== was) {
                     settleTimer.stop();
                     root.busy = false;
+                    root.lastError = "";
                 }
             }
         }

@@ -19,6 +19,10 @@ Singleton {
     readonly property bool connected: activeNetwork !== null
     readonly property string ssid: activeNetwork?.name ?? ""
 
+    // Device-level, so it covers any network mid-connect — per-network
+    // stateChanging can't be watched reactively through a list filter.
+    readonly property bool connecting: wifi?.state === ConnectionState.Connecting
+
     // NetworkDevice.address is the MAC; the useful "where am I" is the v4
     // lease, which the backend doesn't expose — read it off the link instead.
     property string ipv4: ""
@@ -38,6 +42,13 @@ Singleton {
 
     function toggleWifi(): void {
         Networking.wifiEnabled = !Networking.wifiEnabled;
+    }
+
+    // NetworkDevice exposes disconnect() but no connect — bringing a downed
+    // link back goes through nmcli. (The ethernet rows need both directions;
+    // a row that can only kill the link is a footgun.)
+    function connectDevice(name: string): void {
+        Quickshell.execDetached(["nmcli", "device", "connect", name]);
     }
 
     // There's no explicit scan method on WifiDevice; cycling the scanner is
@@ -66,6 +77,18 @@ Singleton {
 
         interval: 4000
         onTriggered: root.scanning = false
+    }
+
+    // Cancels a rescan in flight *and* the pending 120ms kick — the wifi menu
+    // calls this on close. Without stopping the kick, a menu destroyed within
+    // 120ms of opening (hover-slide pass-through) let the kick re-enable the
+    // scanner afterwards, leaving the radio scanning indefinitely.
+    function stopScan(): void {
+        rescanKick.stop();
+        scanSettle.stop();
+        scanning = false;
+        if (wifi)
+            wifi.scannerEnabled = false;
     }
 
     function refreshIp(): void {

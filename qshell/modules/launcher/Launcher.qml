@@ -20,6 +20,7 @@ Scope {
         if (open) {
             field.text = "";
             list.currentIndex = 0;
+            list.lastHoverPos = Qt.point(-1e9, -1e9);
             field.forceActiveFocus();
         }
     }
@@ -96,6 +97,13 @@ Scope {
 
             visible: offsetScale < 1
             opacity: 1 - offsetScale
+            // The launch that closed the panel defers its frecency
+            // bookkeeping until the panel is gone — flushing earlier re-sorts
+            // the list mid-fade.
+            onVisibleChanged: {
+                if (!visible)
+                    Apps.flushUsage();
+            }
             y: win.height - (height + Appearance.s(14)) * (1 - offsetScale)
             anchors.horizontalCenter: parent.horizontalCenter
 
@@ -110,6 +118,17 @@ Scope {
                 Anim {
                     curve: Appearance.anim.curves.expressiveDefaultSpatial
                     duration: Appearance.anim.durations.expressiveDefaultSpatial
+                }
+            }
+
+            // The panel breathes between result counts instead of snapping
+            // its top edge on every keystroke.
+            Behavior on height {
+                enabled: root.open
+
+                Anim {
+                    curve: Appearance.anim.curves.standardDecel
+                    duration: Appearance.anim.durations.expressiveDefaultEffects
                 }
             }
 
@@ -133,6 +152,10 @@ Scope {
 
                 ListView {
                     id: list
+
+                    // Where hover last reported the cursor in window coords —
+                    // AppItem's hover-select filter (see its comment).
+                    property point lastHoverPos: Qt.point(-1e9, -1e9)
 
                     model: ScriptModel {
                         values: Apps.search(field.text)
@@ -165,11 +188,29 @@ Scope {
                     }
 
                     delegate: AppItem {
+                        query: field.text
                         onActivated: root.open = false
                     }
 
                     WheelScroll {
                         view: list
+                    }
+
+                    // Thin scroll indicator — result 9+ used to exist behind
+                    // the clip with nothing hinting at it. Parented to the
+                    // viewport (Flickable children live in contentItem).
+                    Rectangle {
+                        parent: list
+                        anchors.right: parent.right
+                        anchors.rightMargin: Appearance.s(2)
+                        width: Appearance.s(3)
+                        radius: width / 2
+                        color: Qt.alpha(Theme.surfaceFg, 0.28)
+                        visible: list.contentHeight > list.height
+                        height: list.height * (list.height / Math.max(list.contentHeight, 1))
+                        // Origin-relative and clamped: model churn shifts
+                        // originY, and raw contentY drew the thumb off-track.
+                        y: Math.max(0, Math.min(list.height - height, (list.contentY - list.originY) * (list.height / Math.max(list.contentHeight, 1))))
                     }
                 }
             }
@@ -212,9 +253,22 @@ Scope {
                     clip: true
 
                     onAccepted: root.launchCurrent()
-                    Keys.onUpPressed: list.currentIndex = Math.max(0, list.currentIndex - 1)
-                    Keys.onDownPressed: list.currentIndex = Math.min(list.count - 1, list.currentIndex + 1)
+                    // Wraparound: Down on the last row was a dead key.
+                    Keys.onUpPressed: list.currentIndex = list.currentIndex <= 0 ? list.count - 1 : list.currentIndex - 1
+                    Keys.onDownPressed: list.currentIndex = list.currentIndex >= list.count - 1 ? 0 : list.currentIndex + 1
                     Keys.onEscapePressed: root.open = false
+                    // Page jumps for the empty-query case, where the list
+                    // holds every installed app behind an 8-row window.
+                    // (Home/End stay with the text cursor.)
+                    Keys.onPressed: event => {
+                        if (event.key === Qt.Key_PageUp) {
+                            list.currentIndex = Math.max(0, list.currentIndex - Settings.launcherMaxShown);
+                            event.accepted = true;
+                        } else if (event.key === Qt.Key_PageDown) {
+                            list.currentIndex = Math.min(list.count - 1, list.currentIndex + Settings.launcherMaxShown);
+                            event.accepted = true;
+                        }
+                    }
 
                     StyledText {
                         visible: !field.text

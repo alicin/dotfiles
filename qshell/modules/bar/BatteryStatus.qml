@@ -28,7 +28,14 @@ Item {
     implicitHeight: Appearance.sizes.barInner
 
     StateLayer {
+        hitSlop: Appearance.sizes.barSlop
         onClicked: root.popouts?.toggle("battery", root)
+        // macOS menubar: once any bar menu is open, sliding along the bar
+        // switches menus without another click.
+        onContainsMouseChanged: {
+            if (containsMouse && root.popouts?.open && root.popouts.current !== "battery")
+                root.popouts.toggle("battery", root);
+        }
     }
 
     Row {

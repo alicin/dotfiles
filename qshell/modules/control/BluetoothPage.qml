@@ -54,6 +54,13 @@ Column {
     function stateLabel(d: var): string {
         if (d.pairing)
             return "Pairing…";
+        // The in-flight states used to render as nothing at all, so a failed
+        // connect (headphones off, out of range) looked identical to not
+        // having tapped.
+        if (d.state === BluetoothDeviceState.Connecting)
+            return "Connecting…";
+        if (d.state === BluetoothDeviceState.Disconnecting)
+            return "Disconnecting…";
         if (d.connected)
             return d.batteryAvailable ? `Connected · ${Math.round(d.battery * 100)}%` : "Connected";
         return d.bonded || d.paired ? "Paired" : "";
@@ -129,20 +136,43 @@ Column {
             }
         }
 
+        signal disclosureTapped
+
         Row {
             id: rowTrailing
 
             anchors.right: parent.right
-            anchors.rightMargin: Appearance.s(12)
+            anchors.rightMargin: Appearance.s(8)
             anchors.verticalCenter: parent.verticalCenter
-            spacing: Appearance.s(6)
+            spacing: Appearance.s(2)
 
-            FIcon {
-                visible: row.expandable
+            StyledText {
+                visible: row.dev.state === BluetoothDeviceState.Connecting || row.dev.state === BluetoothDeviceState.Disconnecting
                 anchors.verticalCenter: parent.verticalCenter
-                icon: row.expanded ? "chevron_up" : "chevron_down"
-                font.pixelSize: Appearance.font.size.small
+                text: "…"
                 color: Theme.surfaceFgDim
+            }
+
+            // Its own hit target: the row tap now connects/disconnects, so
+            // the way into the expansion (Forget lives there) needs a button.
+            Item {
+                visible: row.expandable
+                width: Appearance.s(26)
+                height: Appearance.s(30)
+                anchors.verticalCenter: parent.verticalCenter
+
+                StateLayer {
+                    radius: Appearance.s(8)
+                    color: Theme.surfaceFg
+                    onClicked: row.disclosureTapped()
+                }
+
+                FIcon {
+                    anchors.centerIn: parent
+                    icon: row.expanded ? "chevron_up" : "chevron_down"
+                    font.pixelSize: Appearance.font.size.small
+                    color: Theme.surfaceFgDim
+                }
             }
         }
     }
@@ -200,16 +230,66 @@ Column {
 
                 readonly property bool expanded: root.expandedAddr === modelData.address
 
+                // Connecting → Disconnected without ever reaching Connected:
+                // the attempt fell through. Rendered as a transient red line,
+                // because "nothing happened" was the entire old failure UI.
+                property bool wasConnecting: false
+                property bool failed: false
+
                 width: knownList.width
 
+                Connections {
+                    target: knownItem.modelData
+
+                    function onStateChanged() {
+                        const s = knownItem.modelData.state;
+                        if (s === BluetoothDeviceState.Connecting) {
+                            knownItem.wasConnecting = true;
+                            knownItem.failed = false;
+                        } else if (s === BluetoothDeviceState.Connected) {
+                            knownItem.wasConnecting = false;
+                        } else if (s === BluetoothDeviceState.Disconnected && knownItem.wasConnecting) {
+                            knownItem.wasConnecting = false;
+                            knownItem.failed = true;
+                            failClear.restart();
+                        }
+                    }
+                }
+
+                Timer {
+                    id: failClear
+
+                    interval: 5000
+                    onTriggered: knownItem.failed = false
+                }
+
+                // Tap = connect/disconnect (the single most common Bluetooth
+                // action was two precise taps deep); the chevron opens the
+                // action row, which is where Forget hides from mis-clicks.
                 DeviceRow {
                     dev: knownItem.modelData
                     expanded: knownItem.expanded
                     expandable: true
-                    onTapped: root.expandedAddr = knownItem.expanded ? "" : knownItem.modelData.address
+                    onTapped: {
+                        if (knownItem.modelData.connected)
+                            knownItem.modelData.disconnect();
+                        else if (knownItem.modelData.state !== BluetoothDeviceState.Connecting)
+                            knownItem.modelData.connect();
+                    }
+                    onDisclosureTapped: root.expandedAddr = knownItem.expanded ? "" : knownItem.modelData.address
                 }
 
-                // Action row — kept behind a tap so a mis-click can't unpair.
+                StyledText {
+                    visible: knownItem.failed
+                    x: Appearance.s(48)
+                    height: visible ? Appearance.s(18) : 0
+                    text: "Couldn't connect"
+                    color: Theme.urgent
+                    font.pixelSize: Appearance.font.size.small
+                }
+
+                // Action row — kept behind the chevron so a mis-click can't
+                // unpair.
                 Row {
                     visible: knownItem.expanded
                     height: visible ? Appearance.s(38) : 0

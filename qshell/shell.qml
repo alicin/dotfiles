@@ -124,7 +124,11 @@ ShellRoot {
         }
 
         function privacy(): string {
-            return `mic inUse=${Audio.micInUse} muted=${Audio.micMuted} users=${JSON.stringify(Audio.micUsers)}\ncamera inUse=${Camera.inUse} handles=${Camera.users}`;
+            return `mic inUse=${Audio.micInUse} muted=${Audio.micMuted} users=${JSON.stringify(Audio.micUsers)}\ncamera inUse=${Camera.inUse} handles=${Camera.users} apps=${JSON.stringify(Camera.apps)}`;
+        }
+
+        function notifs(): string {
+            return `count=${Notifs.count} unseen=${Notifs.unseen} popups=${Notifs.popups.length} dnd=${Notifs.dnd} lastSeen=${Notifs.lastSeenAt}`;
         }
 
         function scan(active: bool): string {

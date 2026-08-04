@@ -216,25 +216,36 @@ Column {
                 visible: devCard.up
                 spacing: Appearance.s(6)
 
+                // Each acknowledges with a green flash — "Send clipboard" in
+                // particular is invisible on both ends from where you sit.
                 Chip {
                     anchors.verticalCenter: parent.verticalCenter
                     label: "Ring"
                     glyph: "bell_fill"
-                    onTapped: KdeConnect.ring(devCard.modelData.id)
+                    onTapped: {
+                        KdeConnect.ring(devCard.modelData.id);
+                        flash("Ringing");
+                    }
                 }
 
                 Chip {
                     anchors.verticalCenter: parent.verticalCenter
                     label: "Ping"
                     glyph: "paperplane_fill"
-                    onTapped: KdeConnect.ping(devCard.modelData.id)
+                    onTapped: {
+                        KdeConnect.ping(devCard.modelData.id);
+                        flash("Sent");
+                    }
                 }
 
                 Chip {
                     anchors.verticalCenter: parent.verticalCenter
                     label: "Send clipboard"
                     glyph: "doc_on_clipboard"
-                    onTapped: KdeConnect.sendClipboard(devCard.modelData.id)
+                    onTapped: {
+                        KdeConnect.sendClipboard(devCard.modelData.id);
+                        flash("Sent");
+                    }
                 }
             }
         }
