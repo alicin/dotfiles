@@ -83,11 +83,28 @@ Scope {
             row.alt();
         else
             row.run();
-        root.open = false;
+        // Theme rows stay: picking one is comparing, and the launcher restyles
+        // itself the instant the setting lands, so the panel you are looking at
+        // *is* the preview. Closing after every pick would mean reopening and
+        // retyping the prefix to see the next one.
+        if (row.keepOpen !== true)
+            root.open = false;
     }
 
     function activateCurrent(alt: bool): void {
         root.activate(list.currentItem?.modelData ?? null, alt);
+    }
+
+    // Opened from elsewhere in the shell (the Control Center's theme row).
+    // Unconditional rather than the IPC's toggle-on-repeat: the caller is a
+    // button that says "open the picker", not a keybind pressed twice.
+    Connections {
+        target: Search
+
+        function onRequestMode(prefix: string): void {
+            root.open = true;
+            field.text = prefix;
+        }
     }
 
     IpcHandler {

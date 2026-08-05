@@ -98,12 +98,55 @@ Item {
         font.pixelSize: Appearance.s(26)
     }
 
+    // A theme, painted in itself. Sixteen names in a list say nothing about
+    // which one you want, and the entire subject is what things look like — so
+    // the row shows that theme's own panel colour with its own accent, ok and
+    // urgent on it. Reads as a swatch card rather than one more glyph.
+    Rectangle {
+        id: swatch
+
+        readonly property var palette: Theme.themes[root.modelData.swatch ?? ""] ?? null
+
+        anchors.horizontalCenter: icon.horizontalCenter
+        anchors.verticalCenter: parent.verticalCenter
+        visible: palette !== null
+        implicitWidth: Appearance.s(38)
+        implicitHeight: Appearance.s(38)
+        width: implicitWidth
+        height: implicitHeight
+        radius: Appearance.s(11)
+        // The alpha these carry is meant for a panel floating over a
+        // wallpaper; here it would composite against the launcher behind it
+        // and show every theme as a tint of the current one.
+        color: palette ? Qt.rgba(Qt.color(palette.surfaceBg).r, Qt.color(palette.surfaceBg).g, Qt.color(palette.surfaceBg).b, 1) : "transparent"
+        border.width: 1
+        border.color: palette ? Qt.alpha(Qt.color(palette.surfaceFg), 0.25) : "transparent"
+
+        Row {
+            anchors.centerIn: parent
+            spacing: Appearance.s(3)
+
+            Repeater {
+                model: swatch.palette ? [swatch.palette.accent, swatch.palette.ok, swatch.palette.urgent] : []
+
+                Rectangle {
+                    required property var modelData
+
+                    width: Appearance.s(7)
+                    height: width
+                    radius: width / 2
+                    color: modelData
+                }
+            }
+        }
+    }
+
     FIcon {
         id: glyph
 
         anchors.horizontalCenter: icon.horizontalCenter
         anchors.verticalCenter: parent.verticalCenter
-        visible: !icon.visible && !emojiGlyph.visible
+        visible: !icon.visible && !emojiGlyph.visible && !swatch.visible
         icon: root.modelData.glyph ?? "app_badge"
         font.pixelSize: Appearance.s(22)
         color: root.arming ? Theme.urgent : Theme.surfaceFgDim

@@ -53,6 +53,17 @@ Singleton {
             name: "Run",
             hint: "Run a command; Shift+Enter runs it in a terminal"
         },
+        // Its own mode rather than rows in `>`. There are sixteen themes: as
+        // palette entries they were three quarters of everything `>` listed,
+        // burying capture, power and the session verbs under a wall of
+        // near-identical rows. `#` because a theme is a set of colours and
+        // that is what a colour looks like when written down.
+        {
+            key: "#",
+            glyph: "paintbrush",
+            name: "Themes",
+            hint: "Switch the shell's colour theme; the active one is marked"
+        },
         {
             key: "?",
             glyph: "question_circle",
@@ -62,6 +73,21 @@ Singleton {
     ]
 
     readonly property var prefixes: root.modes.map(m => m.key).filter(k => k !== "")
+
+    // Asks the launcher to open in a mode, from outside the launcher. The
+    // Control Center's theme row is the first caller: it hands the picker off
+    // to `#` rather than trying to be one in a 340px panel.
+    //
+    // A signal on the service both ends already import, rather than the two
+    // alternatives — reaching across module boundaries into another window's
+    // internals, or shelling out to our own `qs ipc call launcher mode`, which
+    // spawns a process to talk to ourselves.
+    signal requestMode(string prefix)
+
+    function openMode(prefix: string): void {
+        if (root.prefixes.includes(prefix))
+            root.requestMode(prefix);
+    }
 
     function modeOf(query: string): string {
         const c = (query + "")[0] ?? "";
@@ -86,6 +112,8 @@ Singleton {
             return "Find an emoji…";
         case "!":
             return "Command line…";
+        case "#":
+            return "Pick a theme…";
         case "?":
             return "";
         default:
@@ -131,6 +159,8 @@ Singleton {
             return Emoji.search(q).map(e => root.emojiRow(e));
         case "!":
             return root.runRows(q);
+        case "#":
+            return root.themeRows(q);
         case "?":
             return root.helpRows();
         }
@@ -288,6 +318,39 @@ echo "[exit $rc] — press enter"
 read _`])
             }
         ];
+    }
+
+    // The theme picker. Rows carry `swatch` — the theme's own key — and the
+    // delegate paints that theme's actual surface and accent, because sixteen
+    // names in a list tell you nothing about which one you want and the whole
+    // subject here is what things look like.
+    //
+    // Listed in Theme.qml's own order, which groups families light-to-dark,
+    // rather than sorted or frecency-ranked: picking a theme is browsing, and a
+    // list that reorders itself between visits can't be learned. The active one
+    // stays in place and is badged instead of being hoisted.
+    function themeRows(q: string): var {
+        const rows = Theme.available.map(name => {
+            const t = Theme.themes[name];
+            const on = name === Settings.theme;
+            // `on` is in the cache key: the badge moves when the theme does,
+            // and a row memoised without it would keep the stale "Active".
+            return root.cached(`t|${name}|${on}`, () => ({
+                    kind: "theme",
+                    name: Theme.label(name),
+                    // The raw key, so `#rose` and `#mocha` both find things —
+                    // and so the value settings.json wants is on screen.
+                    sub: `${t.light ? "Light" : "Dark"}  ·  ${name}`,
+                    swatch: name,
+                    badge: on ? "Active" : "",
+                    // The panel is the preview: it restyles the moment the
+                    // setting lands, so the picker stays up to be compared
+                    // against rather than closing on every try.
+                    keepOpen: true,
+                    run: () => Settings.setTheme(name)
+                }));
+        });
+        return root.rank(rows, q);
     }
 
     function helpRows(): var {
@@ -544,14 +607,23 @@ read _`])
         const out = [];
         // Keyed on what the row says, so a label that tracks live state
         // ("Do Not Disturb: on") becomes a new row exactly when it changes.
-        const add = (name, sub, glyph, run, confirm) => out.push(root.cached(`c|${name}|${sub}`, () => ({
+        // `switchTo` is left *undefined* rather than "" for ordinary rows:
+        // ResultItem treats a present-but-empty switchTo as a real verb (the
+        // help row back to app search carries one), so defaulting it would
+        // make every command row look launchable even with no run.
+        const add = (name, sub, glyph, run, confirm, switchTo) => out.push(root.cached(`c|${name}|${sub}`, () => {
+                const row = {
                     kind: "command",
                     name,
                     sub,
                     glyph,
                     run,
                     confirm: confirm === true
-                })));
+                };
+                if (switchTo !== undefined)
+                    row.switchTo = switchTo;
+                return row;
+            }));
 
         add("Screenshot region", "Drag out an area", "camera", () => Capture.shoot("area"));
         add("Screenshot window", "The focused window", "camera", () => Capture.shoot("window"));
@@ -582,10 +654,11 @@ read _`])
                 add(`Power profile: ${label}`, "", Power.glyph(p), () => Power.set(p));
         }
 
-        for (const name of Theme.available) {
-            if (name !== Settings.theme)
-                add(`Theme: ${name}`, "", "paintbrush", () => Settings.setTheme(name));
-        }
+        // One row into `#`, not sixteen rows here. As palette entries the
+        // themes were three quarters of everything `>` listed and buried
+        // capture, power and the session verbs under a wall of near-identical
+        // lines — and none of them showed a single colour.
+        add(`Theme: ${Theme.label(Settings.theme)}`, "Browse all themes", "paintbrush", null, false, "#");
 
         add("Lock screen", "", "lock_fill", () => Quickshell.execDetached(["loginctl", "lock-session"]));
         add("Suspend", "", "moon_fill", () => Quickshell.execDetached(["systemctl", "suspend"]));

@@ -935,67 +935,75 @@ Column {
     }
 
     // ── Theme ──
+    //
+    // A row that names the current theme and hands off, not a picker. This was
+    // a chip per theme sharing the panel's width, which worked at two and is
+    // absurd at sixteen — 18px of chip each, with the family name stripped off
+    // so half of them would have read "Dark".
+    //
+    // The launcher's `#` mode is the picker instead: it has the height for
+    // sixteen rows, it paints each theme in its own colours, and it stays open
+    // while you compare. That is a search surface's job, and this panel is for
+    // one-tap toggles.
     Rectangle {
         width: parent.width
         height: Appearance.s(46)
         radius: Appearance.s(14)
         color: Theme.surfaceHoverBg
 
+        StateLayer {
+            radius: parent.radius
+            color: Theme.surfaceFg
+            // No explicit dismiss of this panel: the launcher takes the focus
+            // grab as it opens, and the popout closes on losing it — the same
+            // handoff the color picker relies on.
+            onClicked: Search.openMode("#")
+        }
+
         FIcon {
             id: themeGlyph
 
             x: Appearance.s(12)
             anchors.verticalCenter: parent.verticalCenter
-            icon: Settings.theme.includes("latte") ? "sun_max_fill" : "moon_fill"
+            // Off the theme's own light flag, not its name: "rose-pine-dawn"
+            // and "tokyo-night-day" are both light and neither says so, and
+            // the old test was a literal `includes("latte")`.
+            icon: Theme.isLight ? "sun_max_fill" : "moon_fill"
             color: Theme.accent
         }
 
-        Row {
+        StyledText {
             anchors.left: themeGlyph.right
             anchors.leftMargin: Appearance.s(10)
-            anchors.right: parent.right
-            anchors.rightMargin: Appearance.s(10)
+            anchors.right: themeCount.left
+            anchors.rightMargin: Appearance.s(8)
             anchors.verticalCenter: parent.verticalCenter
-            spacing: Appearance.s(6)
+            text: Theme.label(Settings.theme)
+            color: Theme.surfaceFg
+            elide: Text.ElideRight
+        }
 
-            Repeater {
-                model: Theme.available
+        StyledText {
+            id: themeCount
 
-                Rectangle {
-                    id: themeChip
+            anchors.right: themeChevron.left
+            anchors.rightMargin: Appearance.s(8)
+            anchors.verticalCenter: parent.verticalCenter
+            text: `${Theme.available.length} themes`
+            color: Theme.surfaceFgDim
+            font.pixelSize: Appearance.font.size.small
+            font.weight: Font.Normal
+        }
 
-                    required property var modelData
+        FIcon {
+            id: themeChevron
 
-                    readonly property bool active: Settings.theme === modelData
-
-                    width: (parent.width - Appearance.s(6)) / Math.max(1, Theme.available.length)
-                    height: Appearance.s(28)
-                    radius: Appearance.s(9)
-                    color: active ? Theme.accent : Qt.alpha(Theme.surfaceFg, 0.1)
-
-                    Behavior on color {
-                        CAnim {}
-                    }
-
-                    StateLayer {
-                        radius: themeChip.radius
-                        color: themeChip.active ? Theme.accentFg : Theme.surfaceFg
-                        onClicked: Settings.setTheme(themeChip.modelData)
-                    }
-
-                    StyledText {
-                        anchors.centerIn: parent
-                        // "catppuccin-latte" → "Latte"; the family name is the
-                        // same for every entry and just eats the chip.
-                        text: {
-                            const s = themeChip.modelData.split("-").pop();
-                            return s.charAt(0).toUpperCase() + s.slice(1);
-                        }
-                        color: themeChip.active ? Theme.accentFg : Theme.surfaceFg
-                        font.pixelSize: Appearance.font.size.small
-                    }
-                }
-            }
+            anchors.right: parent.right
+            anchors.rightMargin: Appearance.s(12)
+            anchors.verticalCenter: parent.verticalCenter
+            icon: "chevron_right"
+            font.pixelSize: Appearance.font.size.small
+            color: Theme.surfaceFgDim
         }
     }
 
