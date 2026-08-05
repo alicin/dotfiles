@@ -32,7 +32,9 @@ Singleton {
     }
 
     function pick(ch: string): void {
-        Quickshell.execDetached(["wl-copy", ch]);
+        // `--` for the same reason the calculator needs it: wl-copy takes its
+        // payload as argv and getopt would eat anything starting with a dash.
+        Quickshell.execDetached(["wl-copy", "--", ch]);
         state.recent = [ch, ...root.recent.filter(c => c !== ch)].slice(0, 40);
     }
 

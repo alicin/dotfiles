@@ -70,23 +70,35 @@ Singleton {
     Component.onCompleted: Quickshell.execDetached(["sh", "-c", `rm -rf '${root.thumbDir}'`])
 
     function refresh(): void {
-        lister.running = false;
-        lister.running = true;
+        // Not a stop-start: setting running false SIGTERMs an in-flight
+        // `cliphist list`, and Quickshell then publishes whatever partial
+        // stdout it had collected as if it were the whole history. A listing
+        // already on its way is the listing we wanted anyway.
+        if (!lister.running)
+            lister.running = true;
         sourceFile.reload();
     }
 
     // delete reads the full "id<TAB>preview" line, so select it back out of
     // list rather than reconstructing it.
     function remove(id: string): void {
-        Quickshell.execDetached(["sh", "-c", `cliphist list | awk -F'\\t' -v id=${id} '$1 == id' | cliphist delete`]);
-        entries = entries.filter(e => e.id !== id);
+        // The thumbnail goes with it: these are full-size decodes on tmpfs,
+        // i.e. RAM, and clearing forty screenshots out of the picker used to
+        // free the history and keep every byte of the previews.
+        Quickshell.execDetached(["sh", "-c", `cliphist list | awk -F'\\t' -v id=${id} '$1 == id' | cliphist delete; rm -f '${root.thumbDir}/${id}'`]);
+        root.entries = entries.filter(e => e.id !== id);
+        if (root.fullText[id] !== undefined) {
+            const m = Object.assign({}, root.fullText);
+            delete m[id];
+            root.fullText = m;
+        }
     }
 
     // Pins are not history — they live in their own directory under a name
     // cliphist has never heard of, so there is nothing here for this to take.
     function wipe(): void {
         Quickshell.execDetached(["cliphist", "wipe"]);
-        Quickshell.execDetached(["sh", "-c", `rm -rf ${root.thumbDir}`]);
+        Quickshell.execDetached(["sh", "-c", `rm -rf '${root.thumbDir}'`]);
         root.entries = [];
         // Every id in here now points at nothing.
         root.fullText = {};
@@ -118,7 +130,11 @@ Singleton {
             return "file";
         if (/^\s*(https?|ftp|magnet|mailto):\S+\s*$/i.test(text))
             return "link";
-        if (/^\s*(#[0-9a-f]{3,8}|rgba?\([^)]*\)|hsla?\([^)]*\))\s*$/i.test(text))
+        // Only what Qt can actually turn into a colour. CSS rgb()/hsl() and
+        // the 8-digit #RRGGBBAA form all parse as "invalid" — QColor's own
+        // 8-digit form is #AARRGGBB — and the card would then hide the text in
+        // favour of drawing a swatch of nothing.
+        if (/^\s*#([0-9a-f]{3}|[0-9a-f]{6})\s*$/i.test(text))
             return "color";
         return "text";
     }
@@ -392,7 +408,12 @@ Singleton {
         // decode, which is the exact moment you reach for a pin. cliphist
         // takes the id as an argument; feeding it on stdin fails on the
         // trailing newline ("converting id: strconv.Atoi").
-        copier.command = ["sh", "-c", entry.pinned ? `wl-copy${entry.mime ? ` --type '${entry.mime}'` : ""} < '${entry.file}'` : `cliphist decode ${entry.id} | wl-copy`];
+        // pipefail on the history path: without it the pipeline's status is
+        // wl-copy's, wl-copy forks and returns 0 whatever it read, and a
+        // decode that failed (the id evicted since the listing) would still
+        // look like a successful copy — which paste-on-select would then send
+        // a Ctrl+V after, pasting whatever was on the clipboard before.
+        copier.command = ["sh", "-c", entry.pinned ? `wl-copy${entry.mime ? ` --type '${entry.mime}'` : ""} < '${entry.file}'` : `set -o pipefail; cliphist decode ${entry.id} | wl-copy`];
         copier.running = true;
     }
 

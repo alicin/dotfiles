@@ -26,7 +26,10 @@ Item {
     property bool arming: false
 
     // Rows that only explain something (the key hints in help) take no verb.
-    readonly property bool inert: !modelData.run && !modelData.switchTo
+    // `undefined`, not falsy: the help row that walks you back to plain app
+    // search carries switchTo: "", which read as "no verb" and rendered it
+    // dimmed and unclickable while Enter on it worked fine.
+    readonly property bool inert: !modelData.run && modelData.switchTo === undefined
 
     signal activated
 

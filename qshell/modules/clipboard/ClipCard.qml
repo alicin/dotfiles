@@ -117,9 +117,12 @@ Item {
         }
     }
 
+    // Capped like the service's batched decode: a card shows about nine lines,
+    // and select-all-and-copy on a large file would otherwise pipe megabytes
+    // through here and hand every byte to a Text item to lay out.
     Process {
         running: !root.isBinary && !root.isPin && root.modelData.truncated
-        command: ["cliphist", "decode", root.modelData.id]
+        command: ["sh", "-c", `cliphist decode ${root.modelData.id} 2>/dev/null | head -c 2000`]
 
         stdout: StdioCollector {
             onStreamFinished: root.fullText = text.trim()

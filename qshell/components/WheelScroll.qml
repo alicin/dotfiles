@@ -22,14 +22,24 @@ WheelHandler {
 
     property real factor: Settings.scrollFactor
 
+    // A horizontal ListView scrolls along contentX and never grows contentHeight
+    // past its own height, so driving contentY on one is a no-op — and since
+    // this handler consumes the event either way, the view ends up completely
+    // unscrollable. Read off the view when it says, so a caller doesn't have
+    // to know.
+    readonly property bool horizontal: root.view?.orientation === ListView.Horizontal
+
     acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
 
     onWheel: event => {
         if (!view || view.contentHeight === undefined)
             return;
 
-        const px = event.pixelDelta.y;
-        const ang = event.angleDelta.y;
+        // A wheel mouse only ever reports on the Y axis, and a trackpad's
+        // horizontal gesture reports on X — a horizontal list takes whichever
+        // arrived, or neither works depending on the device.
+        const px = root.horizontal ? (event.pixelDelta.x || event.pixelDelta.y) : event.pixelDelta.y;
+        const ang = root.horizontal ? (event.angleDelta.x || event.angleDelta.y) : event.angleDelta.y;
 
         // Fingers lifting produces a zero-delta event (wayland's axis_stop).
         // Nothing to scroll, but it still has to be consumed.
@@ -44,11 +54,16 @@ WheelHandler {
         // never slowed and doesn't need speeding up.
         const raw = px !== 0 ? px * root.factor : (ang / 120) * Appearance.s(60);
 
-        const max = Math.max(0, view.contentHeight - view.height);
         // Same sign convention as Flickable itself: content moves opposite the
         // scroll direction, so natural_scroll stays consistent with every other
         // list on the system.
-        view.contentY = Math.max(0, Math.min(max, view.contentY - raw));
+        if (root.horizontal) {
+            const maxX = Math.max(0, view.contentWidth - view.width);
+            view.contentX = Math.max(0, Math.min(maxX, view.contentX - raw));
+        } else {
+            const max = Math.max(0, view.contentHeight - view.height);
+            view.contentY = Math.max(0, Math.min(max, view.contentY - raw));
+        }
 
         // Consume it, or Flickable applies its own unscaled scroll on top and
         // the list jumps by 1 + factor.

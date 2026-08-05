@@ -223,12 +223,17 @@ Singleton {
             const cls = ((t.lastIpcObject?.class || t.wayland?.appId) ?? "") + "";
             const title = t.title || t.lastIpcObject?.title || cls || "Untitled";
             const where = !ws ? "" : ws.id < 0 ? (ws.name + "").replace(/^special:/, "") || "scratchpad" : `Workspace ${ws.id}`;
-            return root.cached(`w|${Windows.keyOf(t)}|${title}|${where}`, () => ({
+            const addr = Windows.keyOf(t);
+            return root.cached(`w|${addr}|${title}|${where}`, () => ({
                         kind: "window",
                         name: title,
                         sub: [cls, where].filter(s => s).join("  ·  "),
                         icon: Apps.toplevelIcon(t),
-                        run: () => Windows.focus(t),
+                        // The address, not the object: Hyprland reuses
+                        // addresses and Quickshell deletes a toplevel outright
+                        // when it closes, so a cached row that captured one
+                        // would activate into nothing.
+                        run: () => Windows.focusAddress(addr),
                         // Scoring fodder: the class is how you think of a
                         // window ("kitty") even when its title says something
                         // else entirely.
@@ -267,8 +272,15 @@ Singleton {
                 badge: "⇧⏎ terminal",
                 run: () => Quickshell.execDetached(["sh", "-c", c]),
                 // Shift+Enter keeps the output: a command run detached that
-                // prints an error prints it into nothing.
-                alt: () => Quickshell.execDetached([Settings.terminal, "sh", "-c", `${c}; echo; echo "[exit $?] — press enter"; read _`])
+                // prints an error prints it into nothing. The status is read
+                // into `rc` on the very next line — one intervening `echo` and
+                // `$?` is that echo's, which is always 0 and makes the whole
+                // point of this variant a lie.
+                alt: () => Quickshell.execDetached([Settings.terminal, "sh", "-c", `${c}
+rc=$?
+echo
+echo "[exit $rc] — press enter"
+read _`])
             }
         ];
     }
@@ -313,7 +325,10 @@ Singleton {
             sub: q,
             glyph: "equal",
             badge: "Copy",
-            run: () => Quickshell.execDetached(["wl-copy", r])
+            // `--`, because wl-copy takes its text as argv and getopt eats a
+            // leading dash: `1-5` answers `-4`, and `wl-copy -4` is an
+            // "invalid option" that never reaches the clipboard.
+            run: () => Quickshell.execDetached(["wl-copy", "--", r])
         };
     }
 
@@ -501,8 +516,14 @@ Singleton {
     }
 
     function format(v: real): string {
+        // Every integer a double can hold exactly gets printed in full: the
+        // old 1e12 cutoff turned 2^40 into "1.099512e+12" and dropped the +1
+        // from 1e12+1 — a calculator that rounds the answer it was asked for
+        // is worse than no calculator.
+        if (Number.isInteger(v) && Math.abs(v) <= Number.MAX_SAFE_INTEGER)
+            return `${v}`;
         const a = Math.abs(v);
-        if (a !== 0 && (a >= 1e12 || a < 1e-6))
+        if (a !== 0 && (a >= 1e15 || a < 1e-6))
             return v.toExponential(6).replace(/\.?0+e/, "e");
         // Float noise (0.1+0.2) is not an answer anyone asked for.
         return `${Math.round(v * 1e9) / 1e9}`;
@@ -531,7 +552,11 @@ Singleton {
         add("Screenshot window", "The focused window", "camera", () => Capture.shoot("window"));
         add("Screenshot screen", "After a short countdown", "camera", () => Capture.shoot("full"));
         if (Capture.recording || Capture.paused) {
-            add("Stop recording", Capture.elapsedText, "stop_fill", () => Capture.toggleRecording());
+            // No elapsed time in the subtitle: it is part of the row's cache
+            // key, so it would mint a new row object every second — churn in
+            // a list someone is arrowing through, to say something the bar's
+            // recording chip is already saying.
+            add("Stop recording", Capture.paused ? "Paused" : "", "stop_fill", () => Capture.toggleRecording());
             add(Capture.paused ? "Resume recording" : "Pause recording", "", "playpause_fill", () => Capture.togglePause());
         } else {
             add("Record region", "Drag out an area", "videocam", () => Capture.toggleRecording());

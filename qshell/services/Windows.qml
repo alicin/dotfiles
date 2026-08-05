@@ -63,17 +63,39 @@ Singleton {
     // *list* built from them is not re-evaluated by a member's change alone.
     property int rev: 0
 
+    // By address, re-resolved at call time: a row in the launcher's cache can
+    // outlive the window it was built from (Hyprland reuses addresses, and
+    // Quickshell deletes the toplevel outright on closewindow), and a closure
+    // holding the dead object would silently do nothing.
     function focus(toplevel: var): void {
-        const addr = root.keyOf(toplevel);
-        if (!addr)
+        root.focusAddress(root.keyOf(toplevel));
+    }
+
+    function focusAddress(addr: string): void {
+        const key = root.key(addr);
+        if (!key)
+            return;
+        const live = Hyprland.toplevels.values.find(t => root.keyOf(t) === key);
+        if (!live)
             return;
         // Focusing a window on a special workspace does not pull that
-        // workspace up, so the window would be "focused" and invisible.
-        const ws = toplevel.workspace;
-        if (ws && ws.id < 0 && ws.name)
-            Hyprland.dispatch(`hl.dsp.workspace.toggle_special("${(ws.name + "").replace(/^special:/, "")}")`);
-        Hyprland.dispatch(`hl.dsp.focus({ window = "address:0x${addr}" })`);
-        root.touch(addr);
+        // workspace up, so the window would be "focused" and invisible. But
+        // the dispatcher is a *toggle*: firing it at a scratchpad that is
+        // already showing would put it away again and hide the very window
+        // being focused, so ask first.
+        const ws = live.workspace;
+        if (ws && ws.id < 0 && ws.name) {
+            const name = `${ws.name}`;
+            const showing = Hyprland.monitors.values.some(m => (m.lastIpcObject?.specialWorkspace?.name ?? "") === name);
+            // The unnamed scratchpad is called exactly "special", with no
+            // colon — stripping a "special:" prefix leaves it as "special",
+            // which names a *different* workspace (special:special) and
+            // toggles that one instead.
+            if (!showing)
+                Hyprland.dispatch(`hl.dsp.workspace.toggle_special("${name === "special" ? "" : name.replace(/^special:/, "")}")`);
+        }
+        Hyprland.dispatch(`hl.dsp.focus({ window = "address:0x${key}" })`);
+        root.touch(key);
     }
 
     Connections {

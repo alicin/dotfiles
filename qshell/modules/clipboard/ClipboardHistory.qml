@@ -40,6 +40,8 @@ Scope {
     // Clipboard.kindOf() can name.
     property string filter: "all"
 
+    onFilterChanged: list.currentIndex = 0
+
     readonly property var filters: [
         {
             key: "all",
@@ -248,6 +250,8 @@ Scope {
                         selectionColor: Theme.accent
                         selectedTextColor: Theme.accentFg
                         clip: true
+
+                        onTextChanged: list.currentIndex = 0
 
                         onAccepted: root.copyCurrent()
                         Keys.onLeftPressed: root.move(-1)
@@ -467,7 +471,14 @@ Scope {
 
                     model: ScriptModel {
                         values: Clipboard.search(field.text, root.filter)
-                        onValuesChanged: list.currentIndex = 0
+                        // Not a reset: pinning a card rebuilds the list (the
+                        // pin sorts to the front) and this used to throw the
+                        // strip back to the beginning, away from the card you
+                        // just pinned. A new query or filter resets instead.
+                        onValuesChanged: {
+                            if (list.currentIndex >= list.count)
+                                list.currentIndex = Math.max(0, list.count - 1);
+                        }
                     }
 
                     delegate: ClipCard {

@@ -127,7 +127,12 @@ Scope {
         screen: Quickshell.screens.find(s => s.name === (root.pinned || Hyprland.focusedMonitor?.name)) ?? Quickshell.screens[0] ?? null
         color: "transparent"
         implicitWidth: Appearance.sizes.launcherWidth + Appearance.s(40)
-        implicitHeight: Appearance.s(700)
+        // Derived from launcherMaxShown rather than a constant 700: the panel
+        // is bottom-anchored inside this surface, so a taller list than the
+        // surface allows gets its *top* clipped away — raising that documented
+        // setting past 10 silently cut the first rows off. Still constant for
+        // any given setting, so the surface itself never resizes mid-use.
+        implicitHeight: Appearance.s(100) + Settings.launcherMaxShown * (Appearance.sizes.launcherItemHeight + Appearance.s(4))
 
         anchors {
             bottom: true
@@ -235,9 +240,16 @@ Scope {
 
                     model: ScriptModel {
                         values: Search.results(field.text)
+                        // Deliberately NOT resetting the selection here. The
+                        // results depend on live state — a window retitling, a
+                        // recording's elapsed time, a profile change — so this
+                        // fires while you are simply arrowing down a list, and
+                        // resetting on it moved the selection out from under
+                        // Enter. What warrants a reset is a new *query*, which
+                        // is where it now happens.
                         onValuesChanged: {
-                            list.currentIndex = 0;
-                            root.armed = null;
+                            if (list.currentIndex >= list.count)
+                                list.currentIndex = Math.max(0, list.count - 1);
                         }
                     }
 
@@ -350,6 +362,13 @@ Scope {
                     selectionColor: Theme.accent
                     selectedTextColor: Theme.accentFg
                     clip: true
+
+                    // A new query is a new list; a new list starts at the top,
+                    // and nothing stays armed across it.
+                    onTextChanged: {
+                        list.currentIndex = 0;
+                        root.armed = null;
+                    }
 
                     onAccepted: root.activateCurrent(false)
                     // Wraparound: Down on the last row was a dead key.

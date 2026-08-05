@@ -22,6 +22,17 @@ state="${XDG_STATE_HOME:-$HOME/.local/state}/qshell"
 sources="$state/clipboard-sources.tsv"
 keep=400
 
+# The newest id cliphist knows about. awk rather than `head -1`: head closes
+# the pipe on the first line, cliphist dies of SIGPIPE, and `set -o pipefail`
+# then treats the whole thing as a failure.
+top_id() {
+    cliphist list 2>/dev/null | awk -F'\t' 'NR == 1 { print $1 }'
+}
+
+# Read *before* storing, because "what is at the top afterwards" is not the
+# same question as "what did this copy store" — see the guard below.
+before=$(top_id || true)
+
 # Hand the payload to cliphist unchanged and let it be the only writer of the
 # history proper — a copy that fails to store is worse than one with no
 # attribution, so this happens first and its exit status is ours.
@@ -33,11 +44,24 @@ cliphist store < "$payload"
 # Everything below is best-effort decoration.
 mkdir -p "$state" 2>/dev/null || exit 0
 
-# awk, not `head -1`: head closes the pipe on the first line, cliphist dies of
-# SIGPIPE, and `set -o pipefail` then treats the whole thing as a failure — so
-# every single store silently skipped its attribution.
-id=$(cliphist list 2>/dev/null | awk -F'\t' 'NR == 1 { print $1 }') || exit 0
+id=$(top_id || true)
 [ -n "${id:-}" ] || exit 0
+
+# `cliphist store` exits 0 without storing anything for several states
+# wl-paste routinely fires it in — an empty or whitespace-only selection, and
+# CLIPBOARD_STATE=sensitive (a password manager) — and for
+# CLIPBOARD_STATE=clear it *deletes* the newest entry instead. In every one of
+# those the top of the list is some older, unrelated entry, and stamping it
+# with this window and this timestamp would be an outright lie about where it
+# came from. Ids are monotonic, so a strictly greater one is the proof that
+# this invocation is what put it there.
+case "$id" in
+    '' | *[!0-9]*) exit 0 ;;
+esac
+case "$before" in
+    '' | *[!0-9]*) before=0 ;;
+esac
+[ "$id" -gt "$before" ] || exit 0
 
 win=$(hyprctl -j activewindow 2>/dev/null) || exit 0
 class=$(printf '%s' "$win" | jq -r '.class // ""' 2>/dev/null) || class=""
@@ -46,6 +70,13 @@ title=$(printf '%s' "$win" | jq -r '.title // ""' 2>/dev/null) || title=""
 
 # Tabs and newlines in a window title would forge a row; strip both.
 title=$(printf '%s' "$title" | tr '\t\n' '  ' | cut -c1-120)
+
+# Both watchers (text and image) fire for a copy that offers both, and each
+# does a read-modify-write of this file — without the lock one of the two rows
+# is silently dropped, which is exactly the case where attribution matters
+# (an image copied out of a browser).
+exec 9>"$sources.lock" || exit 0
+flock -w 2 9 || exit 0
 
 tmp=$(mktemp "$sources.XXXXXX") || exit 0
 printf '%s\t%s\t%s\t%s\n' "$id" "$(date +%s)" "$class" "$title" > "$tmp"
