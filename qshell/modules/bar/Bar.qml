@@ -321,7 +321,6 @@ Scope {
                 id: tip
 
                 barWindow: win
-                popouts: popouts
             }
         }
     }

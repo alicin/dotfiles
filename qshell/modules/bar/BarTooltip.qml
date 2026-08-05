@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Wayland
 import qs.config
 import qs.components
+import qs.services
 
 // The bar's one tooltip surface. Bar modules compute plenty that never fits in
 // 26 pixels — battery ETA, SSID and signal, a tray applet's title, the track
@@ -19,11 +20,6 @@ Scope {
     id: root
 
     required property var barWindow
-    // Watched only to stand down: this surface is created after the popouts
-    // one on the same overlay layer, so the pill would otherwise paint on top
-    // of the menu it overlaps — and hover-slide means a menu is open exactly
-    // when the pointer is running along the modules that raise tooltips.
-    required property var popouts
 
     // Who asked. Hiding is keyed on it so the module the pointer *left* can't
     // clear a tooltip the module it arrived at has already claimed — with
@@ -41,7 +37,13 @@ Scope {
             held = text;
     }
 
-    readonly property bool shown: text !== "" && owner !== null && !(root.popouts?.open ?? false)
+    // Nothing is worth reading badly enough to draw it over a menu, a toast or
+    // a panel. This surface is created after all of them on the same overlay
+    // layer and so wins the stacking order unconditionally — there is no
+    // z-order to fix that with, so it stands down instead. And hover-slide
+    // means a menu is open exactly when the pointer is running along the
+    // modules that raise tooltips, which is precisely when it would overlap.
+    readonly property bool shown: text !== "" && owner !== null && !Overlays.any
 
     function show(text: string, item: Item): void {
         if (!item || !text)
@@ -49,6 +51,13 @@ Scope {
         root.owner = item;
         root.text = text;
         root.anchorX = item.mapToItem(null, item.width / 2, 0).x;
+        // Blocked: record who asked, but don't start counting. Otherwise the
+        // delay elapses behind the open menu and the pill springs up the
+        // instant the menu closes, unasked.
+        if (Overlays.any) {
+            delay.stop();
+            return;
+        }
         // Instant when one is already up (sliding along the bar), delayed on
         // the first — a tooltip that appears the moment the pointer crosses
         // the bar on its way somewhere else is noise.
@@ -71,6 +80,20 @@ Scope {
 
         interval: 450
         onTriggered: label.armed = true
+    }
+
+    // A surface coming up mid-hover cancels the pending reveal outright, so
+    // dismissing it doesn't hand back a tooltip nobody asked for. Re-arming
+    // takes a fresh hover.
+    Connections {
+        target: Overlays
+
+        function onAnyChanged(): void {
+            if (Overlays.any) {
+                delay.stop();
+                label.armed = false;
+            }
+        }
     }
 
     onShownChanged: {

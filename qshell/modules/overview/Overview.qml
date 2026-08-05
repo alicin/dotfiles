@@ -72,6 +72,9 @@ Scope {
 
     onOpenChanged: {
         selWin = null;
+        // Covers the whole screen, bar included — anything that would draw
+        // over it (the bar tooltip) needs to know.
+        Overlays.overview = open;
         if (open) {
             // Latched per open (severs the live binding, on purpose): the
             // grid used to remap to the other monitor mid-use when

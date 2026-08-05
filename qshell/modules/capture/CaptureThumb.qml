@@ -26,6 +26,8 @@ Scope {
     property string path: ""
     property bool open: false
 
+    onOpenChanged: Overlays.captureThumb = open
+
     readonly property bool isVideo: /\.(mp4|mkv|webm|mov)$/i.test(root.path)
 
     Connections {

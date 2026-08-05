@@ -209,6 +209,10 @@ ShellRoot {
             return `profile=${Power.label(Power.profile)} pct=${Power.percent} charging=${Power.charging} known=${Power.known} warnedAt=${Power.warnedAt} auto=${Power.autoProfile} acProfile=${Power.label(Power.acProfile)} suspendAt=${Power.suspendAt} nightLight=${NightLight.available ? (NightLight.enabled ? NightLight.temperature + "K" : "off") : "unavailable"}`;
         }
 
+        function overlays(): string {
+            return `any=${Overlays.any} menus=${Overlays.menus} panels=${Overlays.panels} toasts=${Overlays.toasts} overview=${Overlays.overview} thumb=${Overlays.captureThumb}`;
+        }
+
         function osd(): string {
             return `kind="${Osd.kind}" submap="${Osd.submap}" label="${Osd.submapLabel}"`;
         }
