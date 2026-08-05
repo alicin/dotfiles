@@ -39,12 +39,17 @@ Singleton {
     function search(query: string): var {
         const q = query.trim().toLowerCase();
         if (!q) {
-            // Recents first, then the table order (which is codepoint order,
-            // i.e. smileys → gestures → objects, close enough to a category
-            // walk to browse).
+            // Recents, then the ones carrying hand-written aliases — that set
+            // is exactly the everyday emoji, and it is what an empty picker
+            // should open on. Codepoint order alone starts at "‼", "™", "ℹ",
+            // which is a fair description of the whole Unicode block and a
+            // terrible first screen. Everything else follows in table order
+            // (smileys → gestures → objects), which browses fine.
             const seen = new Set(root.recent);
             const rec = root.recent.map(c => root.all.find(e => e.c === c)).filter(e => e);
-            return [...rec, ...root.all.filter(e => !seen.has(e.c))];
+            const popular = root.all.filter(e => e.k && !seen.has(e.c));
+            const shown = new Set([...seen, ...popular.map(e => e.c)]);
+            return [...rec, ...popular, ...root.all.filter(e => !shown.has(e.c))];
         }
         return root.all.map(e => {
             // The alias words are what people actually type ("thumbsup",

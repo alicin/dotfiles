@@ -213,6 +213,13 @@ ShellRoot {
             return `any=${Overlays.any} menus=${Overlays.menus} panels=${Overlays.panels} toasts=${Overlays.toasts} overview=${Overlays.overview} thumb=${Overlays.captureThumb}`;
         }
 
+        // `qs ipc call debug search '>power'` — what the launcher would list,
+        // without having to type into it.
+        function search(query: string): string {
+            const rows = Search.results(query);
+            return `${rows.length} rows\n` + rows.slice(0, 12).map(r => `  ${r.kind}: ${r.name}${r.sub ? " — " + r.sub : ""}${r.badge ? "  [" + r.badge + "]" : ""}`).join("\n");
+        }
+
         function osd(): string {
             return `kind="${Osd.kind}" submap="${Osd.submap}" label="${Osd.submapLabel}"`;
         }
@@ -231,6 +238,15 @@ ShellRoot {
 
         function notifs(): string {
             return `count=${Notifs.count} unseen=${Notifs.unseen} popups=${Notifs.popups.length} dnd=${Notifs.dnd} lastSeen=${Notifs.lastSeenAt}`;
+        }
+
+        // What the newest notification actually carries — which hint an app
+        // put its picture in decides whether a card grows a preview band.
+        function notif(): string {
+            const n = Notifs.list[0]?.n;
+            if (!n)
+                return "no notifications";
+            return `app="${n.appName}" appIcon="${n.appIcon}" image="${n.image}" desktopEntry="${n.desktopEntry}"`;
         }
 
         function scan(active: bool): string {

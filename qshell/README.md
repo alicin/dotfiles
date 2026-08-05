@@ -316,7 +316,30 @@ Hyprland wiring (`~/.config/hypr/lua/`):
     QML context ("ReferenceError: root is not defined"). Everything is read
     into locals first now.
 - **Launcher** — bottom-center panel with the expressive spring-up, fuzzy
-  search, keyboard nav.
+  search, keyboard nav. Apps are only the default source: a **prefix character
+  at the front of the query swaps the source**, and the `?` button in the
+  search field lists every one of them (each row walks you into that mode).
+  - `>` **commands** — capture, notifications, Keep Awake, night light, Wi-Fi,
+    power profiles, themes, lock/suspend/reboot/power off/log out/reload. Every
+    one of these already had a service behind it and no keyboard route to it.
+    The destructive three want a second Enter, which the row says out loud.
+  - `/` **windows** — Super+Shift+W, replacing the `hyprctl clients | jq |
+    wofi` pipeline. Ordered most-recently-focused (`services/Windows.qml`
+    keeps that stack off `activewindowv2`); focusing a window parked on a
+    special workspace pulls the workspace up with it.
+  - `:` **emoji** — Super+period, over `data/emoji.json` (the installed emoji
+    font's cmap ∩ the Unicode character database, so every entry both has a
+    name to search and a glyph that renders). Enter copies. The table loads
+    lazily and recently-picked ones sort first.
+  - `!` **run** — a command line; Shift+Enter runs it in a terminal that stays
+    open on the output. A Run row also appears as the *last resort* when a
+    plain query matches no app, in place of "No matches".
+  - Anything that parses as arithmetic answers itself in a row above the
+    results (`services/Search.qml` has a small recursive-descent parser —
+    `eval()` on arbitrary typed text is not a thing this shell does), and
+    Enter copies the answer.
+  - Desktop-entry **actions** ("New Private Window") ride along under their
+    app, findable by the app's name or by the action's own words.
 - **Clipboard history** (Super+Shift+V) — the same panel as the launcher (same
   width, radius, item height, spring-up, gliding highlight) over the `cliphist`
   store, replacing the old `cliphist list | wofi --show dmenu` binding, so the
@@ -340,6 +363,9 @@ Hyprland wiring (`~/.config/hypr/lua/`):
 
 ```sh
 qs ipc -c qshell call launcher toggle       # also: open / close
+qs ipc -c qshell call launcher mode /       # open straight into a prefix mode
+                                            # (> commands, / windows, : emoji,
+                                            #  ! run, ? help); same key closes
 qs ipc -c qshell call clipboard toggle      # clipboard history (Super+Shift+V)
 qs ipc -c qshell call popouts toggle wifi   # battery / notifs
 qs ipc -c qshell call popouts toggle control # control center; also: audio /
@@ -356,6 +382,8 @@ qs ipc -c qshell call theme set catppuccin-mocha
 qs ipc -c qshell call theme list            # / get
 qs ipc -c qshell call debug net             # networking introspection
 qs ipc -c qshell call debug privacy         # what's using the mic / camera
+qs ipc -c qshell call debug search '>power' # what the launcher would list
+qs ipc -c qshell call debug notif           # newest notification's raw hints
 ```
 
 ## Settings & theming
@@ -412,7 +440,8 @@ modules/bar/popouts/  Popouts (dropdown host) + WifiMenu, BatteryMenu, NotifsMen
 modules/control/      ControlCenter (push navigation host) + Home, AudioPage,
                       BluetoothPage, KdeConnectPage, and the shared Card / Badge /
                       PageHeader the pages are built from
-modules/launcher/     Launcher, AppItem
+modules/launcher/     Launcher, ResultItem (apps / commands / windows / emoji /
+                      run / calculator — see services/Search.qml)
 modules/clipboard/    ClipboardHistory, ClipItem (cliphist-backed, launcher styling,
                       lazy image thumbnails)
 modules/capture/      RecordOverlay (dims around a live area recording)

@@ -33,24 +33,32 @@ Singleton {
         return Math.log1p(u.n) * Math.exp(-days / 14);
     }
 
-    function launch(entry: DesktopEntry): void {
+    // Bookkeeping without the launch, for the paths that start an app some
+    // other way (a desktop entry's own action — "New Private Window" — is
+    // still that app being used).
+    function record(entry: DesktopEntry): void {
         // In place, without notifying: reassigning `apps` re-sorts the
         // empty-query list (and resets the selection) while the panel is
         // still fading out — the launcher calls flushUsage() once hidden.
         // Bookkeeping is skipped until the store has loaded; recording into
         // the default empty map would overwrite the history on the next
-        // write. The launch itself is never skipped.
-        if (usageFile.ready) {
-            const apps = usage.apps;
-            const cur = apps[entry.id] ?? {
-                n: 0,
-                last: 0
-            };
-            apps[entry.id] = {
-                n: cur.n + 1,
-                last: Date.now()
-            };
-        }
+        // write.
+        if (!usageFile.ready)
+            return;
+        const apps = usage.apps;
+        const cur = apps[entry.id] ?? {
+            n: 0,
+            last: 0
+        };
+        apps[entry.id] = {
+            n: cur.n + 1,
+            last: Date.now()
+        };
+    }
+
+    function launch(entry: DesktopEntry): void {
+        // The launch itself is never skipped, whatever the store is doing.
+        root.record(entry);
         entry.execute();
     }
 

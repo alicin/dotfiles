@@ -54,6 +54,22 @@ Scope {
         });
     }
 
+    // Tab walks the FOCUS history, not the grid: this thing is bound to
+    // Alt+Tab, and on Alt+Tab the window you want is almost always the one you
+    // were in a moment ago — which in a workspace grid can be anywhere.
+    // Arrows and hjkl keep the spatial ring below, because "the window to the
+    // right" is a different question with a different answer.
+    function mruMove(d: int): void {
+        const list = win.wins.slice().sort((a, b) => Windows.rank(a) - Windows.rank(b));
+        if (list.length === 0)
+            return;
+        const at = list.indexOf(root.selWin);
+        // Nothing selected yet: the first Tab lands on the *previous* window
+        // (rank 1 — rank 0 is the one you are already in), which is the whole
+        // muscle memory of the key. Shift+Tab starts from the far end.
+        root.selWin = list[at < 0 ? (d > 0 ? Math.min(1, list.length - 1) : list.length - 1) : (at + d + list.length) % list.length];
+    }
+
     function selMove(d: int): void {
         const list = orderedWins();
         if (list.length === 0)
@@ -298,9 +314,13 @@ Scope {
                     const k = event.key;
                     if (k === Qt.Key_Escape) {
                         root.open = false;
-                    } else if (k === Qt.Key_Tab || k === Qt.Key_Right || k === Qt.Key_Down || k === Qt.Key_L || k === Qt.Key_J) {
+                    } else if (k === Qt.Key_Tab) {
+                        root.mruMove(1);
+                    } else if (k === Qt.Key_Backtab) {
+                        root.mruMove(-1);
+                    } else if (k === Qt.Key_Right || k === Qt.Key_Down || k === Qt.Key_L || k === Qt.Key_J) {
                         root.selMove(1);
-                    } else if (k === Qt.Key_Backtab || k === Qt.Key_Left || k === Qt.Key_Up || k === Qt.Key_H || k === Qt.Key_K) {
+                    } else if (k === Qt.Key_Left || k === Qt.Key_Up || k === Qt.Key_H || k === Qt.Key_K) {
                         root.selMove(-1);
                     } else if (k === Qt.Key_Return || k === Qt.Key_Enter) {
                         root.selFocus();

@@ -11,6 +11,11 @@ import qs.services
 // the bottom of the focused screen (M3 expressive default-spatial curve),
 // fuzzy search at the bottom, results above with a gliding selection
 // highlight. Toggle with `qs -c qshell ipc call launcher toggle`.
+//
+// Apps are only the default source. A prefix character at the front of the
+// query swaps in another one — windows, a command palette, emoji, a shell
+// command line — and the ? button spells all of them out; services/Search.qml
+// owns what each mode finds and what Enter does with it.
 Scope {
     id: root
 
@@ -24,6 +29,15 @@ Scope {
     // silently stopped opening, with working IPC, until the shell restarted.
     // A name outlives the object, and the binding re-resolves.
     property string pinned: ""
+
+    readonly property string mode: Search.modeOf(field.text)
+    readonly property var modeInfo: Search.modeInfo(root.mode)
+
+    // The destructive command rows (reboot, power off, log out) ask for a
+    // second Enter. Held by row identity, not index: the list re-ranks under
+    // the selection as you type, and arming index 3 would arm whatever landed
+    // there next.
+    property var armed: null
 
     onOpenChanged: {
         // The OSD shares this panel's bottom-center spot.
@@ -39,14 +53,41 @@ Scope {
             list.lastHoverPos = Qt.point(-1e9, -1e9);
             field.forceActiveFocus();
         }
+        root.armed = null;
     }
 
-    function launchCurrent(): void {
-        const item = list.currentItem;
-        if (item) {
-            Apps.launch(item.modelData);
-            root.open = false;
+    // Entering a mode may need something loaded first — the emoji table is
+    // 1400 entries nobody pays for until they ask for it.
+    onModeChanged: {
+        root.armed = null;
+        if (root.mode === ":")
+            Emoji.ensure();
+    }
+
+    function activate(row: var, alt: bool): void {
+        if (!row)
+            return;
+        // Help rows re-enter the launcher in the mode they describe rather
+        // than doing anything — the point is to leave you somewhere useful.
+        if (row.switchTo !== undefined) {
+            field.text = row.switchTo;
+            return;
         }
+        if (!row.run)
+            return;
+        if (row.confirm === true && root.armed !== row) {
+            root.armed = row;
+            return;
+        }
+        if (alt && row.alt)
+            row.alt();
+        else
+            row.run();
+        root.open = false;
+    }
+
+    function activateCurrent(alt: bool): void {
+        root.activate(list.currentItem?.modelData ?? null, alt);
     }
 
     IpcHandler {
@@ -62,6 +103,21 @@ Scope {
 
         function close(): void {
             root.open = false;
+        }
+
+        // `qs ipc call launcher mode /` — opens straight into a prefix mode,
+        // which is what the window-switcher keybind binds to. Pressing it
+        // again closes, the way every other panel keybind behaves.
+        function mode(prefix: string): string {
+            if (!Search.prefixes.includes(prefix))
+                return `unknown mode "${prefix}" — ${Search.prefixes.join(" ")}`;
+            if (root.open && root.mode === prefix) {
+                root.open = false;
+                return "closed";
+            }
+            root.open = true;
+            field.text = prefix;
+            return "ok";
         }
     }
 
@@ -162,7 +218,10 @@ Scope {
                     visible: list.count === 0
                     height: Appearance.s(40)
                     anchors.horizontalCenter: parent.horizontalCenter
-                    text: "No matches"
+                    // "No matches" is now only reachable in the modes that
+                    // have nothing to fall back to — a plain query with no
+                    // app match grows a Run row instead.
+                    text: root.mode === ":" && !Emoji.loaded ? "Loading emoji…" : "No matches"
                     color: Theme.surfaceFgDim
                 }
 
@@ -170,12 +229,15 @@ Scope {
                     id: list
 
                     // Where hover last reported the cursor in window coords —
-                    // AppItem's hover-select filter (see its comment).
+                    // ResultItem's hover-select filter (see its comment).
                     property point lastHoverPos: Qt.point(-1e9, -1e9)
 
                     model: ScriptModel {
-                        values: Apps.search(field.text)
-                        onValuesChanged: list.currentIndex = 0
+                        values: Search.results(field.text)
+                        onValuesChanged: {
+                            list.currentIndex = 0;
+                            root.armed = null;
+                        }
                     }
 
                     width: parent.width
@@ -203,9 +265,12 @@ Scope {
                         }
                     }
 
-                    delegate: AppItem {
-                        query: field.text
-                        onActivated: root.open = false
+                    delegate: ResultItem {
+                        // The prefix is not part of what any row is named, so
+                        // highlighting it would mark nothing.
+                        query: Search.bodyOf(field.text)
+                        arming: root.armed === modelData
+                        onActivated: root.activate(modelData, false)
                     }
 
                     WheelScroll {
@@ -242,23 +307,40 @@ Scope {
                 radius: height / 2
                 color: Theme.surfaceHoverBg
 
-                FIcon {
-                    id: searchIcon
+                // Which source you are searching. The glyph alone carries it
+                // for apps; the named modes say so, because a `/` typed by
+                // accident otherwise turns the app list into an unexplained
+                // list of windows.
+                Row {
+                    id: modeChip
 
                     anchors.left: parent.left
                     anchors.leftMargin: Appearance.s(16)
                     anchors.verticalCenter: parent.verticalCenter
-                    icon: "search"
-                    color: Theme.surfaceFgDim
+                    spacing: Appearance.s(6)
+
+                    FIcon {
+                        anchors.verticalCenter: parent.verticalCenter
+                        icon: root.mode === "" ? "search" : root.modeInfo.glyph
+                        color: root.mode === "" ? Theme.surfaceFgDim : Theme.accent
+                    }
+
+                    StyledText {
+                        anchors.verticalCenter: parent.verticalCenter
+                        visible: root.mode !== ""
+                        text: root.modeInfo.name
+                        color: Theme.accent
+                        font.weight: Font.DemiBold
+                    }
                 }
 
                 TextInput {
                     id: field
 
-                    anchors.left: searchIcon.right
+                    anchors.left: modeChip.right
                     anchors.leftMargin: Appearance.s(10)
-                    anchors.right: parent.right
-                    anchors.rightMargin: Appearance.s(16)
+                    anchors.right: helpBtn.left
+                    anchors.rightMargin: Appearance.s(6)
                     anchors.verticalCenter: parent.verticalCenter
 
                     color: Theme.surfaceFg
@@ -268,11 +350,19 @@ Scope {
                     selectedTextColor: Theme.accentFg
                     clip: true
 
-                    onAccepted: root.launchCurrent()
+                    onAccepted: root.activateCurrent(false)
                     // Wraparound: Down on the last row was a dead key.
                     Keys.onUpPressed: list.currentIndex = list.currentIndex <= 0 ? list.count - 1 : list.currentIndex - 1
                     Keys.onDownPressed: list.currentIndex = list.currentIndex >= list.count - 1 ? 0 : list.currentIndex + 1
-                    Keys.onEscapePressed: root.open = false
+                    // Backing out of a mode costs one Esc, closing the panel
+                    // the next — being dropped all the way out of the launcher
+                    // for mistyping a prefix is a bad trade.
+                    Keys.onEscapePressed: {
+                        if (root.mode !== "")
+                            field.text = "";
+                        else
+                            root.open = false;
+                    }
                     // Page jumps for the empty-query case, where the list
                     // holds every installed app behind an 8-row window.
                     // (Home/End stay with the text cursor.)
@@ -283,14 +373,49 @@ Scope {
                         } else if (event.key === Qt.Key_PageDown) {
                             list.currentIndex = Math.min(list.count - 1, list.currentIndex + Settings.launcherMaxShown);
                             event.accepted = true;
+                        } else if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && (event.modifiers & Qt.ShiftModifier)) {
+                            // The row's alternate verb, where it has one —
+                            // onAccepted can't see modifiers.
+                            root.activateCurrent(true);
+                            event.accepted = true;
                         }
                     }
 
                     StyledText {
                         visible: !field.text
                         anchors.verticalCenter: parent.verticalCenter
-                        text: "Search apps…"
+                        width: parent.width
+                        text: Search.placeholder(field.text)
                         color: Theme.surfaceFgDim
+                        elide: Text.ElideRight
+                    }
+                }
+
+                // The prefixes are the whole point of the rewrite and nothing
+                // on screen would otherwise name them. One tap lists every
+                // mode and every key, and each row walks you into that mode.
+                Item {
+                    id: helpBtn
+
+                    anchors.right: parent.right
+                    anchors.rightMargin: Appearance.s(8)
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: Appearance.s(30)
+                    height: width
+
+                    StateLayer {
+                        radius: width / 2
+                        color: Theme.surfaceFg
+                        onClicked: {
+                            field.text = root.mode === "?" ? "" : "?";
+                            field.forceActiveFocus();
+                        }
+                    }
+
+                    FIcon {
+                        anchors.centerIn: parent
+                        icon: "question_circle"
+                        color: root.mode === "?" ? Theme.accent : Theme.surfaceFgDim
                     }
                 }
             }

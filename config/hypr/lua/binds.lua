@@ -32,6 +32,10 @@ hl.bind(M  .. " + Tab",   dsp.exec_cmd(apps.overview))   -- overview
 -- the macOS Cmd+Tab position, which fits an overview/switcher.
 hl.bind("ALT + Tab",      dsp.exec_cmd(apps.overview))   -- overview (physical Alt)
 hl.bind(MS .. " + V",     dsp.exec_cmd(apps.clipboard))  -- clipboard history
+-- Both open the same launcher panel, straight into a prefix mode; the mode is
+-- typeable too (> and :), so these are shortcuts, not the only way in.
+hl.bind(MC .. " + Space", dsp.exec_cmd(apps.cmenu))      -- command palette
+hl.bind(M  .. " + period", dsp.exec_cmd(apps.emoji))     -- emoji picker
 hl.bind(MS .. " + P",     dsp.exec_cmd(apps.colorpicker))-- color picker
 hl.bind(MS .. " + C",     dsp.exec_cmd(apps.bar))        -- toggle bar
 hl.bind(M  .. " + slash", dsp.exec_cmd(apps.keycheat))   -- shortcuts cheatsheet
