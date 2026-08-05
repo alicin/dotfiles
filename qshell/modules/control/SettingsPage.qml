@@ -9,14 +9,14 @@ import qs.services
 // the file existed and what was in it.
 //
 // `clipboardPasteTerminals` was going to be the exception. It is a 64-character
-// alternation of window classes, and at the Control Center's home width a
-// single-line field shows about thirty-three of them with no validation: a
+// alternation of window classes, and at the Control Center's old 340 width a
+// single-line field showed about thirty-three of them with no validation: a
 // mistyped alternation silently sends Ctrl+V to every terminal you own, and you
 // find out days later when a paste arrives as a literal ^V. It is in, because
-// both halves of that objection went away — ControlCenter widens this page to
-// 470 (its own comment says why), which puts fifty-four characters in the
-// field, and the row refuses anything that doesn't compile as a regex instead
-// of storing it and throwing somewhere else later.
+// both halves of that objection went away — the panel is 460 wide now
+// (ControlCenter.qml says why), which puts a little over fifty characters in
+// the field, and the row refuses anything that doesn't compile as a regex
+// instead of storing it and throwing somewhere else later.
 //
 // The numeric setters debounce their writes (see config/Settings.qml); the
 // values still update on the frame you drag them, so the whole shell resizes

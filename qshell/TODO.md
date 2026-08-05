@@ -330,14 +330,40 @@ enable --now qshell.service` (the startup line already prefers it when it is).
       The panel widens for this page only
 - [x] Home tiles: mic kill-switch (subtitle = `micUsers`), Tailscale/VPN
       toggle; keybinds for the Control Center pages (IPC verbs exist, unbound).
-      Tailscale got the tile; NM VPNs are a list and a tile can't choose from
-      one. Pages went to a `control` submap rather than four more combos
+      Pages went to a `control` submap rather than four more combos. The mic
+      and Tailscale landed as tiles first and then came back out on the panel's
+      own account (below): the mic is a mute button and a level beside the
+      output pair, which is where a kill switch belongs, and Tailscale went back
+      to the Wi-Fi menu that already carries its exit node and device list
 - [x] External-monitor brightness via DDC — slider/OSD/Fn keys silently affect
       only the laptop panel when the external is connected (ddcutil needs
       debouncing). `Brightness.display` now routes on the focused monitor and
       falls back to brightnessctl for everything that isn't a DDC display.
       **Untested against real hardware** — no external monitor has been attached
       since it was written; `debug ddc` reports what it found
+
+### Control Center length (2026-08-05)
+
+The panel had grown past the bottom of a laptop screen. 340px wide forced
+everything to stack: three rows of toggles, screenshot and record on separate
+rows, one slider per line, and a row each for theme, Displays and Settings.
+
+- [x] Widened to 460 and re-laid-out — three toggles in one row, all six
+      capture buttons on one, volume beside the microphone, Displays paired
+      with Settings. About 300px of height back for 120px of width nobody was
+      using. Settings had already needed 460, so the panel no longer changes
+      width when you navigate
+- [x] The theme row is gone: the launcher's `#` mode is the picker, and a row
+      whose entire content was the current theme's name spent height restating
+      something shown better elsewhere
+- [x] The Displays tile was a navigation target dressed as a toggle — same
+      `Tile` as its switch siblings, `active: false` hardcoded so its badge
+      could never light, no chevron where every other drill-down has one. Now a
+      nav row beside Settings (was in the second pass, `Home.qml:325-331`)
+- [x] The colour picker sat in the Record row, so mid-take a row headed
+      "Recording · 0:12" read Stop / Pause / Color. One row of six under three
+      headings now, and it has its own (was in the second pass,
+      `Home.qml:828-885`)
 
 ### Theming fallout (found by an audit of the roster, 2026-08-05)
 
@@ -440,26 +466,28 @@ payoff.
       in a bare `WheelHandler`, so a touchpad flick slams brightness, volume,
       mic and every per-app level end to end. `WheelDetent` was written for this
       exact bug and its comment says so (`StyledSlider.qml:73-75`)
-- [ ] Muted output still prints a percentage over a full-accent slider — the
+- [x] Muted output still prints a percentage over a full-accent slider — the
       per-app rows on the same page already dim the slider, dim the name and
       swap the readout for "mute" (`Home.qml:355-390`, `AudioPage.qml:76-104`
-      vs `:350,367`)
+      vs `:350,367`). The caption says "muted" now; the slider dimming is still
+      only on the per-app rows
 - [ ] Night Light's tile is a live click target that can do nothing on this
       machine — hyprsunset is absent, so the handler is a guarded no-op while
       the tile keeps its pointer cursor, hover wash and ripple. Both fixes are
       in-repo: the media button's `enabled:` + `opacity: 0.35`, or the palette's
       omission (`Home.qml:88-92,312-323`)
-- [ ] The Displays tile is a navigation target dressed as a toggle — same `Tile`
+- [x] The Displays tile is a navigation target dressed as a toggle — same `Tile`
       as its three switch siblings, `active: false` hardcoded so its badge can
       never light, and no chevron, which every other drill-down in the panel has
-      (`Home.qml:325-331`, `Tile` at `:73-128`)
+      (`Home.qml:325-331`, `Tile` at `:73-128`). A nav row beside Settings now
 - [ ] Display layout chips acknowledge nothing on tap and the result takes at
       least 900ms to land — the eDP chip one card down already does
       `flash("Toggling")`, and `Chip.flash()` is shared (`DisplayPage.qml:38-75`,
       `services/Displays.qml:42-45`)
-- [ ] The colour picker lives in the Record row, so mid-recording a row headed
+- [x] The colour picker lives in the Record row, so mid-recording a row headed
       "Recording · 0:12" reads Stop / Pause / Color — move it into the
-      screenshot row or give it its own slot (`Home.qml:828-885`)
+      screenshot row or give it its own slot (`Home.qml:828-885`). One row of
+      six under three headings, and it has its own
 - [ ] KDE Connect's Refresh is the one action chip on the page with no
       acknowledgement, and the list almost always comes back identical, so it
       reads as dead (`KdeConnectPage.qml:64-69` vs `:221-249`)

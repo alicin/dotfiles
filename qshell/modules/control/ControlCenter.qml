@@ -63,24 +63,19 @@ Item {
             shownPage = "";
     }
 
-    // Home's width, and the width every page inherited until one of them had a
-    // reason not to. 340 is sized for two tiles across and a slider with a
-    // percentage on the end.
-    readonly property int homeWidth: Appearance.s(340)
-
-    // Settings is rows of "label ………… value", several of them free-text — a
-    // regex of terminal classes, a lat,lon, a terminal command. At home's width
-    // the labels elided into their own values and the text fields showed about
-    // twenty characters of a string you are trying to edit. It is also the one
-    // page you open to read rather than to tap once and leave, so the extra
-    // width costs nothing anywhere else.
+    // One width for home and every page. It was 340, which fit two tiles across
+    // and forced everything else to stack: three rows of toggles, screenshot
+    // and record on separate rows, one slider per line. The panel got long
+    // enough that the bottom of it was below the fold on a laptop screen.
     //
-    // The popout already animates its own width off this (Popouts.qml keys on
-    // the loaded item's implicitWidth), so widening is a number, not a
-    // mechanism.
-    readonly property int pageWidth: root.shownPage === "settings" ? Appearance.s(470) : root.homeWidth
+    // 460 buys a row of three toggles, all six capture buttons on one line, and
+    // volume beside the microphone — which is four rows of height recovered for
+    // 120px of width nobody was using. It is also what the Settings page needed
+    // for its "label ………… value" rows, so the two agree and the panel no longer
+    // changes width when you navigate.
+    readonly property int homeWidth: Appearance.s(460)
 
-    implicitWidth: page === "" ? root.homeWidth : root.pageWidth
+    implicitWidth: root.homeWidth
     implicitHeight: page === "" ? home.implicitHeight : (detail.item?.implicitHeight ?? home.implicitHeight)
     clip: true
 
@@ -92,18 +87,6 @@ Item {
     }
 
     Behavior on implicitHeight {
-        enabled: root.morph
-
-        Anim {
-            duration: Appearance.d(320)
-            curve: Appearance.anim.curves.emphasized
-        }
-    }
-
-    // Same gate as the height for the same reason: the first layout pass
-    // arrives at home's width from zero, and animating that plays a grow on
-    // every open.
-    Behavior on implicitWidth {
         enabled: root.morph
 
         Anim {

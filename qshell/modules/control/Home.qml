@@ -17,7 +17,8 @@ Column {
 
     signal navigate(string page)
 
-    readonly property real tileW: (width - Appearance.s(8)) / 2
+    // Three across now, so two gaps rather than one.
+    readonly property real tileW: (width - Appearance.s(16)) / 3
 
     // Filtered: a player that fails to register (bad MPRIS implementation)
     // can leave a null in the model, and every binding below would throw on it.
@@ -287,13 +288,18 @@ Column {
         }
     }
 
-    // ── Focus / caffeine / night light / privacy ──
-    // Two columns, wrapping — which is what the Flow is for. A third *column*
-    // would put every label at half its current width, and "Do Not Disturb" is
-    // already the tightest one here. Reading order pairs them by subject:
-    // attention, then screen, then the two that are about who else is getting
-    // something from this machine.
-    Flow {
+    // ── Focus / caffeine / night light ──
+    // Three toggles, one row. Exactly the tiles that *are* toggles: Displays
+    // was in here too, a navigation target wearing a switch's clothes with
+    // `active: false` hardcoded so its badge could never light, and it has
+    // moved down to sit with Settings where the other drill-downs are.
+    //
+    // The microphone and Tailscale tiles that briefly lived here are gone. The
+    // mic is better served by the slider beside the volume one — a kill switch
+    // wants to sit next to the level it kills — and Tailscale never earned a
+    // permanent third of a row for something toggled once a week, when the
+    // Wi-Fi menu already carries it with the exit node and the device list.
+    Row {
         width: parent.width
         spacing: Appearance.s(8)
 
@@ -319,7 +325,7 @@ Column {
             fIcon: "sun_haze_fill"
             title: "Night Light"
             // "Install hyprsunset" elides to "Install hyprsuns…" in a
-            // half-width tile, which reads like a truncated error.
+            // third-width tile, which reads like a truncated error.
             subtitle: !NightLight.available ? "Not installed" : NightLight.enabled ? `${NightLight.temperature}K` : "Off"
             active: NightLight.enabled && NightLight.available
             onTapped: {
@@ -327,72 +333,30 @@ Column {
                     NightLight.toggle();
             }
         }
-
-        Tile {
-            fIcon: "device_desktop"
-            title: "Displays"
-            subtitle: Displays.summary
-            active: false
-            onTapped: root.navigate("display")
-        }
-
-        // The mic kill switch. The bar's privacy light is the *warning* and can
-        // only mute — it exists only while audio is flowing, so it has nothing
-        // to say once it's cut and no way to hand the mic back. This is the
-        // half of that control which is always reachable.
-        Tile {
-            fIcon: Audio.micMuted ? "mic_slash_fill" : "mic_fill"
-            title: "Microphone"
-            // Names who is listening, because there's room here and the light
-            // next door can only show it on hover. Muted-while-held is its own
-            // state and says so: apps keep their capture links across a mute
-            // and go on receiving silence, so a bare "Muted" would understate
-            // how much is still pointed at you.
-            subtitle: {
-                const n = Audio.micUsers.length;
-                if (Audio.micMuted)
-                    return n > 0 ? `Muted · ${n} holding` : "Muted";
-                return n > 0 ? Audio.micUsers.join(", ") : "On";
-            }
-            // Lit means cut. Every other tile here lights when the thing it is
-            // named for is doing something, and for a kill switch that is
-            // being closed — not the mic being available.
-            active: Audio.micMuted
-            onTapped: {
-                Audio.toggleMicMute();
-                Osd.show("mic");
-            }
-        }
-
-        // Tailscale only, not "Tailscale/VPN": NetworkManager VPNs are a *list*
-        // (this machine has two WireGuard profiles), and a tile has one tap and
-        // two lines — it can say which one is up but not let you choose, and a
-        // control that can turn a thing off but not on is worse than no
-        // control. Those keep the Wi-Fi menu's per-connection rows.
-        Tile {
-            fIcon: "lock_shield_fill"
-            title: "Tailscale"
-            // The exit node when there is one: routing all traffic through
-            // another country is the state most worth catching by accident.
-            subtitle: Tailscale.busy ? "…" : Tailscale.up ? (Tailscale.exitNodeName || "Connected") : (Tailscale.stateLabel || "Off")
-            active: Tailscale.up
-            onTapped: Tailscale.toggle()
-        }
     }
 
     // ── Sound ──
-    // Master volume stays on home so the common case never needs the page; the
-    // chevron is for picking devices and per-app levels.
+    // Output and microphone side by side. They were one full-width slider and
+    // a caption, with the mic reachable only from the page behind the chevron
+    // or, briefly, from a tile — and a level and its mute belong next to each
+    // other, so putting the two levels next to each other costs a row and
+    // gains the mic a home. The chevron is still for devices and per-app.
     Card {
         Item {
             width: parent.width
             height: Appearance.s(32)
 
+            // Split down the middle, minus the chevron the right half has to
+            // make room for. Both halves get the same slider length that way,
+            // which is what makes them read as a pair rather than as a wide
+            // control and a narrow one.
+            readonly property real half: (width - Appearance.s(34)) / 2
+
             Item {
                 id: muteBtn
 
                 x: Appearance.s(6)
-                width: Appearance.s(30)
+                width: Appearance.s(28)
                 height: parent.height
 
                 StateLayer {
@@ -409,13 +373,56 @@ Column {
             }
 
             StyledSlider {
+                id: volSlider
+
                 anchors.left: muteBtn.right
-                anchors.leftMargin: Appearance.s(6)
+                anchors.leftMargin: Appearance.s(4)
+                anchors.verticalCenter: parent.verticalCenter
+                width: parent.half - Appearance.s(38)
+                value: Audio.volume
+                onMoved: value => Audio.setVolume(value)
+            }
+
+            // The mic kill switch, in the place a kill switch belongs: against
+            // the level it cuts. The bar's privacy light is still the warning
+            // half, but it only exists while audio is flowing, so it can mute
+            // and never unmute.
+            Item {
+                id: micBtn
+
+                anchors.left: volSlider.right
+                anchors.leftMargin: Appearance.s(10)
+                width: Appearance.s(28)
+                height: parent.height
+
+                StateLayer {
+                    radius: Appearance.s(9)
+                    color: Theme.surfaceFg
+                    onClicked: {
+                        Audio.toggleMicMute();
+                        Osd.show("mic");
+                    }
+                }
+
+                FIcon {
+                    anchors.centerIn: parent
+                    icon: Audio.micMuted ? "mic_slash_fill" : "mic_fill"
+                    // Amber while something is actually capturing and the mic
+                    // is open — the same fact, and the same colour, as the
+                    // bar's privacy light, so the two are recognisably one
+                    // thing rather than two coincidences.
+                    color: Audio.micMuted ? Theme.surfaceFgDim : Audio.micInUse ? Theme.privacyMic : Theme.surfaceFg
+                }
+            }
+
+            StyledSlider {
+                anchors.left: micBtn.right
+                anchors.leftMargin: Appearance.s(4)
                 anchors.right: volChevron.left
                 anchors.rightMargin: Appearance.s(8)
                 anchors.verticalCenter: parent.verticalCenter
-                value: Audio.volume
-                onMoved: value => Audio.setVolume(value)
+                value: Audio.micVolume
+                onMoved: value => Audio.setMicVolume(value)
             }
 
             Disclosure {
@@ -428,14 +435,36 @@ Column {
             }
         }
 
-        StyledText {
-            x: Appearance.s(42)
-            width: parent.width - Appearance.s(56)
-            text: `${Audio.sink?.description || "No output"} · ${Math.round(Audio.volume * 100)}%`
-            color: Theme.surfaceFgDim
-            font.pixelSize: Appearance.font.size.small
-            font.weight: Font.Normal
-            elide: Text.ElideRight
+        // One caption under both, each aligned to its own slider. The output
+        // gets the device name because there is usually more than one and
+        // picking the wrong one is the classic confusion; the mic says who is
+        // listening, which is the only thing about an input level worth
+        // reading at a glance.
+        Item {
+            width: parent.width
+            height: micCaption.height
+
+            StyledText {
+                x: Appearance.s(38)
+                width: (parent.width - Appearance.s(34)) / 2 - Appearance.s(42)
+                text: `${Audio.sink?.description || "No output"} · ${Audio.muted ? "muted" : Math.round(Audio.volume * 100) + "%"}`
+                color: Theme.surfaceFgDim
+                font.pixelSize: Appearance.font.size.small
+                font.weight: Font.Normal
+                elide: Text.ElideRight
+            }
+
+            StyledText {
+                id: micCaption
+
+                x: (parent.width - Appearance.s(34)) / 2 + Appearance.s(42)
+                width: (parent.width - Appearance.s(34)) / 2 - Appearance.s(50)
+                text: Audio.micMuted ? "Muted" : Audio.micUsers.length > 0 ? Audio.micUsers.join(", ") : `Mic · ${Math.round(Audio.micVolume * 100)}%`
+                color: Audio.micMuted ? Theme.surfaceFgDim : Audio.micInUse ? Theme.privacyMic : Theme.surfaceFgDim
+                font.pixelSize: Appearance.font.size.small
+                font.weight: Font.Normal
+                elide: Text.ElideRight
+            }
         }
     }
 
@@ -774,16 +803,24 @@ Column {
     // Mode is an explicit choice rather than a single button with a hidden
     // default: area / window / whole screen read differently enough that
     // guessing wrong costs a retake.
+    //
+    // One row of six, three labelled groups above it. It used to be two rows
+    // because six cells did not fit in 340, and that layout put the colour
+    // picker under the Record heading — so mid-take a row headed
+    // "Recording · 0:12" read Stop / Pause / Color. Its own heading now, which
+    // is what it always was.
     Rectangle {
         id: capCard
 
         width: parent.width
         // Derived, not a constant: a fixed height was ~10px short once the
         // record row was added, and the buttons spilled onto the card below.
-        // recRow's anchor chain never reads parent.height, so this can't loop.
-        height: recRow.y + recRow.height + Appearance.s(7)
+        // capRow's anchor chain never reads parent.height, so this can't loop.
+        height: capRow.y + capRow.height + Appearance.s(7)
         radius: Appearance.s(14)
         color: Theme.surfaceHoverBg
+
+        readonly property bool live: Capture.recording || Capture.paused
 
         component CaptureBtn: Item {
             id: cap
@@ -822,22 +859,43 @@ Column {
             }
         }
 
-        readonly property bool live: Capture.recording || Capture.paused
+        // Headings sit at the x of the cell each group starts on, so they can't
+        // drift out of alignment with the buttons when the width changes.
+        readonly property real cellW: (width - Appearance.s(16)) / 6
 
         StyledText {
             id: capTitle
 
-            x: Appearance.s(12)
+            x: Appearance.s(8) + capCard.cellW * 0 + Appearance.s(4)
             y: Appearance.s(7)
             text: "Screenshot"
             color: Theme.surfaceFgDim
             font.pixelSize: Appearance.font.size.small
         }
 
+        StyledText {
+            id: recTitle
+
+            x: Appearance.s(8) + capCard.cellW * 3 + Appearance.s(4)
+            y: Appearance.s(7)
+            text: Capture.paused ? `Paused · ${Capture.elapsedText}` : Capture.recording ? `Rec · ${Capture.elapsedText}` : "Record"
+            color: Capture.recording ? Theme.urgent : Capture.paused ? Theme.warn : Theme.surfaceFgDim
+            font.pixelSize: Appearance.font.size.small
+        }
+
+        StyledText {
+            x: Appearance.s(8) + capCard.cellW * 5 + Appearance.s(4)
+            y: Appearance.s(7)
+            // Hidden while a take is live: the transport takes both record
+            // cells then, so this heading would sit over the Pause button.
+            visible: !capCard.live
+            text: "Pick"
+            color: Theme.surfaceFgDim
+            font.pixelSize: Appearance.font.size.small
+        }
+
         Row {
             id: capRow
-
-            readonly property real cellW: width / 3
 
             anchors.left: parent.left
             anchors.leftMargin: Appearance.s(8)
@@ -848,58 +906,28 @@ Column {
             spacing: 0
 
             CaptureBtn {
-                width: capRow.cellW
+                width: capCard.cellW
                 glyph: "crop"
                 label: "Area"
                 onTapped: Capture.shoot("area")
             }
 
             CaptureBtn {
-                width: capRow.cellW
+                width: capCard.cellW
                 glyph: "macwindow"
                 label: "Window"
                 onTapped: Capture.shoot("window")
             }
 
             CaptureBtn {
-                width: capRow.cellW
+                width: capCard.cellW
                 glyph: "desktopcomputer"
                 label: "Screen"
                 onTapped: Capture.shoot("full")
             }
-        }
-
-        // Recording gets its own labelled row rather than one cell shared with
-        // the screenshots: whole-screen recording was fully implemented and
-        // had no caller anywhere, and there was no room to add one to a row of
-        // five. While a take is live the row becomes its transport, which is
-        // the only thing worth having there.
-        StyledText {
-            id: recTitle
-
-            x: Appearance.s(12)
-            anchors.top: capRow.bottom
-            anchors.topMargin: Appearance.s(4)
-            text: Capture.paused ? `Paused · ${Capture.elapsedText}` : Capture.recording ? `Recording · ${Capture.elapsedText}` : "Record"
-            color: Capture.recording ? Theme.urgent : Capture.paused ? Theme.warn : Theme.surfaceFgDim
-            font.pixelSize: Appearance.font.size.small
-        }
-
-        Row {
-            id: recRow
-
-            readonly property real cellW: width / 3
-
-            anchors.left: parent.left
-            anchors.leftMargin: Appearance.s(8)
-            anchors.right: parent.right
-            anchors.rightMargin: Appearance.s(8)
-            anchors.top: recTitle.bottom
-            anchors.topMargin: Appearance.s(2)
-            spacing: 0
 
             CaptureBtn {
-                width: recRow.cellW
+                width: capCard.cellW
                 glyph: capCard.live ? "stop_fill" : "videocam_fill"
                 label: capCard.live ? "Stop" : "Area"
                 danger: capCard.live
@@ -912,7 +940,7 @@ Column {
             }
 
             CaptureBtn {
-                width: recRow.cellW
+                width: capCard.cellW
                 glyph: capCard.live ? (Capture.paused ? "play_fill" : "pause_fill") : "desktopcomputer"
                 label: capCard.live ? (Capture.paused ? "Resume" : "Pause") : "Screen"
                 onTapped: {
@@ -924,7 +952,7 @@ Column {
             }
 
             CaptureBtn {
-                width: recRow.cellW
+                width: capCard.cellW
                 glyph: "eyedropper_halffull"
                 label: "Color"
                 // Through Capture, not a bare exec: the open panel's focus
@@ -934,120 +962,98 @@ Column {
         }
     }
 
-    // ── Theme ──
+    // ── Drill-downs ──
+    // Displays and Settings side by side. Displays used to be a Tile up with
+    // the toggles, which made a navigation target look like a switch — same
+    // component as its three switch siblings, `active: false` hardcoded so its
+    // badge could never light, and no chevron where every other drill-down in
+    // the panel has one.
     //
-    // A row that names the current theme and hands off, not a picker. This was
-    // a chip per theme sharing the panel's width, which worked at two and is
-    // absurd at sixteen — 18px of chip each, with the family name stripped off
-    // so half of them would have read "Dark".
-    //
-    // The launcher's `#` mode is the picker instead: it has the height for
-    // sixteen rows, it paints each theme in its own colours, and it stays open
-    // while you compare. That is a search surface's job, and this panel is for
-    // one-tap toggles.
-    Rectangle {
+    // The theme row that sat here is gone entirely: the launcher's `#` mode is
+    // the picker, and a row whose whole content was the current theme's name
+    // was a line of height spent restating something the launcher shows better.
+    Row {
         width: parent.width
-        height: Appearance.s(46)
-        radius: Appearance.s(14)
-        color: Theme.surfaceHoverBg
+        spacing: Appearance.s(8)
 
-        StateLayer {
-            radius: parent.radius
-            color: Theme.surfaceFg
-            // No explicit dismiss of this panel: the launcher takes the focus
-            // grab as it opens, and the popout closes on losing it — the same
-            // handoff the color picker relies on.
-            onClicked: Search.openMode("#")
+        component NavRow: Rectangle {
+            id: nav
+
+            property string fIcon: ""
+            property string title: ""
+            property string subtitle: ""
+
+            signal tapped
+
+            width: (parent.width - Appearance.s(8)) / 2
+            height: Appearance.s(46)
+            radius: Appearance.s(14)
+            color: Theme.surfaceHoverBg
+
+            StateLayer {
+                radius: nav.radius
+                color: Theme.surfaceFg
+                onClicked: nav.tapped()
+            }
+
+            FIcon {
+                id: navGlyph
+
+                x: Appearance.s(12)
+                anchors.verticalCenter: parent.verticalCenter
+                icon: nav.fIcon
+                color: Theme.accent
+            }
+
+            Column {
+                anchors.left: navGlyph.right
+                anchors.leftMargin: Appearance.s(10)
+                anchors.right: navChevron.left
+                anchors.rightMargin: Appearance.s(6)
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 0
+
+                StyledText {
+                    width: parent.width
+                    text: nav.title
+                    color: Theme.surfaceFg
+                    elide: Text.ElideRight
+                }
+
+                StyledText {
+                    width: parent.width
+                    visible: text !== ""
+                    text: nav.subtitle
+                    color: Theme.surfaceFgDim
+                    font.pixelSize: Appearance.font.size.small
+                    font.weight: Font.Normal
+                    elide: Text.ElideRight
+                }
+            }
+
+            FIcon {
+                id: navChevron
+
+                anchors.right: parent.right
+                anchors.rightMargin: Appearance.s(12)
+                anchors.verticalCenter: parent.verticalCenter
+                icon: "chevron_right"
+                font.pixelSize: Appearance.font.size.small
+                color: Theme.surfaceFgDim
+            }
         }
 
-        FIcon {
-            id: themeGlyph
-
-            x: Appearance.s(12)
-            anchors.verticalCenter: parent.verticalCenter
-            // Off the theme's own light flag, not its name: "rose-pine-dawn"
-            // and "tokyo-night-day" are both light and neither says so, and
-            // the old test was a literal `includes("latte")`.
-            icon: Theme.isLight ? "sun_max_fill" : "moon_fill"
-            color: Theme.accent
+        NavRow {
+            fIcon: "device_desktop"
+            title: "Displays"
+            subtitle: Displays.summary
+            onTapped: root.navigate("display")
         }
 
-        StyledText {
-            anchors.left: themeGlyph.right
-            anchors.leftMargin: Appearance.s(10)
-            anchors.right: themeCount.left
-            anchors.rightMargin: Appearance.s(8)
-            anchors.verticalCenter: parent.verticalCenter
-            text: Theme.label(Settings.theme)
-            color: Theme.surfaceFg
-            elide: Text.ElideRight
-        }
-
-        StyledText {
-            id: themeCount
-
-            anchors.right: themeChevron.left
-            anchors.rightMargin: Appearance.s(8)
-            anchors.verticalCenter: parent.verticalCenter
-            text: `${Theme.available.length} themes`
-            color: Theme.surfaceFgDim
-            font.pixelSize: Appearance.font.size.small
-            font.weight: Font.Normal
-        }
-
-        FIcon {
-            id: themeChevron
-
-            anchors.right: parent.right
-            anchors.rightMargin: Appearance.s(12)
-            anchors.verticalCenter: parent.verticalCenter
-            icon: "chevron_right"
-            font.pixelSize: Appearance.font.size.small
-            color: Theme.surfaceFgDim
-        }
-    }
-
-    // ── Settings ──
-    // Twelve of the thirteen settings.json keys were hand-edit-only, despite
-    // the file having been live-reloaded from the start. Its own page rather
-    // than tiles on home: they are set once and left, which is the opposite of
-    // what home is for.
-    Rectangle {
-        width: parent.width
-        height: Appearance.s(46)
-        radius: Appearance.s(14)
-        color: Theme.surfaceHoverBg
-
-        StateLayer {
-            radius: parent.radius
-            color: Theme.surfaceFg
-            onClicked: root.navigate("settings")
-        }
-
-        FIcon {
-            id: settingsGlyph
-
-            x: Appearance.s(12)
-            anchors.verticalCenter: parent.verticalCenter
-            icon: "gear_alt_fill"
-            color: Theme.accent
-        }
-
-        StyledText {
-            anchors.left: settingsGlyph.right
-            anchors.leftMargin: Appearance.s(10)
-            anchors.verticalCenter: parent.verticalCenter
-            text: "Settings"
-            color: Theme.surfaceFg
-        }
-
-        FIcon {
-            anchors.right: parent.right
-            anchors.rightMargin: Appearance.s(12)
-            anchors.verticalCenter: parent.verticalCenter
-            icon: "chevron_right"
-            font.pixelSize: Appearance.font.size.small
-            color: Theme.surfaceFgDim
+        NavRow {
+            fIcon: "gear_alt_fill"
+            title: "Settings"
+            onTapped: root.navigate("settings")
         }
     }
 

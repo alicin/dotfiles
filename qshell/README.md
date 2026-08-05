@@ -170,21 +170,19 @@ Hyprland wiring (`~/.config/hypr/lua/`):
     the idle event and its dim/lock/suspend listeners all stay parked. The
     inhibitor lives on the **bar** window (`modules/bar/Bar.qml`), not here —
     it needs a mapped window, and this menu is destroyed on close.
-  - *Microphone* is the kill switch. The bar's privacy light is the warning
-    half and can only ever mute — it exists solely while audio is flowing, so
+  - *Microphone* is the kill switch, and it lives beside the output level
+    rather than in a tile of its own — a kill switch belongs next to the thing
+    it cuts. Its glyph goes amber while something is actually capturing, the
+    same colour as the bar's privacy light, so the two read as one fact rather
+    than two coincidences; the caption names who is listening. The bar light is
+    still only the warning half: it exists solely while audio is flowing, so
     once you cut the mic it has nothing left to say and no way to hand it back.
-    The tile is the half that's always there. Its subtitle names who is
-    listening, and distinguishes muted-while-still-held (apps keep their
-    capture links across a mute and go on receiving silence) from plain muted.
-    Lit means *cut*, matching every other tile here: the badge lights when the
-    thing the tile is named for is doing something.
-  - *Tailscale* toggles the tailnet and shows the exit node when one is set —
-    routing everything through another country being the state most worth
-    catching by accident. Deliberately **not** a combined Tailscale/VPN tile:
-    NetworkManager VPNs are a list (this host has two WireGuard profiles), and
-    a tile has one tap and two lines, so it could name which one is up but not
-    let you pick — a control that turns things off but not on. Those keep the
-    Wi-Fi menu's per-connection rows.
+  - Tailscale is deliberately **not** here. It was a tile briefly and did not
+    earn a permanent third of a row for something toggled about once a week,
+    when the Wi-Fi menu already carries it with the exit node and the tailnet
+    device list beside it. NetworkManager VPNs stay there too: they are a list
+    (this host has two WireGuard profiles), and a tile has one tap and two
+    lines — it could name which one is up but not let you choose.
   - *Media* is one snapping page per MPRIS player; flick sideways when more
     than one is playing, dots below show which. The delegate's player property
     is deliberately untyped — declaring it `MprisPlayer` makes the coercion
