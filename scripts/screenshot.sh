@@ -64,4 +64,5 @@ grim "$@" "$file" || exit 1
 # on a process that intends to outlive it. Hand it clean fds.
 wl-copy <"$file" >/dev/null 2>&1
 
-notify_capture "Screenshot saved" "$file"
+capture_saved "$file"
+notify_capture "Screenshot saved" "$file" 8000 edit

@@ -33,6 +33,8 @@ ShellRoot {
 
     Overview {}
 
+    CaptureThumb {}
+
     // Brightness media keys. Volume needs nothing here — Pipewire signals every
     // change, whoever made it — but the kernel gives no such signal for the
     // backlights, so the keys come through the shell and it raises the OSD on
@@ -78,13 +80,34 @@ ShellRoot {
             return "ok";
         }
 
-        function record(): string {
+        // `record` toggles an area recording (the Ctrl+Shift+5 bind);
+        // `record full` starts one on the whole screen — Capture.recordFull()
+        // was fully implemented and had no caller anywhere.
+        function record(mode: string): string {
             // Read *before* the toggle: `recording` is owned by the pgrep poll
             // and doesn't flip synchronously, so reading it after reports the
             // state we just left rather than the action taken.
-            const wasRecording = Capture.recording;
+            const wasLive = Capture.recording || Capture.paused;
+            if (mode === "full" && !wasLive) {
+                Capture.recordFull();
+                return "starting";
+            }
             Capture.toggleRecording();
-            return wasRecording ? "stopping" : "starting";
+            return wasLive ? "stopping" : "starting";
+        }
+
+        function pause(): string {
+            if (!Capture.recording && !Capture.paused)
+                return "not recording";
+            Capture.togglePause();
+            return Capture.recording ? "pausing" : "resuming";
+        }
+
+        // Called by the capture scripts once a file is on disk, so a
+        // keyboard-driven capture gets the floating thumbnail too.
+        function saved(path: string): string {
+            Capture.saved(path);
+            return "ok";
         }
 
         // Which audio sources get mixed into a recording. Persisted, so these
@@ -115,6 +138,61 @@ ShellRoot {
         }
     }
 
+    // `qs -c qshell ipc call notifs dnd` — DND, clearing and dismissing were
+    // mouse-only, which made the one setting you want before a screen share
+    // the one you had to open a menu for.
+    IpcHandler {
+        target: "notifs"
+
+        function dnd(): string {
+            Notifs.toggleDnd();
+            return Notifs.dnd ? "on" : "off";
+        }
+
+        function clear(): string {
+            const n = Notifs.count;
+            Notifs.clearAll();
+            return `cleared ${n}`;
+        }
+
+        function dismiss(): string {
+            return Notifs.dismissLatest() ? "ok" : "nothing to dismiss";
+        }
+
+        function mute(app: string): string {
+            if (!app)
+                return `muted: ${Notifs.muted.join(", ") || "none"}`;
+            Notifs.toggleMute(app);
+            return Notifs.isMuted(app) ? `muted ${app}` : `unmuted ${app}`;
+        }
+    }
+
+    // `qs -c qshell ipc call power cycle` — the OSD already announces every
+    // profile change, whoever made it, so a keybind gets its feedback free.
+    IpcHandler {
+        target: "power"
+
+        function get(): string {
+            return Power.label(Power.profile);
+        }
+
+        function cycle(): string {
+            const all = Power.all;
+            const i = all.indexOf(Power.profile);
+            Power.set(all[(i + 1) % all.length]);
+            return Power.label(Power.profile);
+        }
+
+        function set(name: string): string {
+            const want = name.toLowerCase().replace(/[^a-z]/g, "");
+            const match = Power.all.find(p => Power.label(p).toLowerCase().replace(/[^a-z]/g, "") === want);
+            if (match === undefined)
+                return `unknown profile "${name}" — ${Power.all.map(p => Power.label(p)).join(", ")}`;
+            Power.set(match);
+            return Power.label(match);
+        }
+    }
+
     // `qs -c qshell ipc call debug net` — introspection while developing.
     IpcHandler {
         target: "debug"
@@ -125,6 +203,26 @@ ShellRoot {
 
         function privacy(): string {
             return `mic inUse=${Audio.micInUse} muted=${Audio.micMuted} users=${JSON.stringify(Audio.micUsers)}\ncamera inUse=${Camera.inUse} handles=${Camera.users} apps=${JSON.stringify(Camera.apps)}`;
+        }
+
+        function power(): string {
+            return `profile=${Power.label(Power.profile)} pct=${Power.percent} charging=${Power.charging} known=${Power.known} warnedAt=${Power.warnedAt} auto=${Power.autoProfile} acProfile=${Power.label(Power.acProfile)} suspendAt=${Power.suspendAt} nightLight=${NightLight.available ? (NightLight.enabled ? NightLight.temperature + "K" : "off") : "unavailable"}`;
+        }
+
+        function osd(): string {
+            return `kind="${Osd.kind}" submap="${Osd.submap}" label="${Osd.submapLabel}"`;
+        }
+
+        function weather(): string {
+            return `valid=${Weather.valid} loading=${Weather.loading} err="${Weather.error}" wanted=${Weather.wanted} ${Math.round(Weather.temp)}° ${Weather.label} hi=${Weather.high} lo=${Weather.low} place="${Weather.place}"`;
+        }
+
+        function displays(): string {
+            return JSON.stringify(Displays.monitors);
+        }
+
+        function capture(): string {
+            return `recording=${Capture.recording} paused=${Capture.paused} armed=${Capture.armed} geom="${Capture.regionGeom}" elapsed=${Capture.elapsedText} last="${Capture.lastCapture}"`;
         }
 
         function notifs(): string {

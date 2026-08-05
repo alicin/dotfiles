@@ -62,6 +62,10 @@ Column {
     Component.onCompleted: {
         Brightness.polling = true;
         KdeConnect.refresh();
+        // One shot, not the page's poll: the Displays tile shows a count in its
+        // subtitle and would otherwise read "…" until you opened the page it
+        // is the shortcut to.
+        Displays.refresh();
     }
     Component.onDestruction: Brightness.polling = false
 
@@ -279,8 +283,12 @@ Column {
         }
     }
 
-    // ── Focus / caffeine ──
-    Row {
+    // ── Focus / caffeine / night light ──
+    // Three tiles in two columns: the third wraps onto its own row, which is
+    // what the Flow is for. A third *column* would put every label at half its
+    // current width, and "Do Not Disturb" is already the tightest one here.
+    Flow {
+        width: parent.width
         spacing: Appearance.s(8)
 
         Tile {
@@ -294,9 +302,32 @@ Column {
         Tile {
             fIcon: Idle.inhibited ? "eye_fill" : "moon_zzz_fill"
             title: "Keep Awake"
-            subtitle: Idle.inhibited ? "On" : "Off"
-            active: Idle.inhibited
+            // Says so when a recording is what's holding it, rather than
+            // reading "Off" while the machine demonstrably won't sleep.
+            subtitle: Idle.inhibited ? "On" : Idle.active ? "Recording" : "Off"
+            active: Idle.active
             onTapped: Idle.toggle()
+        }
+
+        Tile {
+            fIcon: "sun_haze_fill"
+            title: "Night Light"
+            // "Install hyprsunset" elides to "Install hyprsuns…" in a
+            // half-width tile, which reads like a truncated error.
+            subtitle: !NightLight.available ? "Not installed" : NightLight.enabled ? `${NightLight.temperature}K` : "Off"
+            active: NightLight.enabled && NightLight.available
+            onTapped: {
+                if (NightLight.available)
+                    NightLight.toggle();
+            }
+        }
+
+        Tile {
+            fIcon: "device_desktop"
+            title: "Displays"
+            subtitle: Displays.summary
+            active: false
+            onTapped: root.navigate("display")
         }
     }
 
@@ -695,8 +726,13 @@ Column {
     // default: area / window / whole screen read differently enough that
     // guessing wrong costs a retake.
     Rectangle {
+        id: capCard
+
         width: parent.width
-        height: Appearance.s(76)
+        // Derived, not a constant: a fixed height was ~10px short once the
+        // record row was added, and the buttons spilled onto the card below.
+        // recRow's anchor chain never reads parent.height, so this can't loop.
+        height: recRow.y + recRow.height + Appearance.s(7)
         radius: Appearance.s(14)
         color: Theme.surfaceHoverBg
 
@@ -737,21 +773,22 @@ Column {
             }
         }
 
+        readonly property bool live: Capture.recording || Capture.paused
+
         StyledText {
             id: capTitle
 
             x: Appearance.s(12)
             y: Appearance.s(7)
-            text: Capture.recording ? "Recording…" : "Capture"
-            color: Capture.recording ? Theme.urgent : Theme.surfaceFgDim
+            text: "Screenshot"
+            color: Theme.surfaceFgDim
             font.pixelSize: Appearance.font.size.small
         }
 
         Row {
             id: capRow
 
-            readonly property int cols: 5
-            readonly property real cellW: width / cols
+            readonly property real cellW: width / 3
 
             anchors.left: parent.left
             anchors.leftMargin: Appearance.s(8)
@@ -781,16 +818,44 @@ Column {
                 label: "Screen"
                 onTapped: Capture.shoot("full")
             }
+        }
 
-            // Recording collapses to one control while live — the only useful
-            // action mid-recording is stopping it.
+        // Recording gets its own labelled row rather than one cell shared with
+        // the screenshots: whole-screen recording was fully implemented and
+        // had no caller anywhere, and there was no room to add one to a row of
+        // five. While a take is live the row becomes its transport, which is
+        // the only thing worth having there.
+        StyledText {
+            id: recTitle
+
+            x: Appearance.s(12)
+            anchors.top: capRow.bottom
+            anchors.topMargin: Appearance.s(4)
+            text: Capture.paused ? `Paused · ${Capture.elapsedText}` : Capture.recording ? `Recording · ${Capture.elapsedText}` : "Record"
+            color: Capture.recording ? Theme.urgent : Capture.paused ? Theme.warn : Theme.surfaceFgDim
+            font.pixelSize: Appearance.font.size.small
+        }
+
+        Row {
+            id: recRow
+
+            readonly property real cellW: width / 3
+
+            anchors.left: parent.left
+            anchors.leftMargin: Appearance.s(8)
+            anchors.right: parent.right
+            anchors.rightMargin: Appearance.s(8)
+            anchors.top: recTitle.bottom
+            anchors.topMargin: Appearance.s(2)
+            spacing: 0
+
             CaptureBtn {
-                width: capRow.cellW
-                glyph: Capture.recording ? "stop_fill" : "videocam_fill"
-                label: Capture.recording ? "Stop" : "Rec area"
-                danger: Capture.recording
+                width: recRow.cellW
+                glyph: capCard.live ? "stop_fill" : "videocam_fill"
+                label: capCard.live ? "Stop" : "Area"
+                danger: capCard.live
                 onTapped: {
-                    if (Capture.recording)
+                    if (Capture.recording || Capture.paused)
                         Capture.stopRecording();
                     else
                         Capture.recordArea();
@@ -798,7 +863,19 @@ Column {
             }
 
             CaptureBtn {
-                width: capRow.cellW
+                width: recRow.cellW
+                glyph: capCard.live ? (Capture.paused ? "play_fill" : "pause_fill") : "desktopcomputer"
+                label: capCard.live ? (Capture.paused ? "Resume" : "Pause") : "Screen"
+                onTapped: {
+                    if (Capture.recording || Capture.paused)
+                        Capture.togglePause();
+                    else
+                        Capture.recordFull();
+                }
+            }
+
+            CaptureBtn {
+                width: recRow.cellW
                 glyph: "eyedropper_halffull"
                 label: "Color"
                 // Through Capture, not a bare exec: the open panel's focus

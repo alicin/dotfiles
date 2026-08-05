@@ -15,8 +15,9 @@
 local apps = require("lua.apps")
 
 hl.on("hyprland.start", function()
-  -- Bar + wallpaper.
-  hl.exec_cmd(apps.bar)
+  -- Wallpaper. The bar starts further down, after the compositor's environment
+  -- has been exported into systemd/DBus: when qshell is run through its user
+  -- unit, that export is what gives it WAYLAND_DISPLAY.
   hl.exec_cmd("hyprpaper")
 
   -- GTK theming.
@@ -35,6 +36,9 @@ hl.on("hyprland.start", function()
 
   -- Harmless fallback for non-UWSM launches.
   hl.exec_cmd("dbus-update-activation-environment --systemd DISPLAY WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE")
+
+  -- Bar (and the notification daemon, and the launcher, and the OSD).
+  hl.exec_cmd(apps.bar)
   hl.exec_cmd("wl-paste --type text  --watch cliphist store")
   hl.exec_cmd("wl-paste --type image --watch cliphist store")
 

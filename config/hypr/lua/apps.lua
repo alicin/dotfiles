@@ -32,7 +32,16 @@ M.wmenu = [==[hyprctl dispatch focuswindow address:"$(hyprctl -j clients | jq 'm
 
 -- Status bar: qshell (Quickshell shell in the j4rv15 repo). Same restart
 -- semantics as the old hyprpanel line: kill any running instance, start fresh.
-M.bar = "qs kill -c qshell 2>/dev/null; qs -d -c qshell"
+--
+-- Prefers the systemd user unit when it is enabled, so the shell has a
+-- supervisor — a crash otherwise silently takes the bar, the launcher, the OSD
+-- *and* the notification daemon with it, with nothing to bring them back. To
+-- turn that on once:
+--     systemctl --user daemon-reload
+--     systemctl --user enable --now qshell.service
+-- Falls back to the plain launch when the unit isn't enabled, so this line
+-- works either way and enabling it needs no config change.
+M.bar = "systemctl --user is-enabled --quiet qshell.service && systemctl --user restart qshell.service || { qs kill -c qshell 2>/dev/null; qs -d -c qshell; }"
 
 -- On-screen volume/brightness indicator (wob).
 M.onscreen_bar = [[bash ~/labs/dotfiles/scripts/wob.sh "#EB8A7DFF" "#2C2440FF"]]
@@ -86,7 +95,25 @@ M.relight_displays   = "/home/ali/labs/dotfiles/bin/relight-displays.sh"
 -- elapsed time — and fall back to the same scripts underneath when it isn't, so
 -- the behaviour is identical either way. (Same idiom as the brightness keys.)
 M.grab               = "qs -c qshell ipc call capture shot area 2>/dev/null || /home/ali/labs/dotfiles/scripts/screenshot.sh area"     -- macOS Cmd+Shift+4 style: area screenshot
-M.record             = "qs -c qshell ipc call capture record 2>/dev/null || /home/ali/labs/dotfiles/scripts/screen_record.sh toggle"   -- macOS Cmd+Shift+5 style: area recording toggle
+-- The mode argument is REQUIRED even though only "full" is special-cased: an
+-- arity mismatch makes `qs ipc call` print an error and exit *0*, so the `||`
+-- fallback never runs and the key silently does nothing at all.
+M.record             = "qs -c qshell ipc call capture record area 2>/dev/null || /home/ali/labs/dotfiles/scripts/screen_record.sh toggle"   -- macOS Cmd+Shift+5 style: area recording toggle
+-- Whole-screen recording. The shell's recordFull() existed with no caller
+-- anywhere; the fallback toggles the same script with no -g, so it records
+-- everything rather than asking for a region.
+M.record_full        = "qs -c qshell ipc call capture record full 2>/dev/null || "
+  .. "{ SR=/home/ali/labs/dotfiles/scripts/screen_record.sh; "
+  .. "[ \"$($SR status)\" = 'not recording' ] && $SR start || $SR stop; }"
+-- Pause closes the current segment; stopping concatenates them (wf-recorder
+-- has no pause signal — see screen_record.sh). One key does both directions.
+M.record_pause       = "qs -c qshell ipc call capture pause 2>/dev/null || "
+  .. "{ SR=/home/ali/labs/dotfiles/scripts/screen_record.sh; $SR pause || $SR resume; }"
+
+-- Shell verbs that were previously mouse-only. Both announce themselves: the
+-- profile change raises the OSD on its own, and DND is visible on the bell.
+M.power_profile      = "qs -c qshell ipc call power cycle"
+M.dnd                = "qs -c qshell ipc call notifs dnd"
 M.keycheat           = "/home/ali/labs/dotfiles/bin/keycheat"   -- shortcuts overlay (toggle)
 
 -- Lock / idle daemons (singleton: only spawn if not already running).

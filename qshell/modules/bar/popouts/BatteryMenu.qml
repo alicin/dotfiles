@@ -224,6 +224,49 @@ Column {
         }
     }
 
+    // Follow the wall socket: Power Saver on battery, back to whatever was in
+    // use on AC. Off by default and shown right under the profiles it moves,
+    // because a shell that silently overrides a profile you set by hand is
+    // worse than one that doesn't have the feature.
+    Item {
+        visible: root.device?.isLaptopBattery ?? false
+        width: parent.width
+        height: visible ? Appearance.sizes.menuRowHeight : 0
+
+        StyledText {
+            id: autoLabel
+
+            anchors.left: parent.left
+            anchors.leftMargin: Appearance.s(8)
+            anchors.verticalCenter: parent.verticalCenter
+            text: "Switch on unplug"
+            color: Theme.surfaceFg
+        }
+
+        StyledText {
+            anchors.left: autoLabel.right
+            anchors.leftMargin: Appearance.s(8)
+            anchors.right: autoSwitch.left
+            anchors.rightMargin: Appearance.s(8)
+            anchors.verticalCenter: parent.verticalCenter
+            visible: Power.autoProfile
+            text: `→ ${Power.label(Power.acProfile)} on AC`
+            color: Theme.surfaceFgDim
+            font.pixelSize: Appearance.font.size.small
+            font.weight: Font.Normal
+            elide: Text.ElideRight
+        }
+
+        StyledSwitch {
+            id: autoSwitch
+
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            checked: Power.autoProfile
+            onToggled: Power.toggleAutoProfile()
+        }
+    }
+
     // ── ROG platform (asusctl / supergfxctl) ──
     MenuSeparator {
         visible: Asus.available

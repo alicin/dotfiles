@@ -87,6 +87,8 @@ hl.bind(MC .. " + right", dsp.focus({ workspace = "e+1" }))  -- next workspace
 -- macOS Cmd+Shift+4/5 style; physical Cmd (Left Alt) is emitted as Ctrl by Toshy.
 hl.bind("CTRL + SHIFT + 4", dsp.exec_cmd(apps.grab))         -- area screenshot
 hl.bind("CTRL + SHIFT + 5", dsp.exec_cmd(apps.record))       -- area screen record (toggle)
+hl.bind("CTRL + SHIFT + 6", dsp.exec_cmd(apps.record_full))  -- full-screen record (toggle)
+hl.bind("CTRL + SHIFT + 7", dsp.exec_cmd(apps.record_pause)) -- pause / resume recording
 hl.bind(MS .. " + M", dsp.exec_cmd(apps.toggle_edp))        -- toggle eDP
 hl.bind(MS .. " + O", dsp.exec_cmd(apps.relight_displays))  -- relight stuck/blank display (panic)
 hl.bind(MS .. " + N", dsp.exec_cmd(apps.toggle_edp_refresh))-- toggle refresh rate
@@ -96,6 +98,10 @@ hl.bind(MC .. " + E", dsp.exec_cmd("/home/ali/labs/dotfiles/bin/hypr-monitor-man
 hl.bind(MC .. " + L", dsp.exec_cmd("/home/ali/labs/dotfiles/bin/hypr-monitor-manager.sh setup-laptop"))  -- monitors: laptop
 hl.bind(MC .. " + D", dsp.exec_cmd("hyprctl keyword xwayland:force_zero_scaling = true"))  -- xwayland scaling on
 hl.bind(MC .. " + S", dsp.exec_cmd("hyprctl keyword xwayland:force_zero_scaling = false")) -- xwayland scaling off
+
+-- ▸ Shell toggles
+hl.bind(MC .. " + P", dsp.exec_cmd(apps.power_profile))  -- cycle power profile (OSD confirms)
+hl.bind(MC .. " + N", dsp.exec_cmd(apps.dnd))            -- do not disturb toggle
 
 -- ▸ Mouse
 hl.bind(M .. " + mouse:272", dsp.window.drag(),   { mouse = true }) -- drag to move

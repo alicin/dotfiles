@@ -11,6 +11,7 @@ Item {
     id: root
 
     property var popouts: null
+    property var tooltip: null
 
     readonly property var device: UPower.displayDevice
     readonly property real pct: device?.percentage ?? 0
@@ -22,6 +23,15 @@ Item {
     // battery, and "which way is this costing me" is the thing you actually
     // want to read off it at a glance.
     readonly property color profileTint: Power.profile === PowerProfile.Performance ? Theme.barWarn : Power.profile === PowerProfile.PowerSaver ? Theme.barOk : Theme.barFg
+
+    // The estimate UPower already has, which used to be readable only by
+    // opening the menu — the single most tooltip-shaped fact on the bar.
+    function summary(): string {
+        const secs = root.charging ? (device?.timeToFull ?? 0) : (device?.timeToEmpty ?? 0);
+        const eta = secs > 0 ? `${Math.floor(secs / 3600)}h ${Math.round((secs % 3600) / 60)}m`.replace(/^0h /, "") : "";
+        const state = root.full ? "charged" : root.charging ? (eta ? `${eta} until full` : "charging") : eta ? `${eta} left` : "estimating…";
+        return `${Math.round(root.pct * 100)}% · ${state} · ${Power.label(Power.profile)}`;
+    }
 
     visible: device?.isLaptopBattery ?? false
     implicitWidth: content.implicitWidth + Appearance.sizes.modulePad
@@ -35,6 +45,10 @@ Item {
         onContainsMouseChanged: {
             if (containsMouse && root.popouts?.open && root.popouts.current !== "battery")
                 root.popouts.toggle("battery", root);
+            if (containsMouse)
+                root.tooltip?.show(root.summary(), root);
+            else
+                root.tooltip?.hide(root);
         }
     }
 

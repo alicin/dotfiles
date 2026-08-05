@@ -36,7 +36,7 @@ Scope {
     readonly property string mode: {
         if (Osd.kind === "kbd")
             return "steps";
-        if (Osd.kind === "mic" || Osd.kind === "power" || Osd.kind === "countdown")
+        if (Osd.kind === "mic" || Osd.kind === "power" || Osd.kind === "countdown" || Osd.kind === "submap")
             return "label";
         return "bar";
     }
@@ -54,6 +54,8 @@ Scope {
             return Audio.micMuted ? "Microphone muted" : "Microphone on";
         if (Osd.kind === "countdown")
             return `Screenshot in ${Capture.countdown}…`;
+        if (Osd.kind === "submap")
+            return Osd.submapLabel;
         return Power.label(Power.profile);
     }
 
@@ -68,6 +70,8 @@ Scope {
             return Power.glyph(Power.profile);
         if (Osd.kind === "countdown")
             return "timer_fill";
+        if (Osd.kind === "submap")
+            return "keyboard";
         if (Audio.muted)
             return "speaker_slash_fill";
         if (Audio.volume < 0.01)

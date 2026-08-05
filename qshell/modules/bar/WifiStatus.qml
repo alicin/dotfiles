@@ -15,11 +15,18 @@ Item {
     id: root
 
     property var popouts: null
+    property var tooltip: null
 
     readonly property bool drawn: Net.wifiEnabled && Net.connected
     // 1..3 arcs lit. 33/66 splits, so "all arcs" still means a genuinely
     // strong link rather than anything above the old binary 25%.
     readonly property int tier: Net.strength >= 66 ? 3 : Net.strength >= 33 ? 2 : 1
+
+    // Tailscale, or any active nmcli VPN/WireGuard connection. Both backends
+    // already existed and were visible only inside the network menu — so the
+    // one state where you most want to know at a glance whether your traffic
+    // is tunnelled was the one the bar didn't show.
+    readonly property bool tunnelled: Tailscale.up || Vpn.connections.some(c => c.active)
 
     readonly property string icon: {
         if (!Net.wifiEnabled)
@@ -29,8 +36,42 @@ Item {
         return "wifi_exclamationmark";
     }
 
+    function summary(): string {
+        const bits = [];
+        if (Net.ethernet)
+            bits.push("Ethernet");
+        else if (!Net.wifiEnabled)
+            bits.push("Wi-Fi off");
+        else if (Net.connecting)
+            bits.push("Connecting…");
+        else if (Net.connected)
+            bits.push(`${Net.ssid || "Wi-Fi"} · ${Net.strength}%`);
+        else
+            bits.push("Not connected");
+        if (Tailscale.up)
+            bits.push("Tailscale");
+        const vpns = Vpn.connections.filter(c => c.active).map(c => c.name);
+        if (vpns.length > 0)
+            bits.push(vpns.join(", "));
+        return bits.join(" · ");
+    }
+
     implicitWidth: (drawn ? arcs.width : glyph.implicitWidth) + Appearance.sizes.modulePad
     implicitHeight: Appearance.sizes.barInner
+
+    // Nothing polls the VPN backends on their own — the menus refresh them on
+    // open. A slow tick keeps the badge honest without pretending this is
+    // real-time state.
+    Timer {
+        running: true
+        interval: 30000
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: {
+            Tailscale.refresh();
+            Vpn.refresh();
+        }
+    }
 
     StateLayer {
         hitSlop: Appearance.sizes.barSlop
@@ -40,7 +81,30 @@ Item {
         onContainsMouseChanged: {
             if (containsMouse && root.popouts?.open && root.popouts.current !== "wifi")
                 root.popouts.toggle("wifi", root);
+            if (containsMouse)
+                root.tooltip?.show(root.summary(), root);
+            else
+                root.tooltip?.hide(root);
         }
+    }
+
+    // VPN/Tailscale presence, on the glyph's shoulder. A badge rather than a
+    // separate module: what it qualifies is *this* connection, and a lone
+    // padlock elsewhere on the bar wouldn't say which.
+    Rectangle {
+        visible: root.tunnelled
+        anchors.right: glyphBox.right
+        anchors.rightMargin: -Appearance.s(3)
+        anchors.bottom: glyphBox.bottom
+        anchors.bottomMargin: Appearance.s(3)
+        width: Appearance.s(8)
+        height: width
+        radius: width / 2
+        color: Theme.barOk
+        // Punches a hole in the glyph behind it so the dot reads as a badge
+        // rather than a stray pixel — the bar has no background of its own.
+        border.width: Math.max(1, Appearance.s(1.5))
+        border.color: Qt.alpha(Theme.barFg, 0.35)
     }
 
     Item {

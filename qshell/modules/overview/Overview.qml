@@ -367,7 +367,12 @@ Scope {
                                 StyledText {
                                     anchors.centerIn: parent
                                     text: cell.wsId
-                                    font.pixelSize: win.cellH * 0.4
+                                    // pixelSize is an int, and cellH is both
+                                    // fractional and NaN for the first layout
+                                    // pass (it divides by a width that isn't
+                                    // known yet) — which printed a warning per
+                                    // cell, per overview, forever.
+                                    font.pixelSize: win.cellH > 0 ? Math.round(win.cellH * 0.4) : 1
                                     color: Qt.alpha(Theme.surfaceFg, 0.12)
                                 }
 

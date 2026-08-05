@@ -13,6 +13,7 @@ Row {
     id: root
 
     property var popouts: null
+    property var tooltip: null
 
     // Bumped by items whose status flips in place — `values` alone only
     // re-notifies on add/remove, so a some() over it would sleep through an
@@ -75,6 +76,7 @@ Row {
                     TrayItem {
                         popouts: root.popouts
                         tray: root
+                        tooltip: root.tooltip
                     }
                 }
             }

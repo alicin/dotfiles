@@ -19,6 +19,14 @@ Singleton {
         return Math.round(px * root.scale);
     }
 
+    // Every duration token goes through here, so one settings key
+    // (`animScale`) scales the whole shell's motion — 0.5 for a snappier
+    // feel, 0 for reduced motion. Durations that aren't tokens (the popout
+    // morph, the Control Center page push) call this directly.
+    function d(ms: real): int {
+        return Math.round(ms * Settings.animScale);
+    }
+
     readonly property QtObject font: QtObject {
         readonly property string family: "OperatorMono Nerd Font"
 
@@ -61,16 +69,16 @@ Singleton {
 
     readonly property QtObject anim: QtObject {
         readonly property QtObject durations: QtObject {
-            readonly property int small: 200
-            readonly property int normal: 400
-            readonly property int large: 600
-            readonly property int extraLarge: 1000
-            readonly property int expressiveFastSpatial: 350
-            readonly property int expressiveDefaultSpatial: 500
-            readonly property int expressiveSlowSpatial: 650
-            readonly property int expressiveFastEffects: 150
-            readonly property int expressiveDefaultEffects: 200
-            readonly property int expressiveSlowEffects: 300
+            readonly property int small: root.d(200)
+            readonly property int normal: root.d(400)
+            readonly property int large: root.d(600)
+            readonly property int extraLarge: root.d(1000)
+            readonly property int expressiveFastSpatial: root.d(350)
+            readonly property int expressiveDefaultSpatial: root.d(500)
+            readonly property int expressiveSlowSpatial: root.d(650)
+            readonly property int expressiveFastEffects: root.d(150)
+            readonly property int expressiveDefaultEffects: root.d(200)
+            readonly property int expressiveSlowEffects: root.d(300)
         }
 
         readonly property QtObject curves: QtObject {

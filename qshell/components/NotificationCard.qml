@@ -73,16 +73,51 @@ Item {
         else if (!root.flat)
             root.doDismiss();
     }
-    readonly property string imageSource: {
+    // A picture the notification is *about* (screenshot, album art, an
+    // attachment) rather than an icon identifying its sender. Shown full width
+    // under the body — the capture pipeline has been putting the path on the
+    // card all along with nothing rendering it.
+    readonly property string bigImage: {
         if (n?.image)
             return n.image;
-        if (n?.appIcon)
+        // qshell's own capture toasts carry the file as the app icon, which is
+        // how the notification's buttons find it too.
+        const ai = n?.appIcon ?? "";
+        return /^\/.+\.(png|jpe?g|webp|gif|bmp)$/i.test(ai) ? `file://${ai}` : "";
+    }
+
+    readonly property string imageSource: {
+        // The big preview already shows it; the small slot then identifies the
+        // sender instead of repeating the picture at 34px.
+        if (n?.image && root.bigImage === "")
+            return n.image;
+        if (n?.appIcon && root.bigImage !== `file://${n.appIcon}`)
             return Quickshell.iconPath(n.appIcon, true) || "";
         // Chat clients and portal-mediated Flatpaks often send no appIcon but
         // a valid desktopEntry (or at least a resolvable appName) — try both
         // before every card gets the same dim bell.
         const e = Apps.entryFor(n?.desktopEntry ?? "") ?? Apps.entryFor(n?.appName ?? "");
         return e?.icon ? (Quickshell.iconPath(e.icon, true) || "") : "";
+    }
+
+    // True while the reply field holds focus. The popup stack watches this to
+    // take the keyboard — a layer surface that never asks for it can't be
+    // typed into, and toasts deliberately don't ask by default.
+    property bool replying: false
+
+    function sendReply(): void {
+        const notif = root.n;
+        const text = replyField.text;
+        if (!notif?.hasInlineReply || text === "")
+            return;
+        replyField.text = "";
+        replyField.focus = false;
+        notif.sendInlineReply(text);
+        // Chat clients close the notification themselves once the reply lands;
+        // the ones that don't would otherwise leave a card sitting there
+        // looking unsent.
+        if (!(notif.resident ?? false))
+            root.doDismiss();
     }
 
     // The popup stack swaps in an animated exit before the real dismissal —
@@ -107,7 +142,9 @@ Item {
     }
 
     function ago(): string {
-        const s = Math.max(0, (Notifs.now - wrapper.at) / 1000);
+        // wrapper can legitimately be null — the bell menu's flat row delegate
+        // holds one card for every row shape, including the headers.
+        const s = Math.max(0, (Notifs.now - (wrapper?.at ?? Notifs.now)) / 1000);
         if (s < 60)
             return "now";
         if (s < 3600)
@@ -284,6 +321,120 @@ Item {
                     icon: "xmark"
                     color: Theme.surfaceFgDim
                     font.pixelSize: Appearance.font.size.small
+                }
+            }
+        }
+
+        // What the notification is about, when that's a picture. Cropped to a
+        // band rather than fit: a full-height screenshot would make the card
+        // taller than the toast stack, and the point is recognition, not
+        // inspection — clicking opens the file.
+        ClippingRectangle {
+            width: parent.width
+            height: visible ? Math.min(Appearance.s(150), width * 0.5) : 0
+            visible: root.bigImage !== "" && preview.status === Image.Ready
+            radius: Appearance.s(10)
+            color: Qt.alpha(Theme.surfaceFg, 0.06)
+
+            Image {
+                id: preview
+
+                anchors.fill: parent
+                source: root.bigImage
+                fillMode: Image.PreserveAspectCrop
+                asynchronous: true
+                cache: false
+                sourceSize.width: Appearance.s(760)
+            }
+        }
+
+        // Inline reply, for the clients that ask for it (the server advertises
+        // the capability now — it always could, it just didn't say so). Enter
+        // sends; the field only exists on cards that carry the hint.
+        Rectangle {
+            id: replyBox
+
+            width: parent.width
+            height: visible ? Appearance.s(32) : 0
+            visible: root.n?.hasInlineReply ?? false
+            radius: height / 2
+            color: Theme.surfaceHoverBg
+
+            // The pill's padding — the bands above and below the one-line
+            // field, and the left inset — take no input of their own, so a
+            // press there fell through to the card and *dismissed* the
+            // notification you were aiming to reply to. Declared first so the
+            // field and the send button stay above it.
+            MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.IBeamCursor
+                onClicked: replyField.forceActiveFocus()
+            }
+
+            TextInput {
+                id: replyField
+
+                anchors.left: parent.left
+                anchors.leftMargin: Appearance.s(14)
+                anchors.right: sendBtn.left
+                anchors.rightMargin: Appearance.s(6)
+                anchors.verticalCenter: parent.verticalCenter
+
+                color: Theme.surfaceFg
+                font.family: Appearance.font.family
+                font.pixelSize: Appearance.font.size.small
+                selectionColor: Theme.accent
+                selectedTextColor: Theme.accentFg
+                clip: true
+
+                // The surface holding this card has to take the keyboard for
+                // typing to arrive; the popup window watches this.
+                onActiveFocusChanged: root.replying = activeFocus
+
+                onAccepted: root.sendReply()
+                // Esc gives the field back before the panel takes the key —
+                // otherwise starting a reply and changing your mind closes the
+                // whole notification centre.
+                Keys.onEscapePressed: event => {
+                    if (replyField.text !== "") {
+                        replyField.text = "";
+                        event.accepted = true;
+                    } else {
+                        replyField.focus = false;
+                        event.accepted = true;
+                    }
+                }
+
+                StyledText {
+                    visible: !replyField.text
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: root.n?.inlineReplyPlaceholder || "Reply…"
+                    color: Theme.surfaceFgDim
+                    font.pixelSize: Appearance.font.size.small
+                }
+            }
+
+            Item {
+                id: sendBtn
+
+                anchors.right: parent.right
+                anchors.rightMargin: Appearance.s(3)
+                anchors.verticalCenter: parent.verticalCenter
+                width: Appearance.s(26)
+                height: width
+
+                StateLayer {
+                    radius: width / 2
+                    color: Theme.surfaceFg
+                    enabled: replyField.text !== ""
+                    onClicked: root.sendReply()
+                }
+
+                FIcon {
+                    anchors.centerIn: parent
+                    icon: "arrow_up_circle_fill"
+                    font.pixelSize: Appearance.s(16)
+                    color: replyField.text !== "" ? Theme.accent : Theme.surfaceFgDim
                 }
             }
         }

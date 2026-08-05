@@ -148,7 +148,7 @@ Scope {
                 Anim {
                     // Deceleration is an entrance curve; on dismiss it read as
                     // the panel lingering. Out goes faster, on an exit curve.
-                    duration: root.open ? 300 : Appearance.anim.durations.expressiveDefaultEffects
+                    duration: root.open ? Appearance.d(300) : Appearance.anim.durations.expressiveDefaultEffects
                     curve: root.open ? Appearance.anim.curves.emphasizedDecel : Appearance.anim.curves.expressiveDefaultEffects
                 }
             }
@@ -166,7 +166,7 @@ Scope {
                 enabled: panel.settled
 
                 Anim {
-                    duration: 300
+                    duration: Appearance.d(300)
                     curve: Appearance.anim.curves.emphasized
                 }
             }
@@ -194,7 +194,7 @@ Scope {
                 enabled: panel.settled
 
                 Anim {
-                    duration: 300
+                    duration: Appearance.d(300)
                     curve: Appearance.anim.curves.emphasized
                 }
             }
@@ -203,7 +203,7 @@ Scope {
                 enabled: panel.settled
 
                 Anim {
-                    duration: 300
+                    duration: Appearance.d(300)
                     curve: Appearance.anim.curves.emphasized
                 }
             }
@@ -245,6 +245,8 @@ Scope {
                             return batteryMenu;
                         case "notifs":
                             return notifsMenu;
+                        case "calendar":
+                            return calendarMenu;
                         case "control":
                             return controlMenu;
                         case "tray":
@@ -273,6 +275,12 @@ Scope {
             id: notifsMenu
 
             NotifsMenu {}
+        }
+
+        Component {
+            id: calendarMenu
+
+            CalendarMenu {}
         }
 
         Component {

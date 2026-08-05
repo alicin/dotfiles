@@ -13,6 +13,7 @@ Item {
 
     property var popouts: null
     property var tray: null
+    property var tooltip: null
 
     // Full-color icons that turn into blobs under the monochrome tint.
     readonly property bool tinted: !/toshy/i.test(`${modelData.id} ${modelData.title}`)
@@ -52,6 +53,12 @@ Item {
         onContainsMouseChanged: {
             if (containsMouse && root.popouts?.open && root.hasAnyMenu && root.popouts.current !== `tray:${root.modelData.id}`)
                 root.popouts.toggle(`tray:${root.modelData.id}`, root, root.modelData);
+            // A monochrome 16px icon identifies nothing; the applet's own
+            // tooltip/title has said so all along with nowhere to print it.
+            if (containsMouse)
+                root.tooltip?.show(root.modelData.tooltipTitle || root.modelData.title || root.modelData.id, root);
+            else
+                root.tooltip?.hide(root);
         }
     }
 

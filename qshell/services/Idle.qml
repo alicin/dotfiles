@@ -19,6 +19,11 @@ Singleton {
     // with no warning.
     readonly property bool inhibited: persist.inhibited
 
+    // What the bar's inhibitor actually honours. A recording holds the machine
+    // awake whether or not Keep Awake is on: hypridle dimming, locking or
+    // suspending mid-take lands in the clip, and by then the take is gone.
+    readonly property bool active: root.inhibited || Capture.recording || Capture.paused
+
     function toggle(): void {
         persist.inhibited = !persist.inhibited;
     }

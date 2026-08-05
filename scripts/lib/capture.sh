@@ -19,14 +19,21 @@
 # The identifiers are bare verbs and the path travels as the body, so the shell
 # acts on the path the card is already showing you — a button can't be talked
 # into doing anything other than what it says.
+#
+# A fourth argument of "edit" adds an Annotate button (swappy). Only
+# screenshots get it — there is nothing to draw on a video, and an action that
+# opens an editor on an mp4 is worse than no action.
 notify_capture() {
-    local summary="$1" path="$2" timeout="${3:-8000}"
+    local summary="$1" path="$2" timeout="${3:-8000}" extra="${4:-}"
+    local actions="'qshell-open','Open','qshell-reveal','Show in folder'"
+
+    [ "$extra" = "edit" ] && actions="'qshell-edit','Annotate',$actions"
 
     gdbus call --session --dest org.freedesktop.Notifications \
         --object-path /org/freedesktop/Notifications \
         --method org.freedesktop.Notifications.Notify \
         qshell 0 "$path" "$summary" "$path" \
-        "['qshell-open','Open','qshell-reveal','Show in folder']" \
+        "[$actions]" \
         "{}" "$timeout" >/dev/null
 }
 
@@ -45,4 +52,14 @@ notify_plain() {
 # no-op when the shell isn't running.
 capture_done() {
     qs -c qshell ipc call capture done >/dev/null 2>&1 || true
+}
+
+# Hand a finished file to the shell, which floats a thumbnail of it in the
+# corner for a few seconds — the macOS post-screenshot interaction. Called
+# *before* the notification: the shell suppresses the toast for a capture it is
+# already showing, so the two don't announce the same file twice, and the
+# notification still lands in history either way. No-op when the shell is down,
+# which is exactly when the notification should be the whole story.
+capture_saved() {
+    qs -c qshell ipc call capture saved "$1" >/dev/null 2>&1 || true
 }

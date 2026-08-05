@@ -2,6 +2,7 @@ pragma Singleton
 
 import QtQuick
 import Quickshell
+import Quickshell.Hyprland
 
 // What the on-screen display is showing, and for how much longer.
 //
@@ -14,7 +15,39 @@ Singleton {
     id: root
 
     // "" | "volume" | "mic" | "brightness" | "kbd" | "power" | "countdown"
+    //    | "submap"
     property string kind: ""
+
+    // The Hyprland submap currently active, "" outside one. A submap silently
+    // rebinds the whole keyboard — the power one turns `p` into poweroff — and
+    // until now the only sign you were in one was that keys did unexpected
+    // things.
+    property string submap: ""
+
+    // The keys each submap answers to. Hyprland's `submap` event carries only
+    // the name, and the bind that enters it carries the description — which
+    // lives in the config, not in the event, so it's mirrored here.
+    // (config/hypr/lua/submaps/power.lua)
+    readonly property var submapHints: ({
+            power: "(l)ock  (e)xit  (r)eboot  (p)oweroff  (s)uspend  ·  Esc"
+        })
+
+    readonly property string submapLabel: root.submap === "" ? "" : (root.submapHints[root.submap] ?? root.submap)
+
+    Connections {
+        target: Hyprland
+
+        function onRawEvent(event: HyprlandEvent): void {
+            if (event.name !== "submap")
+                return;
+            // Leaving a submap sends an empty payload.
+            root.submap = event.data ?? "";
+            if (root.submap !== "")
+                root.show("submap");
+            else if (root.kind === "submap")
+                root.hide();
+        }
+    }
 
     // Pipewire's first notifications are the sink coming up, not a person
     // pressing anything.
@@ -28,11 +61,18 @@ Singleton {
 
     function show(k: string): void {
         // The countdown is exempt: it's the only feedback that a shutter is
-        // about to fire, and suppressing it doesn't stop the screenshot.
-        if ((root.launcherOpen || root.clipboardOpen) && k !== "countdown")
+        // about to fire, and suppressing it doesn't stop the screenshot. So is
+        // the submap indicator — a rebound keyboard is a state you need to see
+        // regardless of what else is on screen.
+        if ((root.launcherOpen || root.clipboardOpen) && k !== "countdown" && k !== "submap")
             return;
         root.kind = k;
-        autoHide.restart();
+        // A submap lasts as long as it lasts; every other kind is a value that
+        // just changed and is done being interesting after a beat.
+        if (k === "submap")
+            autoHide.stop();
+        else
+            autoHide.restart();
     }
 
     // Explicit dismissal, for callers that need the screen clear at a known

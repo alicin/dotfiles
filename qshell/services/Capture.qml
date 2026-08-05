@@ -24,8 +24,29 @@ Singleton {
     readonly property string videoDir: `${Quickshell.env("HOME")}/Videos`
 
     property bool recording: false
+    // Between segments: wf-recorder is gone but the take isn't over. The
+    // script owns the marker file this reads (see screen_record.sh — 0.6.0
+    // has no SIGUSR1 pause, so pausing means closing a segment).
+    property bool paused: false
     // "x,y wxh" as slurp prints it; empty for a full-screen recording.
     property string regionGeom: ""
+
+    // Last file a capture script finished, and when. Drives the floating
+    // thumbnail (modules/capture/CaptureThumb.qml) — and, while that is up,
+    // suppresses the toast for the same file so one capture isn't announced
+    // twice.
+    property string lastCapture: ""
+    property real lastCaptureAt: 0
+
+    signal captured(string path)
+
+    // Reported by the scripts' capture_saved, so a keyboard-driven capture
+    // gets the thumbnail too.
+    function saved(path: string): void {
+        root.lastCapture = path;
+        root.lastCaptureAt = Date.now();
+        root.captured(path);
+    }
 
     // A start was issued but the 1s pgrep poll hasn't seen wf-recorder yet.
     // Without this, `armed` stayed true through that window: Esc could unmap
@@ -37,7 +58,7 @@ Singleton {
     // recording meant the first seconds were always you letting go of the mouse
     // and getting out of the way, so the selection now only arms it — the
     // overlay puts a Start button on screen and you begin when you're ready.
-    readonly property bool armed: regionGeom !== "" && !recording && !startPending
+    readonly property bool armed: regionGeom !== "" && !recording && !paused && !startPending
 
     // Audio sources to mix in. Persisted, because this is a preference about
     // how you record rather than a per-clip decision.
@@ -62,12 +83,22 @@ Singleton {
     }
 
     // Wall-clock ms when the recorder came up, and a ticking `now` so the
-    // overlay can show elapsed time. `now` only advances while recording, so
-    // the binding is idle the rest of the time.
+    // overlay can show elapsed time. `now` only advances while a take is live,
+    // so the binding is idle the rest of the time.
     property real recordingSince: 0
     property real now: 0
 
-    readonly property int elapsed: recording && recordingSince > 0 ? Math.max(0, Math.floor((now - recordingSince) / 1000)) : 0
+    // Paused time is subtracted rather than the clock being stopped: the
+    // counter has to match the file, and the file has no gap in it.
+    property real pausedSince: 0
+    property real pausedTotal: 0
+
+    readonly property int elapsed: {
+        if (recordingSince <= 0 || !(recording || paused))
+            return 0;
+        const gap = root.pausedTotal + (root.paused && root.pausedSince > 0 ? root.now - root.pausedSince : 0);
+        return Math.max(0, Math.floor((root.now - root.recordingSince - gap) / 1000));
+    }
 
     readonly property string elapsedText: {
         const t = root.elapsed;
@@ -97,7 +128,23 @@ Singleton {
     readonly property int rw: parseGeom(2)
     readonly property int rh: parseGeom(3)
 
-    readonly property bool regionRecording: recording && regionGeom !== ""
+    // Paused counts: the frame and the dim stay exactly where they were, so
+    // resuming records the same rectangle you were just looking at.
+    readonly property bool regionRecording: (recording || paused) && regionGeom !== ""
+
+    // Would a live recording capture this global rectangle? Toasts ask before
+    // showing themselves: a notification burned into a take is unrecoverable,
+    // and hiding *every* toast during a recording of one corner of one screen
+    // would be a needless blackout.
+    function covers(x: real, y: real, w: real, h: real): bool {
+        if (!root.recording && !root.paused)
+            return false;
+        // No region means wf-recorder is taking a whole output, and which one
+        // isn't knowable from here — assume the worst.
+        if (root.regionGeom === "")
+            return true;
+        return x < root.rx + root.rw && x + w > root.rx && y < root.ry + root.rh && y + h > root.ry;
+    }
 
     function parseGeom(i: int): int {
         const m = root.regionGeom.match(/^(-?\d+),(-?\d+)\s+(\d+)x(\d+)$/);
@@ -137,6 +184,15 @@ Singleton {
         });
     }
 
+    // Open a screenshot in swappy to draw on it. Reached from the floating
+    // thumbnail and from the notification's Annotate action — the two places
+    // you're still thinking about the shot you just took.
+    function annotate(path: string): void {
+        if (!path)
+            return;
+        Quickshell.execDetached(["sh", "-c", `swappy -f "$1"`, "qshell-annotate", path]);
+    }
+
     // Called from the capture script's EXIT trap, so it runs on *every* path
     // out — success, a cancelled selection, a failure mid-script.
     function finished(): void {
@@ -155,7 +211,7 @@ Singleton {
     // in flight — that would unmap the overlay and leave the recorder that's
     // just coming up with no indicator and no Stop button.
     function disarm(): void {
-        if (!root.recording && !root.startPending)
+        if (!root.recording && !root.paused && !root.startPending)
             root.regionGeom = "";
     }
 
@@ -271,8 +327,20 @@ Singleton {
         poll.restart();
     }
 
+    // Pause closes the current segment and resume opens the next; `stop`
+    // concatenates them. The state is the script's marker file, read by the
+    // same poll that owns `recording`, so an overlay button and the keybind
+    // can't disagree about it.
+    function togglePause(): void {
+        if (root.recording)
+            Quickshell.execDetached(["sh", "-c", `'${root.scriptsDir}/screen_record.sh' pause`]);
+        else if (root.paused)
+            Quickshell.execDetached(["sh", "-c", `'${root.scriptsDir}/screen_record.sh' resume`]);
+        poll.restart();
+    }
+
     function toggleRecording(): void {
-        if (recording)
+        if (recording || paused)
             stopRecording();
         else if (armed)
             startArmed();
@@ -352,9 +420,11 @@ Singleton {
         onTriggered: probe.running = true
     }
 
-    // Drives `now` while recording, for the overlay's elapsed counter.
+    // Drives `now` while a take is live, for the elapsed counter — including
+    // while paused, since that's what the "time paused" subtraction is
+    // measured against.
     Timer {
-        running: root.recording
+        running: root.recording || root.paused
         interval: 500
         repeat: true
         triggeredOnStart: true
@@ -364,28 +434,48 @@ Singleton {
     Process {
         id: probe
 
-        command: ["sh", "-c", "pgrep -x wf-recorder >/dev/null && echo yes || echo no"]
+        // wf-recorder's liveness is still the source of truth for "writing
+        // right now"; the marker file distinguishes a pause from an ending.
+        command: ["sh", "-c", `
+            if pgrep -x wf-recorder >/dev/null; then echo rec;
+            elif [ -f "\${XDG_RUNTIME_DIR:-/tmp}/qshell-record/paused" ]; then echo paused;
+            else echo no; fi
+        `]
 
         stdout: StdioCollector {
             onStreamFinished: {
-                const was = root.recording;
-                root.recording = text.trim() === "yes";
+                const state = text.trim();
+                const wasLive = root.recording || root.paused;
+                const wasPaused = root.paused;
+                root.recording = state === "rec";
+                root.paused = state === "paused";
+
                 // Timed from when the recorder is first *seen*, not from when
                 // it was asked for: wf-recorder takes a moment to come up, and
                 // counting that in would overstate the clip's length.
-                if (!was && root.recording) {
+                if (!wasLive && root.recording) {
                     root.recordingSince = Date.now();
                     root.now = root.recordingSince;
+                    root.pausedSince = 0;
+                    root.pausedTotal = 0;
                     root.startPending = false;
                     startFallback.stop();
+                }
+                if (!wasPaused && root.paused)
+                    root.pausedSince = Date.now();
+                if (wasPaused && !root.paused && root.pausedSince > 0) {
+                    root.pausedTotal += Date.now() - root.pausedSince;
+                    root.pausedSince = 0;
                 }
                 // State reset only — the stop script owns the "Recording
                 // saved" notification, and this poll fires on every stop
                 // including script-driven ones, so notifying here would
                 // double up. (An externally SIGKILLed recorder gets no toast;
                 // it also gets no playable file.)
-                if (was && !root.recording) {
+                if (wasLive && !root.recording && !root.paused) {
                     root.recordingSince = 0;
+                    root.pausedSince = 0;
+                    root.pausedTotal = 0;
                     root.regionGeom = "";
                 }
             }

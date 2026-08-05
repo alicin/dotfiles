@@ -5,6 +5,7 @@ import Quickshell.Io
 import Quickshell.Hyprland
 import Quickshell.Wayland
 import qs.config
+import qs.components
 import qs.services
 import qs.modules.bar.popouts
 
@@ -33,7 +34,8 @@ Scope {
                     wifi: wifiMod,
                     battery: batMod,
                     control: ctrlMod,
-                    notifs: notifMod
+                    notifs: notifMod,
+                    calendar: clockMod
                 })
 
             Component.onCompleted: root.bars[modelData.name] = perScreen
@@ -46,12 +48,45 @@ Scope {
                         delete root.bars[k];
             }
 
+            // Whether this monitor's active workspace holds a fullscreen
+            // window. Hyprland only re-emits workspace state on its own
+            // events, so the fullscreen event refreshes it explicitly.
+            readonly property var mon: Hyprland.monitorFor(perScreen.modelData)
+            readonly property bool fullscreen: mon?.activeWorkspace?.hasFullscreen ?? false
+
+            Connections {
+                target: Hyprland
+
+                function onRawEvent(event: HyprlandEvent): void {
+                    if (event.name === "fullscreen")
+                        Hyprland.refreshWorkspaces();
+                }
+            }
+
             PanelWindow {
                 id: win
+
+                // Autohide over fullscreen: the bar slides up out of the way
+                // and a strip of pixels at the very top edge brings it back,
+                // the way every full-screen video player on this machine
+                // expects. Popouts hold it down — a menu whose anchor slid
+                // away is worse than the bar staying put.
+                //
+                // TWO hover sources, not one: the strip is the only thing that
+                // can be hovered while hidden (it is the whole input region),
+                // but the moment it reveals the bar the pointer is free to move
+                // off those two pixels onto an actual module — and keying the
+                // reveal on the strip alone would then snap the bar shut under
+                // the cursor before it arrived anywhere.
+                readonly property bool revealed: !perScreen.fullscreen || hotStrip.hovered || barHover.hovered || popouts.open
 
                 screen: perScreen.modelData
                 color: "transparent"
                 implicitHeight: Appearance.sizes.barHeight
+                // Fullscreen windows ignore exclusive zones anyway; dropping
+                // it keeps the *tiled* layout from reflowing when a
+                // neighbouring workspace goes fullscreen.
+                exclusiveZone: perScreen.fullscreen ? 0 : Appearance.sizes.barHeight
 
                 anchors {
                     left: true
@@ -61,79 +96,217 @@ Scope {
 
                 WlrLayershell.namespace: "qshell:bar"
 
+                // Revealed: no mask at all, so the whole surface takes input —
+                // masking to `content` would have made the 10px margin at each
+                // screen edge click-through, undoing the edge-slam targeting
+                // the modules' hit slop exists for.
+                //
+                // Hidden: the input region shrinks to the top edge strip. An
+                // empty mask would be click-through but would also stop
+                // delivering the hover that brings the bar back, and a
+                // full-height one would eat clicks meant for the video.
+                mask: win.revealed ? null : hotRegion
+
+                Region {
+                    id: hotRegion
+
+                    item: hotStripItem
+                }
+
                 // Lives here, not in the Control Center that toggles it: the
                 // inhibitor needs a mapped window, and the menu is destroyed
                 // on close. The bar is the only always-present surface.
+                //
+                // Recording holds it too: hypridle could dim, lock or suspend
+                // mid-take — straight into the clip.
                 IdleInhibitor {
                     window: win
-                    enabled: Idle.inhibited
+                    enabled: Idle.active
                 }
 
                 Item {
+                    id: hotStripItem
+
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    height: Math.max(1, Appearance.s(2))
+
+                    HoverHandler {
+                        id: hotStrip
+                    }
+                }
+
+                // Whole-window hover, which only ever fires while the bar is
+                // revealed (hidden, the input region is the strip above).
+                // Keeps it down for as long as the pointer is on it.
+                HoverHandler {
+                    id: barHover
+                }
+
+                // Geometry stays put (the input mask is derived from it and a
+                // Region doesn't follow transforms); the strip *inside* is
+                // what slides away.
+                Item {
+                    id: content
+
                     anchors.fill: parent
                     anchors.leftMargin: Appearance.s(10)
                     anchors.rightMargin: Appearance.s(10)
 
-                    // macOS-menubar-style drop shadow under everything on the
-                    // bar (one layer pass for all icons/text). Heavy on
-                    // purpose: the bar is transparent chrome over an arbitrary
-                    // wallpaper, and a subtle shadow loses the fight against a
-                    // bright or busy one.
-                    layer.enabled: true
-                    layer.effect: MultiEffect {
-                        shadowEnabled: true
-                        shadowColor: "#000000"
-                        shadowOpacity: 0.75
-                        shadowBlur: 0.3
-                        shadowVerticalOffset: 2
-                        shadowHorizontalOffset: 0
-                    }
+                    Item {
+                        id: slider
 
-                    Workspaces {
-                        screen: perScreen.modelData
-                        anchors.left: parent.left
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
+                        width: parent.width
+                        height: parent.height
+                        y: win.revealed ? 0 : -Appearance.sizes.barHeight
+                        opacity: win.revealed ? 1 : 0
 
-                    Row {
-                        anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: Appearance.s(2)
-
-                        // Left of the tray ellipsis: the Row is right-anchored,
-                        // so anything ahead of the tray keeps every other
-                        // module in place when these appear and vanish.
-                        PrivacyStatus {}
-
-                        Tray {
-                            popouts: popouts
+                        Behavior on y {
+                            Anim {
+                                duration: Appearance.anim.durations.expressiveFastSpatial
+                                curve: Appearance.anim.curves.emphasized
+                            }
                         }
 
-                        WifiStatus {
-                            id: wifiMod
-
-                            popouts: popouts
+                        Behavior on opacity {
+                            Anim {
+                                duration: Appearance.anim.durations.expressiveFastEffects
+                            }
                         }
 
-                        BatteryStatus {
-                            id: batMod
-
-                            popouts: popouts
+                        // macOS-menubar-style drop shadow under everything on
+                        // the bar (one layer pass for all icons/text). Heavy on
+                        // purpose: the bar is transparent chrome over an
+                        // arbitrary wallpaper, and a subtle shadow loses the
+                        // fight against a bright or busy one.
+                        layer.enabled: true
+                        layer.effect: MultiEffect {
+                            shadowEnabled: true
+                            shadowColor: "#000000"
+                            shadowOpacity: 0.75
+                            shadowBlur: 0.3
+                            shadowVerticalOffset: 2
+                            shadowHorizontalOffset: 0
                         }
 
-                        ControlStatus {
-                            id: ctrlMod
+                        Workspaces {
+                            id: wsMod
 
-                            popouts: popouts
+                            screen: perScreen.modelData
+                            anchors.left: parent.left
+                            anchors.verticalCenter: parent.verticalCenter
                         }
 
-                        NotifsStatus {
-                            id: notifMod
+                        // The bar's empty middle, which until now was empty in
+                        // the literal sense. It names the focused window and
+                        // takes the brightness wheel — the volume gesture's
+                        // missing twin, given the one target on the bar big
+                        // enough to hit without aiming.
+                        Item {
+                            id: centre
 
-                            popouts: popouts
+                            anchors.left: wsMod.right
+                            anchors.leftMargin: Appearance.s(12)
+                            anchors.right: statusRow.left
+                            anchors.rightMargin: Appearance.s(12)
+                            anchors.top: parent.top
+                            anchors.bottom: parent.bottom
+                            // A negative width (narrow screen, full status row)
+                            // makes Text elide against nothing and warn.
+                            visible: width > Appearance.s(60)
+
+                            // Only the focused monitor names a window: every
+                            // other bar would otherwise repeat a title for a
+                            // window that isn't on it.
+                            readonly property bool focused: Hyprland.focusedMonitor?.name === perScreen.modelData.name
+                            readonly property string title: {
+                                const t = Hyprland.activeToplevel;
+                                if (!t)
+                                    return "";
+                                return t.title || t.wayland?.title || t.lastIpcObject?.title || "";
+                            }
+
+                            WheelDetent {
+                                // Same 4%-per-notch feel as the volume gesture
+                                // next door, and the same explicit OSD: there's
+                                // no visible slider here either.
+                                onMoved: notches => {
+                                    Brightness.setDisplay(Brightness.display + notches * 0.04);
+                                    Osd.show("brightness");
+                                }
+                            }
+
+                            StyledText {
+                                anchors.centerIn: parent
+                                width: Math.min(implicitWidth, parent.width)
+                                horizontalAlignment: Text.AlignHCenter
+                                visible: centre.focused && text !== ""
+                                text: centre.title
+                                color: Theme.barFgDim
+                                elide: Text.ElideRight
+                            }
                         }
 
-                        Clock {}
+                        Row {
+                            id: statusRow
+
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: Appearance.s(2)
+
+                            // Left of the tray ellipsis: the Row is
+                            // right-anchored, so anything ahead of the tray
+                            // keeps every other module in place when these
+                            // appear and vanish.
+                            RecordStatus {
+                                tooltip: tip
+                            }
+
+                            MediaStatus {
+                                tooltip: tip
+                            }
+
+                            PrivacyStatus {}
+
+                            Tray {
+                                popouts: popouts
+                                tooltip: tip
+                            }
+
+                            WifiStatus {
+                                id: wifiMod
+
+                                popouts: popouts
+                                tooltip: tip
+                            }
+
+                            BatteryStatus {
+                                id: batMod
+
+                                popouts: popouts
+                                tooltip: tip
+                            }
+
+                            ControlStatus {
+                                id: ctrlMod
+
+                                popouts: popouts
+                            }
+
+                            NotifsStatus {
+                                id: notifMod
+
+                                popouts: popouts
+                            }
+
+                            Clock {
+                                id: clockMod
+
+                                popouts: popouts
+                                tooltip: tip
+                            }
+                        }
                     }
                 }
             }
@@ -142,6 +315,13 @@ Scope {
                 id: popouts
 
                 barWindow: win
+            }
+
+            BarTooltip {
+                id: tip
+
+                barWindow: win
+                popouts: popouts
             }
         }
     }
@@ -168,7 +348,8 @@ Scope {
                 control: "",
                 audio: "audio",
                 bluetooth: "bluetooth",
-                kdeconnect: "kdeconnect"
+                kdeconnect: "kdeconnect",
+                display: "display"
             };
             if (name in pages) {
                 bar.pops.openControl(pages[name], bar.mods.control);

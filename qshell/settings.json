@@ -1,8 +1,12 @@
 {
+    "animScale": 1,
+    "batteryCriticalSuspend": true,
     "launcherMaxShown": 8,
     "overviewColumns": 6,
     "scale": 1.15,
     "scrollFactor": 3.5,
     "theme": "catppuccin-latte",
+    "weather": true,
+    "weatherPlace": "",
     "workspaces": 12
 }

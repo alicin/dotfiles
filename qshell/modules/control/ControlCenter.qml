@@ -69,7 +69,7 @@ Item {
 
     Behavior on slide {
         Anim {
-            duration: 320
+            duration: Appearance.d(320)
             curve: Appearance.anim.curves.emphasized
         }
     }
@@ -78,7 +78,7 @@ Item {
         enabled: root.morph
 
         Anim {
-            duration: 320
+            duration: Appearance.d(320)
             curve: Appearance.anim.curves.emphasized
         }
     }
@@ -112,6 +112,8 @@ Item {
                 return btPage;
             case "kdeconnect":
                 return kdecPage;
+            case "display":
+                return displayPage;
             default:
                 return null;
             }
@@ -138,6 +140,14 @@ Item {
         id: kdecPage
 
         KdeConnectPage {
+            onBack: root.go("")
+        }
+    }
+
+    Component {
+        id: displayPage
+
+        DisplayPage {
             onBack: root.go("")
         }
     }

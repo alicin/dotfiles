@@ -17,6 +17,21 @@ Singleton {
     // Clamped so a bad edit can't make lists unscrollable or uncontrollable.
     readonly property real scrollFactor: Math.max(0.25, Math.min(10, adapter.scrollFactor))
 
+    // Global motion multiplier over every Appearance duration token. 0 is
+    // "reduced motion": animations resolve in the same frame instead of being
+    // removed, so nothing has to grow a second, non-animated code path.
+    // Capped at 3 — beyond that the shell stops feeling responsive at all.
+    readonly property real animScale: Math.max(0, Math.min(3, adapter.animScale))
+
+    // Weather in the calendar popout. Off means nothing is ever fetched.
+    // `weatherPlace` is "lat,lon"; empty asks for a one-time coarse IP lookup.
+    readonly property bool weather: adapter.weather
+    readonly property string weatherPlace: adapter.weatherPlace
+
+    // Suspend the machine when the battery gets critical rather than letting
+    // it die mid-write. See services/Power.qml for the thresholds.
+    readonly property bool batteryCriticalSuspend: adapter.batteryCriticalSuspend
+
     function setTheme(name: string): void {
         adapter.theme = name;
     }
@@ -37,6 +52,10 @@ Singleton {
             property real scale: 1.15
             property int overviewColumns: 6
             property real scrollFactor: 3.5
+            property real animScale: 1
+            property bool weather: true
+            property string weatherPlace: ""
+            property bool batteryCriticalSuspend: true
         }
     }
 }

@@ -1,0 +1,28 @@
+[Unit]
+# The Quickshell shell (bar, launcher, OSD, clipboard picker, overview) — and
+# the session's notification daemon. A crash used to take all of that silently:
+# no bar, and notifications going nowhere until you noticed the quiet.
+Description=qshell (Quickshell desktop shell)
+Documentation=https://quickshell.org
+After=graphical-session.target
+PartOf=graphical-session.target
+
+# A shell that crashes on load would otherwise respawn forever at 2s intervals.
+# Five failures in a minute means the config is broken, not the process
+# unlucky — stop and leave the failure visible in `systemctl --user status`.
+# Both keys belong in [Unit]: StartLimitIntervalSec= is ignored outright in
+# [Service], and StartLimitBurst= only works there through deprecated compat.
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=exec
+# Foreground: -d daemonises and systemd would see the launcher exit and call
+# the service dead the moment it started.
+ExecStart=/usr/bin/qs -c qshell
+Restart=on-failure
+RestartSec=2
+Slice=session.slice
+
+[Install]
+WantedBy=graphical-session.target

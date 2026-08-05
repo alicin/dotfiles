@@ -274,7 +274,7 @@ Scope {
                     property string offGlyph: ""
                     property bool on: false
 
-                    readonly property bool locked: Capture.recording
+                    readonly property bool locked: Capture.recording || Capture.paused
 
                     signal tapped
 
@@ -315,13 +315,15 @@ Scope {
                     anchors.centerIn: parent
                     spacing: Appearance.s(8)
 
-                    // Solid while armed, blinking once it's actually writing.
+                    // Solid while armed or paused, blinking only while it is
+                    // actually writing — so "is this taking?" is answered by
+                    // motion rather than by reading a label.
                     Rectangle {
                         anchors.verticalCenter: parent.verticalCenter
                         width: Appearance.s(9)
                         height: width
                         radius: width / 2
-                        color: Capture.recording ? Theme.urgent : "#80ffffff"
+                        color: Capture.recording ? Theme.urgent : Capture.paused ? Theme.warn : "#80ffffff"
 
                         SequentialAnimation on opacity {
                             running: Capture.recording
@@ -344,7 +346,7 @@ Scope {
                         // Monospaced digits: the counter ticks every second and
                         // the pill would otherwise resize under the cursor,
                         // moving the Stop button as you reach for it.
-                        visible: Capture.recording
+                        visible: Capture.recording || Capture.paused
                         text: Capture.elapsedText
                         font.weight: Font.Medium
                         font.features: ({
@@ -379,8 +381,19 @@ Scope {
                         onTapped: Capture.startArmed()
                     }
 
+                    // Pause closes the current segment; Stop assembles them.
+                    // Labelled, not a bare glyph: this one decides whether the
+                    // next thing you do ends up in the file.
                     PillButton {
-                        visible: Capture.recording
+                        visible: Capture.recording || Capture.paused
+                        label: Capture.paused ? "Resume" : "Pause"
+                        glyph: Capture.paused ? "play_fill" : "pause_fill"
+                        tint: Theme.warn
+                        onTapped: Capture.togglePause()
+                    }
+
+                    PillButton {
+                        visible: Capture.recording || Capture.paused
                         label: "Stop"
                         glyph: "stop_fill"
                         tint: Theme.urgent

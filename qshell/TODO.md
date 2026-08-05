@@ -188,66 +188,71 @@ the actual code, with file:line refs where it helps. ★ = highest daily-use pay
 
 ### Bar & glanceability
 
-- [ ] Calendar popout on the clock — the clock is the only inert bar module;
+- [x] Calendar popout on the clock — the clock is the only inert bar module;
   one new Popouts Component, pure JS Date. Natural home for a weather line
   (open-meteo via the KdeConnect-style poll pattern)
-- [ ] Now-playing bar module (MPRIS) — the Control Center media card exists;
+- [x] Now-playing bar module (MPRIS) — the Control Center media card exists;
   pause is two clicks away
-- [ ] VPN/Tailscale presence badge on the wifi glyph (backend exists; needs a
+- [x] VPN/Tailscale presence badge on the wifi glyph (backend exists; needs a
   slow background poll)
-- [ ] Shared hover tooltip component — battery ETA, SSID+strength, tray
+- [x] Shared hover tooltip component — battery ETA, SSID+strength, tray
   titles, mic users are all computed but unreachable without clicks
-- [ ] Recording chip in the bar (blinking dot + elapsed, click to stop) — also
+- [x] Recording chip in the bar (blinking dot + elapsed, click to stop) — also
   the only indicator a *full-screen* recording would have
-- [ ] Reveal bar over fullscreen via a hot top-edge strip
-- [ ] Focused-app title in the bar's empty center
-- [ ] Brightness scroll gesture mirroring the volume one
+- [x] Reveal bar over fullscreen via a hot top-edge strip
+- [x] Focused-app title in the bar's empty center
+- [x] Brightness scroll gesture mirroring the volume one
 
 ### Power & system
 
-- [ ] Low-battery notifications + critical action — today's entire story is
+- [x] Low-battery notifications + critical action — today's entire story is
   the bar tinting red at 15%; the shell *is* the notification daemon
-- [ ] Auto power-profile on plug/unplug — Power.set, UPower state, and the
+- [x] Auto power-profile on plug/unplug — Power.set, UPower state, and the
   confirming OSD all exist, unconnected
-- [ ] Night light — no gamma tooling anywhere in the repo; small hyprsunset
-  service + a third Focus tile
-- [ ] Display page in Control Center — the monitor scripts (Super+Ctrl+M/E/L,
+- [x] Night light — no gamma tooling anywhere in the repo; small hyprsunset
+  service + a third Focus tile.
+  **Needs `pacman -S hyprsunset`** — the tile says so until it's installed.
+- [x] Display page in Control Center — the monitor scripts (Super+Ctrl+M/E/L,
   eDP toggle) are keybind-only; the eDP toggle has a known recovery footgun
-- [ ] Submap indicator OSD — the power submap runs blind; the bind already
+- [x] Submap indicator OSD — the power submap runs blind; the bind already
   carries the "(l)ock (e)xit…" description string
-- [ ] Supervise the shell: systemd user unit, Restart=on-failure — a crash
-  silently takes bar, launcher, OSD, and the notification daemon
-- [ ] Power-profile IPC target for a keybind (OSD feedback is already free)
-- [ ] Animation-scale / reduced-motion setting — one persisted multiplier over
+- [x] Supervise the shell: systemd user unit, Restart=on-failure — a crash
+  silently takes bar, launcher, OSD, and the notification daemon.
+  **Needs enabling once**: `systemctl --user daemon-reload && systemctl --user
+  enable --now qshell.service` (the startup line already prefers it when it is).
+- [x] Power-profile IPC target for a keybind (OSD feedback is already free)
+- [x] Animation-scale / reduced-motion setting — one persisted multiplier over
   the Appearance duration tokens
 
 ### Notifications
 
-- [ ] Inline reply on chat cards — Quickshell supports the extension; the
+- [x] Inline reply on chat cards — Quickshell supports the extension; the
   server just doesn't advertise it (`services/Notifs.qml:101-109`)
-- [ ] Large image previews on image-bearing cards — capture pipeline already
+- [x] Large image previews on image-bearing cards — capture pipeline already
   puts the path on the card; recreates the macOS screenshot-thumbnail flow
-- [ ] `notifs` IPC target: DND toggle, clear, dismiss-latest — DND stops being
+- [x] `notifs` IPC target: DND toggle, clear, dismiss-latest — DND stops being
   mouse-only
-- [ ] Auto-DND while recording — `popupsHidden` covers only the capture
+- [x] Auto-DND while recording — `popupsHidden` covers only the capture
   moment; live wf-recorder sessions burn toasts into the video
-- [ ] History grouping by app (one chatty app drowns the rest)
-- [ ] Per-app muting — single choke point in `onNotification`
-- [ ] Drag-to-dismiss toasts (pairs with the exit animation)
-- [ ] Persist history across shell restarts (Settings JSON pattern; also fixes
+- [x] History grouping by app (one chatty app drowns the rest)
+- [x] Per-app muting — single choke point in `onNotification`
+- [x] Drag-to-dismiss toasts (pairs with the exit animation)
+- [x] Persist history across shell restarts (Settings JSON pattern; also fixes
   re-adoption restamping arrival times)
 
 ### Capture
 
-- [ ] Floating recent-capture thumbnail — corner PanelWindow, click to open,
+- [x] Floating recent-capture thumbnail — corner PanelWindow, click to open,
   lingers a few seconds; the signature macOS interaction
-- [ ] Annotation via a `qshell-edit` notification action launching
+- [x] Annotation via a `qshell-edit` notification action launching
   satty/swappy — few lines in `lib/capture.sh` given the action plumbing
-- [ ] Full-screen recording entry point — `Capture.recordFull()` is fully
+- [x] Full-screen recording entry point — `Capture.recordFull()` is fully
   implemented and has **no caller anywhere**
-- [ ] Pause/resume (wf-recorder toggles on SIGUSR1) — pause button on the
-  pill, dot goes solid while paused
-- [ ] Auto idle-inhibit while recording — one `||` on the bar's IdleInhibitor;
+- [x] Pause/resume — wf-recorder 0.6.0 has **no** SIGUSR1 handler (the signal
+  kills it and takes the unfinalised file), so pause closes the current segment
+  and stop concatenates them losslessly. Pill button, bar chip right-click,
+  Ctrl+Shift+7; dot goes solid while paused
+- [x] Auto idle-inhibit while recording — one `||` on the bar's IdleInhibitor;
   hypridle can currently dim/lock mid-take, into the clip
 
 ### Launcher
