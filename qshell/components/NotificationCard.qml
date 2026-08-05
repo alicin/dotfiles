@@ -77,13 +77,34 @@ Item {
     // attachment) rather than an icon identifying its sender. Shown full width
     // under the body — the capture pipeline has been putting the path on the
     // card all along with nothing rendering it.
+    // An *icon* dressed as an image. Half the apps on this machine put their
+    // own launcher icon in the image-path hint (and many put an absolute
+    // icon-theme path in app_icon), which the preview band below happily blew
+    // up to 150px under every single notification. Icons live in known places
+    // and in size-named directories; a photo, a screenshot or album art does
+    // not.
+    function iconish(p: string): bool {
+        if (!p)
+            return true;
+        const s = (p + "").replace(/^file:\/\//, "");
+        // Not a path at all — a themed icon name ("discord", "mail-unread").
+        if (!s.startsWith("/"))
+            return true;
+        return /\/(icons|pixmaps)\//i.test(s) || /\/\d+x\d+\//.test(s) || /\/(hicolor|adwaita|breeze|papirus|gnome)\//i.test(s);
+    }
+
     readonly property string bigImage: {
-        if (n?.image)
-            return n.image;
+        const img = n?.image ?? "";
+        const ai = n?.appIcon ?? "";
+        // Never the sender's own icon repeated at 150px — the small slot
+        // beside the summary is already identifying them.
+        if (img && !root.iconish(img) && img.replace(/^file:\/\//, "") !== ai)
+            return img;
         // qshell's own capture toasts carry the file as the app icon, which is
         // how the notification's buttons find it too.
-        const ai = n?.appIcon ?? "";
-        return /^\/.+\.(png|jpe?g|webp|gif|bmp)$/i.test(ai) ? `file://${ai}` : "";
+        if (/^\/.+\.(png|jpe?g|webp|gif|bmp)$/i.test(ai) && !root.iconish(ai))
+            return `file://${ai}`;
+        return "";
     }
 
     readonly property string imageSource: {
@@ -332,7 +353,11 @@ Item {
         ClippingRectangle {
             width: parent.width
             height: visible ? Math.min(Appearance.s(150), width * 0.5) : 0
-            visible: root.bigImage !== "" && preview.status === Image.Ready
+            // Second net, after the path heuristic: an icon delivered as raw
+            // image-data has no path to judge, but it is 64 or 128 pixels
+            // square. sourceSize only ever scales *down*, so the implicit size
+            // is the real one.
+            visible: root.bigImage !== "" && preview.status === Image.Ready && (preview.implicitWidth >= 160 || preview.implicitHeight >= 160)
             radius: Appearance.s(10)
             color: Qt.alpha(Theme.surfaceFg, 0.06)
 

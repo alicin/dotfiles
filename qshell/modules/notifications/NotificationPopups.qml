@@ -13,15 +13,18 @@ Scope {
     PanelWindow {
         id: win
 
-        // Pinned per toast batch: assigned when the stack goes from empty to
-        // non-empty and held until it drains (the assignment severs this live
-        // binding on first use, on purpose) — a toast used to teleport to the
-        // other monitor mid-read when the cursor crossed screens.
+        // Pinned per toast batch: set when the stack goes from empty to
+        // non-empty and held until it drains — a toast used to teleport to the
+        // other monitor mid-read when the cursor crossed screens. By NAME, so
+        // that a monitor coming or going can't leave this window bound to a
+        // dead ShellScreen (see the launcher's pin).
+        property string pinned: ""
+
         readonly property bool haveToasts: Notifs.popups.length > 0
 
         onHaveToastsChanged: {
             if (haveToasts)
-                win.screen = Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? Quickshell.screens[0] ?? null;
+                win.pinned = Hyprland.focusedMonitor?.name ?? "";
         }
 
         // Auto-DND for recordings, scoped to what is actually being recorded:
@@ -38,7 +41,7 @@ Scope {
         // underneath it.
         readonly property bool replying: stack.replyCount > 0
 
-        screen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? Quickshell.screens[0] ?? null
+        screen: Quickshell.screens.find(s => s.name === (win.pinned || Hyprland.focusedMonitor?.name)) ?? Quickshell.screens[0] ?? null
         color: "transparent"
         implicitWidth: Appearance.s(404)
         implicitHeight: Appearance.s(740)

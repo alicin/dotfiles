@@ -21,6 +21,9 @@ Scope {
     property int dragWs: -1
     property int dropWs: -1
 
+    // Screen this overview is pinned to while open, by name.
+    property string pinned: ""
+
     // Fresh `hyprctl clients` json by address. HyprlandToplevel.lastIpcObject
     // goes stale after moves — end-4 solves this with an event-driven refetch
     // (their HyprlandData service); same approach here.
@@ -76,10 +79,10 @@ Scope {
         // over it (the bar tooltip) needs to know.
         Overlays.overview = open;
         if (open) {
-            // Latched per open (severs the live binding, on purpose): the
-            // grid used to remap to the other monitor mid-use when
-            // focus-follows-mouse crossed screens.
-            win.screen = Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? Quickshell.screens[0] ?? null;
+            // Pinned per open by NAME (see the launcher's pin — an object
+            // latch dies with its monitor): the grid used to remap to the
+            // other monitor mid-use when focus-follows-mouse crossed screens.
+            root.pinned = Hyprland.focusedMonitor?.name ?? "";
             rev++;
             refetch();
         } else {
@@ -163,7 +166,7 @@ Scope {
     PanelWindow {
         id: win
 
-        screen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? Quickshell.screens[0] ?? null
+        screen: Quickshell.screens.find(s => s.name === (root.pinned || Hyprland.focusedMonitor?.name)) ?? Quickshell.screens[0] ?? null
         color: "transparent"
         exclusionMode: ExclusionMode.Ignore
 

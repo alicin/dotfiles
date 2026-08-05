@@ -25,12 +25,14 @@ Scope {
 
     readonly property bool shown: Osd.kind !== ""
 
-    // Pinned per showing (the assignment severs the window's live screen
-    // binding on first use, on purpose) — the pill used to jump screens
-    // mid-fade when the cursor crossed monitors.
+    // Pinned per showing — the pill used to jump screens mid-fade when the
+    // cursor crossed monitors. By NAME: a ShellScreen object dies with its
+    // monitor and a severed binding never recovers (see the launcher's pin).
+    property string pinned: ""
+
     onShownChanged: {
         if (shown)
-            win.screen = Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? Quickshell.screens[0] ?? null;
+            root.pinned = Hyprland.focusedMonitor?.name ?? "";
     }
 
     readonly property string mode: {
@@ -82,7 +84,7 @@ Scope {
     PanelWindow {
         id: win
 
-        screen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? Quickshell.screens[0] ?? null
+        screen: Quickshell.screens.find(s => s.name === (root.pinned || Hyprland.focusedMonitor?.name)) ?? Quickshell.screens[0] ?? null
         color: "transparent"
         implicitWidth: Appearance.s(420)
         implicitHeight: Appearance.s(170)

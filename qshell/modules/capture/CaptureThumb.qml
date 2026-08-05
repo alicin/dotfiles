@@ -26,6 +26,9 @@ Scope {
     property string path: ""
     property bool open: false
 
+    // Screen this thumbnail is pinned to, by name — see the launcher's pin.
+    property string pinned: ""
+
     onOpenChanged: Overlays.captureThumb = open
 
     readonly property bool isVideo: /\.(mp4|mkv|webm|mov)$/i.test(root.path)
@@ -35,10 +38,9 @@ Scope {
 
         function onCaptured(path: string): void {
             root.path = path;
-            // Pinned per showing (the assignment severs the window's live
-            // screen binding on first use, on purpose) — same latch every
-            // other transient surface in this shell uses.
-            win.screen = Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? Quickshell.screens[0] ?? null;
+            // Pinned per showing — the same pin every other transient surface
+            // in this shell uses.
+            root.pinned = Hyprland.focusedMonitor?.name ?? "";
             root.open = true;
             linger.restart();
         }
@@ -67,7 +69,7 @@ Scope {
     PanelWindow {
         id: win
 
-        screen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? Quickshell.screens[0] ?? null
+        screen: Quickshell.screens.find(s => s.name === (root.pinned || Hyprland.focusedMonitor?.name)) ?? Quickshell.screens[0] ?? null
         color: "transparent"
         implicitWidth: Appearance.s(300)
         implicitHeight: Appearance.s(230)

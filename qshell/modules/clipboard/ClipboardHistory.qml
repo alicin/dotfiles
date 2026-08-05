@@ -16,13 +16,15 @@ Scope {
 
     property bool open: false
 
+    // Pinned by NAME, not by object — see the launcher's identical pin for
+    // what a severed screen binding costs when a monitor comes and goes.
+    property string pinned: ""
+
     onOpenChanged: {
         // The OSD shares this panel's bottom-center spot.
         Osd.clipboardOpen = open;
         if (open) {
-            // Latched per open (severs the live binding, on purpose): see
-            // the launcher's identical latch.
-            win.screen = Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? Quickshell.screens[0] ?? null;
+            root.pinned = Hyprland.focusedMonitor?.name ?? "";
             if (Osd.kind !== "countdown")
                 Osd.hide();
             Clipboard.refresh();
@@ -68,7 +70,7 @@ Scope {
     PanelWindow {
         id: win
 
-        screen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? Quickshell.screens[0] ?? null
+        screen: Quickshell.screens.find(s => s.name === (root.pinned || Hyprland.focusedMonitor?.name)) ?? Quickshell.screens[0] ?? null
         color: "transparent"
         implicitWidth: Appearance.sizes.launcherWidth + Appearance.s(40)
         // Tall enough for the full 8-row panel PLUS the floating image

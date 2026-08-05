@@ -60,7 +60,9 @@ Item {
         icon: "equal_square_fill"
         // Lit while Keep Awake holds the machine — otherwise the only
         // indicator lived inside the closed panel, and nothing on screen
-        // reminded you it will no longer dim, lock or suspend.
-        color: Idle.inhibited ? Theme.accent : Theme.barFg
+        // reminded you it will no longer dim, lock or suspend. Pink, not the
+        // mauve accent: this glyph is *already* accent-tinted whenever its
+        // menu is open, so the two states were the same colour.
+        color: Idle.inhibited ? Theme.barAwake : Theme.barFg
     }
 }

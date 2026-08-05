@@ -16,14 +16,22 @@ Scope {
 
     property bool open: false
 
+    // The screen this panel is pinned to, by NAME. Pinning used to be an
+    // assignment to win.screen, which severs the binding — and a ShellScreen
+    // object does not survive monitor churn (an unplug, an eDP toggle, a
+    // `hyprctl reload`). Once the latched one died the window had no screen
+    // and never mapped again: the launcher and the clipboard picker both
+    // silently stopped opening, with working IPC, until the shell restarted.
+    // A name outlives the object, and the binding re-resolves.
+    property string pinned: ""
+
     onOpenChanged: {
         // The OSD shares this panel's bottom-center spot.
         Osd.launcherOpen = open;
         if (open) {
-            // Latched per open (this assignment severs the live binding, on
-            // purpose): with focus-follows-mouse, an open panel used to remap
-            // to the other monitor the moment the cursor crossed.
-            win.screen = Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? Quickshell.screens[0] ?? null;
+            // Pinned per open: with focus-follows-mouse, an open panel used to
+            // remap to the other monitor the moment the cursor crossed.
+            root.pinned = Hyprland.focusedMonitor?.name ?? "";
             if (Osd.kind !== "countdown")
                 Osd.hide();
             field.text = "";
@@ -60,7 +68,7 @@ Scope {
     PanelWindow {
         id: win
 
-        screen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? Quickshell.screens[0] ?? null
+        screen: Quickshell.screens.find(s => s.name === (root.pinned || Hyprland.focusedMonitor?.name)) ?? Quickshell.screens[0] ?? null
         color: "transparent"
         implicitWidth: Appearance.sizes.launcherWidth + Appearance.s(40)
         implicitHeight: Appearance.s(700)

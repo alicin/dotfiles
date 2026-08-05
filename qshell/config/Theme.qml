@@ -26,6 +26,7 @@ Singleton {
                 barOk: "#40a02b", //     green  (battery charging)
                 barWarn: "#fe640b", //   peach
                 barUrgent: "#d20f39", // red    (battery critical)
+                barAwake: "#ea76cb", //  pink   (keep awake)
                 surfaceBg: "#f7eff1f5", // base @ 0.97
                 surfaceFg: "#4c4f69", //   text
                 surfaceFgDim: "#6c6f85", // subtext0
@@ -51,6 +52,7 @@ Singleton {
                 barOk: "#a6e3a1",
                 barWarn: "#fab387",
                 barUrgent: "#f38ba8",
+                barAwake: "#f5c2e7", // pink
                 surfaceBg: "#f71e1e2e", // base @ 0.97
                 surfaceFg: "#cdd6f4",
                 surfaceFgDim: "#a6adc8",
@@ -84,6 +86,12 @@ Singleton {
     readonly property color barOk: active.barOk
     readonly property color barWarn: active.barWarn
     readonly property color barUrgent: active.barUrgent
+
+    // Keep Awake, on the Control Center glyph. Its own colour rather than the
+    // accent: the accent is mauve in both themes, which is what the glyph
+    // already looks like when a menu is open — "held awake" has to read as a
+    // different fact, not a slightly different purple.
+    readonly property color barAwake: active.barAwake
 
     // ── Privacy badge fills ──
     // Deliberately *not* per-theme. These are safety indicators whose whole job

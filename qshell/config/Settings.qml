@@ -32,6 +32,19 @@ Singleton {
     // it die mid-write. See services/Power.qml for the thresholds.
     readonly property bool batteryCriticalSuspend: adapter.batteryCriticalSuspend
 
+    // What the launcher's `!` mode opens when asked to run something in a
+    // terminal, and what a "Run in terminal" row spawns.
+    readonly property string terminal: adapter.terminal
+
+    // Clipboard picker: paste straight into the window you came from instead
+    // of only loading the selection onto the clipboard.
+    readonly property bool clipboardPaste: adapter.clipboardPaste
+
+    // Terminals take Ctrl+Shift+V, everything else Ctrl+V — matched against
+    // the window class the picker was opened over. A regex so a new terminal
+    // is one settings edit, not a code change.
+    readonly property string clipboardPasteTerminals: adapter.clipboardPasteTerminals
+
     function setTheme(name: string): void {
         adapter.theme = name;
     }
@@ -56,6 +69,9 @@ Singleton {
             property bool weather: true
             property string weatherPlace: ""
             property bool batteryCriticalSuspend: true
+            property string terminal: "kitty"
+            property bool clipboardPaste: false
+            property string clipboardPasteTerminals: "kitty|foot|alacritty|wezterm|ghostty|konsole|terminator|xterm|st"
         }
     }
 }
