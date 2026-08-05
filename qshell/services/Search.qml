@@ -222,7 +222,12 @@ Singleton {
             const ws = t.workspace;
             const cls = ((t.lastIpcObject?.class || t.wayland?.appId) ?? "") + "";
             const title = t.title || t.lastIpcObject?.title || cls || "Untitled";
-            const where = !ws ? "" : ws.id < 0 ? (ws.name + "").replace(/^special:/, "") || "scratchpad" : `Workspace ${ws.id}`;
+            // "special" with no colon IS the unnamed scratchpad — the named
+            // ones are "special:void" and friends. Stripping the prefix leaves
+            // the unnamed one labelled "special", which is a name it does not
+            // have anywhere else in this shell.
+            const wsName = `${ws?.name ?? ""}`;
+            const where = !ws ? "" : ws.id < 0 ? (wsName === "special" ? "scratchpad" : wsName.replace(/^special:/, "") || "scratchpad") : `Workspace ${ws.id}`;
             const addr = Windows.keyOf(t);
             return root.cached(`w|${addr}|${title}|${where}`, () => ({
                         kind: "window",
