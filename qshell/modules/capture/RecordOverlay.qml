@@ -267,6 +267,11 @@ Scope {
                 // once rolling: the audio graph is wired at launch, and a
                 // toggle that animates mid-recording while changing nothing
                 // in the file is a lie you only discover at playback.
+                //
+                // `startPending` counts as rolling. The flags are already on
+                // their way to wf-recorder by then, so the second between the
+                // start and the poll that confirms it was a window where these
+                // still animated and still changed nothing.
                 component AudioToggle: Rectangle {
                     id: tog
 
@@ -274,7 +279,7 @@ Scope {
                     property string offGlyph: ""
                     property bool on: false
 
-                    readonly property bool locked: Capture.recording || Capture.paused
+                    readonly property bool locked: Capture.recording || Capture.paused || Capture.startPending
 
                     signal tapped
 
@@ -357,6 +362,17 @@ Scope {
                     PillText {
                         text: `${Capture.rw}×${Capture.rh}`
                         color: "#99ffffff"
+                    }
+
+                    // The launch window: `armed` has already gone false so
+                    // Start and Cancel are gone, and the poll hasn't seen
+                    // wf-recorder yet so Pause and Stop haven't arrived. For
+                    // that second the pill was a grey dot and a size, with no
+                    // control on it and nothing saying why.
+                    PillText {
+                        visible: Capture.startPending
+                        text: "Starting…"
+                        font.weight: Font.Medium
                     }
 
                     AudioToggle {

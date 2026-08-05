@@ -26,8 +26,13 @@ Column {
     Card {
         title: "Layout"
 
+        // Inset to the card's own grid — 6 on the left where the output
+        // badges start, 8 on the right where their switches end. A Card pads
+        // vertically but not horizontally, so full-width content otherwise
+        // lands flush against the tint's rounded edge.
         Row {
-            width: parent.width
+            x: Appearance.s(6)
+            width: parent.width - Appearance.s(14)
             spacing: Appearance.s(6)
 
             component LayoutChip: Rectangle {
@@ -200,7 +205,10 @@ Column {
                 anchors.right: parent.right
                 anchors.rightMargin: Appearance.s(8)
                 anchors.verticalCenter: parent.verticalCenter
-                text: "Super+Shift+O relights a stuck panel"
+                // Short enough to survive the width the chip leaves it — the
+                // full sentence elided to "…a stuck …", which is worse than
+                // saying less. The card title supplies what "it" is.
+                text: "Super+Shift+O relights it"
                 color: Theme.surfaceFgDim
                 font.pixelSize: Appearance.font.size.small
                 font.weight: Font.Normal

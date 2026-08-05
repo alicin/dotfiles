@@ -186,15 +186,18 @@ Scope {
 
             visible: offsetScale < 1
             opacity: 1 - offsetScale
-            y: win.height - (height + Appearance.s(14)) * (1 - offsetScale)
-            anchors.horizontalCenter: parent.horizontalCenter
-
-            // As wide as the screen allows, because the point of the strip is
-            // how many cards are on it — capped so it doesn't become a band on
-            // an ultrawide.
-            width: Math.min(win.width - Appearance.s(60), Appearance.s(1500))
+            // Edge to edge along the bottom, the way Paste's own bar sits: the
+            // whole point of the strip is how many cards are on it, and a
+            // floating card of a window spent screen width on margins to look
+            // like a dialog — which this is not. Only the top corners round,
+            // because the other two are off the screen.
+            x: 0
+            y: win.height - height * (1 - offsetScale)
+            width: win.width
             height: pad + header.height + Appearance.s(10) + strip.height + Appearance.s(8) + hints.height + pad
             radius: Appearance.sizes.launcherRadius
+            bottomLeftRadius: 0
+            bottomRightRadius: 0
             color: Theme.surfaceBg
             border.width: 1
             border.color: Theme.surfaceBorder
@@ -215,10 +218,16 @@ Scope {
                 width: panel.width - panel.pad * 2
                 height: Appearance.s(40)
 
+                // Kinds on the left, search on the right — Paste's own toolbar
+                // order, and the one that survives a full-width panel: the
+                // chips are what you point at, so they belong at the edge the
+                // cards start from, not stranded in the middle of a screen's
+                // worth of header.
                 Rectangle {
                     id: searchBg
 
-                    anchors.left: parent.left
+                    anchors.right: clearBtn.left
+                    anchors.rightMargin: Appearance.s(10)
                     anchors.verticalCenter: parent.verticalCenter
                     width: Appearance.s(280)
                     height: Appearance.s(36)
@@ -302,9 +311,8 @@ Scope {
                 Row {
                     id: chips
 
-                    anchors.left: searchBg.right
-                    anchors.leftMargin: Appearance.s(12)
-                    anchors.right: clearBtn.left
+                    anchors.left: parent.left
+                    anchors.right: count.left
                     anchors.rightMargin: Appearance.s(12)
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: Appearance.s(6)
@@ -357,6 +365,21 @@ Scope {
                             }
                         }
                     }
+                }
+
+                // How much is behind the strip — the count is the only thing
+                // that says whether scrolling on is worth it, since the cards
+                // themselves run off the right edge either way.
+                StyledText {
+                    id: count
+
+                    anchors.right: searchBg.left
+                    anchors.rightMargin: Appearance.s(14)
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: list.count === 0 ? "" : `${list.count} item${list.count === 1 ? "" : "s"}`
+                    color: Theme.surfaceFgDim
+                    font.pixelSize: Appearance.font.size.small
+                    font.weight: Font.Normal
                 }
 
                 // Wipe the history. Two taps, and it says so in between: this
@@ -492,6 +515,25 @@ Scope {
 
                     WheelScroll {
                         view: list
+                    }
+
+                    // The same thin thumb the launcher and the notification
+                    // list grew, turned on its side. Without it the strip was
+                    // the one list in the shell that ran off its own edge with
+                    // nothing saying how far — and it is also the one holding
+                    // the most rows. Parented to the viewport: Flickable
+                    // children live in contentItem and would scroll away.
+                    Rectangle {
+                        parent: list
+                        anchors.bottom: parent.bottom
+                        height: Appearance.s(3)
+                        radius: height / 2
+                        color: Qt.alpha(Theme.surfaceFg, 0.28)
+                        visible: list.contentWidth > list.width
+                        width: list.width * (list.width / Math.max(list.contentWidth, 1))
+                        // Origin-relative and clamped: model churn shifts
+                        // originX, and raw contentX drew the thumb off-track.
+                        x: Math.max(0, Math.min(list.width - width, (list.contentX - list.originX) * (list.width / Math.max(list.contentWidth, 1))))
                     }
                 }
             }

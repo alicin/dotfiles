@@ -72,10 +72,21 @@ Item {
     // "PNG · 2228×609 · 576 KiB" for bytes, the folder for a path, a line
     // count for text — the thing you'd squint at the content to work out.
     readonly property string meta: {
-        if (root.showsThumb || root.isBinary)
+        // Bytes only. An image *path* has none of these fields (they are parsed
+        // out of cliphist's `[[ binary data … ]]` preview, which a path has no
+        // reason to be), so routing it here left the card a picture over an
+        // empty footer, with its filename shown nowhere at all.
+        if (root.isBinary)
             return [modelData.kind, modelData.dims, modelData.size].filter(s => s).join(" · ");
-        if (root.isPath)
-            return Clipboard.dirName(root.firstPath);
+        if (root.isPath) {
+            const extra = root.paths.length > 1 ? ` +${root.paths.length - 1}` : "";
+            // A thumbnail already shows what it is but not what it's called;
+            // a non-image path puts its filename in the body, so the folder is
+            // what's left to say.
+            return (root.showsThumb ? Clipboard.baseName(root.firstPath) : Clipboard.dirName(root.firstPath)) + extra;
+        }
+        if (root.kind === "color")
+            return "Color";
         const lines = root.body.split("\n").length;
         if (lines > 1)
             return `${lines} lines`;
@@ -83,15 +94,44 @@ Item {
         return `${chars} character${chars === 1 ? "" : "s"}`;
     }
 
+    // The filter bar's glyph for this row's kind, on the footer's left rail —
+    // Paste names the type on every card, and it gives the footer the same
+    // start on a card whose meta is two words as on one whose meta is three
+    // fields.
+    readonly property string kindGlyph: {
+        switch (root.kind) {
+        case "image":
+            return "photo";
+        case "link":
+            return "link";
+        case "file":
+            return "doc";
+        case "color":
+            return "circle_grid_hex";
+        default:
+            return "textformat";
+        }
+    }
+
+    readonly property color swatch: root.kind === "color" ? Clipboard.colorOf(root.modelData) : "transparent"
+    // Black on a light swatch, white on a dark one — the value has to be
+    // readable on a colour chosen by whoever copied it.
+    readonly property color swatchFg: (0.299 * root.swatch.r + 0.587 * root.swatch.g + 0.114 * root.swatch.b) > 0.62 ? "#000000" : "#ffffff"
+
     signal activated
     // Carries the card's index from BEFORE the removal: the model reset snaps
     // currentIndex to 0, and the handler restores the position from this.
     signal removed(int at)
 
+    // The × means gone. On a pin that has to take the history row it stands in
+    // for as well: unpinning alone un-hides that row, so the entry reappears
+    // further along the strip and only *looks* deleted while its source is
+    // still in the store. Unpinning-without-deleting is what the pin button
+    // beside it is for.
     function drop(): void {
         const at = root.index;
         if (root.isPin)
-            Clipboard.unpin(root.modelData);
+            Clipboard.forget(root.modelData);
         else
             Clipboard.remove(root.modelData.id);
         root.removed(at);
@@ -209,7 +249,7 @@ Item {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            anchors.margins: Appearance.s(8)
+            anchors.margins: Appearance.sizes.clipCardPad
             height: Appearance.s(20)
 
             IconImage {
@@ -259,20 +299,24 @@ Item {
             }
         }
 
-        // ── Body: the content, at a size worth reading ──
+        // ── Body: the content, in a 4:3 window ──
+        //
+        // Fixed aspect and a tint on every kind, not just the ones with a
+        // picture in them: what makes a strip scannable is that every card
+        // shows its content in the same window at the same size, so the eye
+        // compares contents instead of re-reading layouts.
         ClippingRectangle {
             id: bodyArea
 
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: header.bottom
-            anchors.bottom: footer.top
-            anchors.leftMargin: Appearance.s(8)
-            anchors.rightMargin: Appearance.s(8)
+            anchors.leftMargin: Appearance.sizes.clipCardPad
+            anchors.rightMargin: Appearance.sizes.clipCardPad
             anchors.topMargin: Appearance.s(6)
-            anchors.bottomMargin: Appearance.s(6)
-            radius: Appearance.s(8)
-            color: root.showsThumb ? Qt.alpha(Theme.surfaceFg, 0.06) : "transparent"
+            height: Appearance.sizes.clipPreviewH
+            radius: Appearance.s(10)
+            color: Qt.alpha(Theme.surfaceFg, 0.05)
 
             Image {
                 id: thumbImage
@@ -295,22 +339,34 @@ Item {
                 color: Theme.surfaceFgDim
             }
 
-            // A colour is the one payload whose *value* is what it looks like.
+            // A colour is the one payload whose *value* is what it looks like —
+            // but the value is also a string you may be about to paste, and the
+            // swatch alone left it written nowhere on the card: two similar
+            // greens were one picture twice.
             Rectangle {
                 anchors.fill: parent
                 visible: root.kind === "color"
                 // bodyArea by id, not `parent`: a ClippingRectangle reparents
                 // its children into a plain content item, which has no radius.
                 radius: bodyArea.radius
-                color: visible ? Clipboard.colorOf(root.modelData) : "transparent"
+                color: visible ? root.swatch : "transparent"
                 border.width: 1
                 border.color: Qt.alpha(Theme.surfaceFg, 0.15)
+
+                StyledText {
+                    anchors.centerIn: parent
+                    text: root.body.trim().toUpperCase()
+                    color: root.swatchFg
+                    font.pixelSize: Appearance.font.size.normal
+                    font.weight: Font.DemiBold
+                }
             }
 
             Column {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.top: parent.top
+                anchors.margins: Appearance.s(9)
                 visible: root.isPath && !root.showsThumb
                 spacing: Appearance.s(2)
 
@@ -343,9 +399,12 @@ Item {
             // Text and links. Left-aligned and top-anchored like the page it
             // came from, not centred like a label.
             StyledText {
+                id: bodyText
+
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.top: parent.top
+                anchors.margins: Appearance.s(9)
                 visible: !root.showsThumb && !root.isPath && root.kind !== "color"
                 text: root.body
                 color: root.kind === "link" ? Theme.accent : Theme.surfaceFg
@@ -353,7 +412,7 @@ Item {
                 font.weight: Font.Normal
                 wrapMode: Text.WrapAtWordBoundaryOrAnywhere
                 // Whatever fits, cut on a line rather than mid-glyph.
-                maximumLineCount: Math.max(1, Math.floor(bodyArea.height / (Appearance.font.size.small * 1.45)))
+                maximumLineCount: Math.max(1, Math.floor((bodyArea.height - Appearance.s(18)) / (Appearance.font.size.small * 1.45)))
                 elide: Text.ElideRight
                 lineHeight: 1.25
             }
@@ -366,12 +425,28 @@ Item {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom
-            anchors.margins: Appearance.s(8)
+            anchors.margins: Appearance.sizes.clipCardPad
             height: Appearance.s(16)
 
-            StyledText {
+            FIcon {
+                id: kindGlyph
+
                 anchors.left: parent.left
-                anchors.right: pinBtn.left
+                anchors.verticalCenter: parent.verticalCenter
+                icon: root.kindGlyph
+                font.pixelSize: Appearance.s(12)
+                color: Theme.surfaceFgDim
+            }
+
+            StyledText {
+                anchors.left: kindGlyph.right
+                anchors.leftMargin: Appearance.s(5)
+                // The buttons only exist on the selected card, so the other
+                // cards get the width back — an invisible Row still holds its
+                // geometry, and reserving it everywhere elided
+                // "PNG · 2560×1600 · 739 KiB" down to "PNG · 2560… · 739 KiB"
+                // on every card in the strip.
+                anchors.right: pinBtn.visible ? pinBtn.left : parent.right
                 anchors.rightMargin: Appearance.s(4)
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.meta

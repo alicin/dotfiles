@@ -38,6 +38,8 @@ Singleton {
     }
 
     readonly property QtObject sizes: QtObject {
+        id: sizes
+
         readonly property int barHeight: root.s(34)
         readonly property int barInner: root.s(26) //  module pill height
         readonly property int icon: root.s(16) //      app/tray icons
@@ -57,11 +59,16 @@ Singleton {
         readonly property int launcherItemHeight: root.s(56)
         readonly property int launcherRadius: root.s(24)
 
-        // Clipboard cards. Portrait, because what is being previewed is a
-        // paragraph or a screenshot — both of which give up more of themselves
-        // per pixel with height than with width.
-        readonly property int clipCardWidth: root.s(196)
-        readonly property int clipCardHeight: root.s(244)
+        // Clipboard cards: a source line, a 4:3 preview, a footer line. The
+        // preview's aspect is fixed rather than "whatever is left over", so a
+        // strip mixing screenshots, colours and paragraphs reads as one grid of
+        // pictures — which is the thing that makes Paste's strip scannable —
+        // instead of a row of boxes that merely share a size. Height falls out
+        // of the width, and lands on a square card.
+        readonly property int clipCardWidth: root.s(212)
+        readonly property int clipCardPad: root.s(9)
+        readonly property int clipPreviewH: Math.round((sizes.clipCardWidth - sizes.clipCardPad * 2) * 3 / 4)
+        readonly property int clipCardHeight: sizes.clipCardPad * 2 + root.s(20 + 6 + 6 + 16) + sizes.clipPreviewH
 
         readonly property int menuRadius: root.s(18)
         readonly property int menuRowHeight: root.s(40)

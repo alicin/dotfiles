@@ -287,6 +287,17 @@ Singleton {
         root.rebuildPins();
     }
 
+    // Delete a pin *and* the history row it was standing in for. `unpin` alone
+    // only drops the copy: `items` was hiding the source row by id, so removing
+    // the pin hands it straight back and the entry reappears further along the
+    // strip — which reads as a delete that didn't take. Anything already
+    // evicted from cliphist just isn't there to match.
+    function forget(entry: var): void {
+        root.unpin(entry);
+        if (entry.srcId)
+            root.remove(entry.srcId);
+    }
+
     // wl-copy offers text by default; bytes have to go back out under the type
     // they came in as or the target sees nothing it can take.
     function pinMime(entry: var): string {
@@ -389,6 +400,14 @@ Singleton {
         }
     }
 
+    // Failures here land after the picker has closed itself, so they have no
+    // surface of their own to report on. Through notify-send like the Asus and
+    // battery warnings, rather than the internal server, so it still shows if
+    // the shell's own toast stack is what's wedged.
+    function notify(summary: string, body: string): void {
+        Quickshell.execDetached(["notify-send", "-a", "qshell", "-i", "edit-paste", summary, body]);
+    }
+
     // ── Copying ──
 
     // Puts a row on the clipboard and, when paste-on-select is on, sends it
@@ -459,8 +478,16 @@ Singleton {
         // A fixed sleep instead would be a visible stall on a fast machine and
         // still a race on a loaded one.
         onExited: exitCode => {
-            if (exitCode === 0)
+            if (exitCode === 0) {
                 root.pasteInto(copier.addr, copier.cls);
+                return;
+            }
+            // The picker closed on the click, so there is nothing left on
+            // screen to put this on. Silence here meant the clipboard still
+            // held the *previous* thing and the next Ctrl+V pasted it — the
+            // failure looked exactly like a successful copy of the wrong entry.
+            root.notify("Couldn't copy that entry", "It is no longer in the clipboard store. History refreshed.");
+            root.refresh();
         }
     }
 
@@ -479,6 +506,12 @@ Singleton {
                 if (decoded)
                     pinner.current.preview = decoded;
                 root.storePin(pinner.current);
+            } else if (pinner.current) {
+                // A pin that fails writes nothing and the card simply stays
+                // unpinned — indistinguishable from never having pressed it,
+                // on the one action whose whole purpose is that the entry
+                // survives what happens to the store.
+                root.notify("Couldn't pin that entry", "The clipboard store had nothing left to copy from.");
             }
             pinner.current = null;
             root.pumpPins();

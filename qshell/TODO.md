@@ -342,3 +342,261 @@ enable --now qshell.service` (the startup line already prefers it when it is).
 
 That batch is mostly one-file changes and covers what the shell currently
 _gets wrong_ rather than merely lacks.
+
+## Second pass (2026-08-04)
+
+Everything above having landed, a second full-shell review — one reviewer per
+surface, each finding re-read against the code by a skeptic that threw six out.
+Nothing here restates a box above; several items exist _because_ of the first
+pass, where one surface got a fix and its sibling didn't. ★ = highest daily-use
+payoff.
+
+### Bar
+
+- [ ] ★ Wi-Fi glyph and its own tooltip contradict each other whenever Ethernet
+      is up — `icon` tests `!wifiEnabled` before `ethernet` while `summary()`
+      tests ethernet first, so docked with Wi-Fi off the bar draws the dim
+      crossed-out "no network" glyph while the tooltip says "Ethernet"; with
+      both links up the SSID and strength are dropped
+      (`WifiStatus.qml:31-37,41,141`)
+- [ ] Popouts land on top of the bar when a fullscreen window has hidden it —
+      the panel's `y` is a flat `s(6)`, but `Bar.qml` drops the bar's exclusive
+      zone to 0 on fullscreen, so every menu opened from the revealed bar covers
+      the module it came from. BarTooltip already carries the term
+      (`Popouts.qml:181`, `BarTooltip.qml:150-153`, `Bar.qml:89`)
+- [ ] Nothing marks which module owns the open menu — `Popouts.current` is read
+      only by the hover-slide guards, and `moduleHoverBg`/`moduleActiveBg` are
+      dead tokens no one binds; `Theme.qml:90-93` already describes the tint as
+      if it shipped (`Theme.qml:20-21,46-47,76-77`, `StateLayer.qml:42-46`)
+- [ ] Muting via the mic light destroys the control — `active` requires
+      `!micMuted`, so the tap collapses the light to zero width and unmuting is
+      only reachable from the Control Center or the Fn key, in the exact state
+      (apps still holding the mic, hearing silence) the bar should be depicting
+      (`PrivacyStatus.qml:51,147`)
+- [ ] Privacy lights disclose on hover with no delay and no stand-down, shoving
+      the right cluster sideways on a pass-through — they're the only child of
+      `statusRow` with no `tooltip:`, so they miss BarTooltip's 450ms delay and
+      its `!Overlays.any` guard (`PrivacyStatus.qml:34-43,51`, `Bar.qml:262-289`)
+- [ ] Scratchpad chips have neither the "+n" overflow nor any identity — icons
+      slice to 3 with no counter, no tooltip names the workspace, and a special
+      that is merely _up_ draws a filled pill with nothing in it
+      (`Workspaces.qml:173,212-232` vs `WorkspaceSlot.qml:109-118`)
+
+### Popout menus
+
+- [ ] ★ Notifications "Clear" wipes persisted history on the first click, while
+      every destructive sibling in the shell arms first — the clipboard's
+      identically-labelled Clear ("Erase history?"), Wi-Fi Forget, the session
+      buttons. History survives restarts now, so there is no undo
+      (`NotifsMenu.qml:129-152`, `services/Notifs.qml:203-213,284-298`)
+- [ ] Enabling Wi-Fi from inside the menu never kicks a scan — the only
+      `rescan()` is in `Component.onCompleted` and early-returns while the radio
+      is off, so the list settles on the completed-scan filler ("No other
+      networks") instead of "Scanning…" (`WifiMenu.qml:171-177,191-196,678-684`,
+      `services/Net.qml:68-75`)
+- [ ] Tailscale's switch has no busy guard — `toggle()` fires unconditionally
+      where `setExitNode()` in the same file opens with `if (busy || !up)`, and
+      since StyledSwitch renders only its bound `checked` the knob doesn't move,
+      so a second tap during the polkit window queues a second password prompt
+      (`services/Tailscale.qml:85-95` vs `:98-112`)
+- [ ] A collapsed notification group expands one-way — the "+n more…" row is
+      only pushed while collapsed, so expanding destroys the only control that
+      could fold it back; the app header has no hit area and `navActivate` has
+      nothing left to toggle (`NotifsMenu.qml:59-81,269-320,335-353`)
+- [ ] A failed weather refresh leaves the last reading on screen, unmarked —
+      neither `code` nor `fetchedAt` is reset on failure, so the row that only
+      renders `error` in the `!valid` branch shows hours-old weather as current,
+      defeating the service's own `maxAge` (`services/Weather.qml:36,87-104,166-173`)
+- [ ] The exit-node picker is a bare Repeater with no cap and no scroll, sitting
+      between two lists that both clamp — and the popout surface is a constant
+      `s(920)` that silently clips (`WifiMenu.qml:882-952` vs `:346,995`)
+- [ ] Esc from an open disclosure tears down the whole panel — only CalendarMenu
+      and ControlCenter implement `navBack`, so an armed Forget, an open PSK row,
+      the exit-node picker and expanded tray submenus all skip the peel
+      (`Popouts.qml:222-226`, `WifiMenu.qml:85-108`, `TrayMenu.qml:47-60`)
+- [ ] Toasts are hidden while _any_ popout is open but their expiry keeps
+      running — the per-card timer pauses for hover, exit, drag and reply, not
+      for `win.hidden`, so notifications arriving while you read the calendar
+      burn unseen (`Popouts.qml:30`, `NotificationPopups.qml:37,238-246`)
+- [ ] Tray checkbox/radio entries render nothing when unchecked — the gutter is
+      gated on `checkState !== Unchecked`, which is also every plain action's
+      state, and the label margin keys off the same flag, so the one checked
+      member of a radio group sits 18px right of its siblings
+      (`TrayMenuEntry.qml:51-82`)
+
+### Control Center
+
+- [ ] ★ Sliders still take a fixed 4% per raw wheel event — `StyledSlider` ends
+      in a bare `WheelHandler`, so a touchpad flick slams brightness, volume,
+      mic and every per-app level end to end. `WheelDetent` was written for this
+      exact bug and its comment says so (`StyledSlider.qml:73-75`)
+- [ ] Muted output still prints a percentage over a full-accent slider — the
+      per-app rows on the same page already dim the slider, dim the name and
+      swap the readout for "mute" (`Home.qml:355-390`, `AudioPage.qml:76-104`
+      vs `:350,367`)
+- [ ] Night Light's tile is a live click target that can do nothing on this
+      machine — hyprsunset is absent, so the handler is a guarded no-op while
+      the tile keeps its pointer cursor, hover wash and ripple. Both fixes are
+      in-repo: the media button's `enabled:` + `opacity: 0.35`, or the palette's
+      omission (`Home.qml:88-92,312-323`)
+- [ ] The Displays tile is a navigation target dressed as a toggle — same `Tile`
+      as its three switch siblings, `active: false` hardcoded so its badge can
+      never light, and no chevron, which every other drill-down in the panel has
+      (`Home.qml:325-331`, `Tile` at `:73-128`)
+- [ ] Display layout chips acknowledge nothing on tap and the result takes at
+      least 900ms to land — the eDP chip one card down already does
+      `flash("Toggling")`, and `Chip.flash()` is shared (`DisplayPage.qml:38-75`,
+      `services/Displays.qml:42-45`)
+- [ ] The colour picker lives in the Record row, so mid-recording a row headed
+      "Recording · 0:12" reads Stop / Pause / Color — move it into the
+      screenshot row or give it its own slot (`Home.qml:828-885`)
+- [ ] KDE Connect's Refresh is the one action chip on the page with no
+      acknowledgement, and the list almost always comes back identical, so it
+      reads as dead (`KdeConnectPage.qml:64-69` vs `:221-249`)
+- [ ] Per-app mixer names sit on two different rails depending on whether the
+      icon resolved — reserve the slot and toggle only the pixels
+      (`AudioPage.qml:328-333`)
+
+### Launcher & Overview
+
+- [ ] ★ The `/` window switcher opens preselected on the window you are already
+      in, so its first Enter is a no-op — row 0 is the MRU head and the
+      launcher's own grab doesn't disturb it; start at row 1 in `/` mode, the
+      way Alt+Tab does (`services/Search.qml:220-254`, `Launcher.qml:52,368-371`)
+- [ ] Overview paints two competing accent highlights — hover and keyboard
+      selection both light a thumbnail, and different keys act on each (Enter
+      takes `selWin`, click takes the hovered one). The launcher already solved
+      this by making hover move `currentIndex` (`OverviewWindow.qml:114-125`)
+- [ ] Overview Up/Down duplicate Left/Right — all eight nav keys step ±1 through
+      a flat list, so nothing ever moves _down_ a row in a UI whose whole shape
+      is a grid (`Overview.qml:321-324`)
+- [ ] The overview's keyboard vocabulary is invisible: Tab/arrows/hjkl/digits
+      all handled, nothing on screen says so, while both sibling panels grew a
+      legend and a `?` mode for exactly this (`Overview.qml:313-335`)
+- [ ] An armed destructive command keeps its red "Enter again" after the
+      selection moves off it — `armed` is never cleared by Up/Down, PageUp/Down
+      or hover-select, so the confirm prompt sits on a row Enter will not fire
+      (`Launcher.qml:78-81,368-376`, `ResultItem.qml:109,124`)
+- [ ] Per-mode placeholders never render and the `>` one is wrong — the only
+      call site is gated on an empty field, which no mode can have (the prefix
+      is in it), and the unreachable Commands string describes `!`
+      (`Launcher.qml:404-411`, `services/Search.qml:32-37,79-96`)
+- [ ] A failed emoji load shows "Loading emoji…" forever _and_ wedges `ensure()`
+      — it re-assigns `table.path` the value it already holds, so no
+      `pathChanged`, no re-read, and `loading` stays true for the session
+      (`services/Emoji.qml:19-32,68-81`)
+- [ ] Overview click targets keep the arrow cursor while the 15px × inside them
+      turns into a hand — every other clickable surface in the shell inherits
+      the pointer from StateLayer (`OverviewWindow.qml:158-163,237-241`,
+      `Overview.qml:405-408,529-532`)
+- [ ] Overview scratchpad chips stop at 5 icons with no "+n" — the bar's
+      workspace slot solved the identical honesty problem, comment and all
+      (`Overview.qml:507-527` vs `WorkspaceSlot.qml:94-118`)
+
+### Notifications & OSD
+
+- [ ] ★ Three of the four ways a toast leaves the screen erase it from history
+      and the fourth doesn't — ×, body-click and swipe all route to
+      `n.dismiss()`, while letting it expire keeps it. Nothing distinguishes
+      them, so the fastest way to clear a toast is also the one that loses it
+      (`NotificationPopups.qml:129,157-158`, `NotificationCard.qml:66-75`,
+      `services/Notifs.qml:140-153`)
+- [ ] Every OSD dismissal morphs the pill into a volume readout while still
+      fully opaque — `Osd.kind` is cleared at the _start_ of the hide, so a
+      brightness pill swaps sun→speaker and animates its fill to the audio
+      volume on the way out (`OsdPanel.qml:38-48,120-131`, `services/Osd.qml:80-90`)
+- [ ] The submap OSD pill is wider than its own window and clipped at both ends
+      — the power hint measures ~544px inside a fixed `s(420)` surface, with no
+      cap, elide or wrap (`OsdPanel.qml:89,122,249-258`)
+- [ ] The newest toast can be drawn below the bottom edge of the popup surface —
+      fixed `s(740)` height, top-anchored Column, up to five cards of unbounded
+      height (three image-bearing cards already overflow)
+      (`NotificationPopups.qml:47,63-76`)
+- [ ] Restored history cards look live but have lost every action — `ghostFor`
+      hardcodes `actions: []` and `serialize` never writes them, so after a
+      restart a screenshot notification still shows its thumbnail and path but
+      no Open/Annotate/Reveal, which would still work, and nothing marks the
+      card as archived (`services/Notifs.qml:240-281`, `scripts/lib/capture.sh:26-37`)
+- [ ] Typing an inline reply in the notification centre drives the list behind
+      it — nothing gates `replyBox` on flat mode, and the field swallows none of
+      Up/Down/Enter the way the Wi-Fi PSK field explicitly does
+      (`NotificationCard.qml:412-444`, `WifiMenu.qml:552-558`)
+- [ ] History rows give no hover feedback though the same list highlights the
+      keyboard-selected row — flat mode paints `"transparent"` and changes only
+      the cursor, even on rows where a click does something
+      (`NotificationCard.qml:205-220`, `NotifsMenu.qml:338-344`)
+
+### Clipboard & capture
+
+- [x] ★ A copy or pin that fails does so silently — `take()` closes the panel
+      the instant the copy is _launched_ and `copier.onExited` has no failure
+      branch, so an evicted id or a missing pin payload ends with the panel
+      closed, the clipboard unchanged and nothing on screen
+      (`services/Clipboard.qml:461-485`, `ClipCard.qml:100-103`). Both paths now
+      report through notify-send, and a failed copy re-lists the history that
+      lied to it
+- [x] On a pinned card the × and the unpin button beside it do the same thing —
+      and neither deletes: unpinning re-exposes the source history row, so the
+      entry reappears further along the strip (`ClipCard.qml:91-98,395-429`).
+      The × now means gone: `Clipboard.forget()` drops the pin _and_ the row it
+      was standing in for
+- [x] An image copied as a _path_ renders a thumbnail with an empty footer —
+      `showsThumb` both hides the filename column and routes `meta` into the
+      binary branch, whose fields are empty for a path entry, so the card is a
+      picture with a blank bottom row (`ClipCard.qml:46,74-78,310-314`). Only
+      actual bytes take the binary branch now; a path shows its filename
+- [x] A colour entry never shows the hex it holds — the swatch replaces the body
+      text and `meta` falls through to "7 characters", so two similar greens are
+      indistinguishable (`ClipCard.qml:74-84,299-308,349`). The value is drawn
+      on the swatch, in black or white by its luminance
+- [x] The card strip is the only list in the shell with no scroll indicator, and
+      an empty query returns the whole pool unsliced — the launcher and the
+      notification list both grew the same 3px thumb in the first pass
+      (`ClipboardHistory.qml:451-496`). Same thumb, turned on its side, plus an
+      item count in the header. The pool stays whole on purpose: the ListView
+      only builds what is near the viewport, and a silent cap would put entry
+      200 out of reach of everything except search
+- [x] The record pill loses every button during the launch window —
+      `startPending` makes `armed` false before `recording` turns true, so from
+      `startRecorder()` until the 1s poll the pill is a grey dot with no control
+      and no "Starting…", while its audio toggles stay live
+      (`RecordOverlay.qml:277,376-409`). It says "Starting…" now, and the
+      toggles lock with the flags they have already handed over
+
+### Keybinds & cross-cutting
+
+- [ ] ★ The colour-picker keybind still runs raw hyprpicker — Super+Shift+P
+      execs `hyprpicker | wl-copy` directly, so it gets none of
+      `Capture.pickColor()`: no `withUiHidden()` (the bar and toasts stay up for
+      the magnifier to sample, and an open popout's focus grab eats the click),
+      no "Copied" toast, no deadman. The Control Center button was fixed; the
+      keybind wasn't (`config/hypr/lua/apps.lua:90`, `services/Capture.qml:175-185`)
+- [ ] Six keybinds are missing from the Super+/ cheatsheet because their comment
+      has no space before `--` — the overlay's `_label()` regex needs `\s--`, so
+      fullscreen, the colour picker, move-to-scratchpad and three more silently
+      vanish from the list that exists to teach them
+      (`config/hypr/lua/binds.lua:39,47,48,84,98,101`, `bin/keycheat-overlay.py:64-66`)
+- [ ] Super+Shift+C is labelled "toggle bar" in the cheatsheet and restarts the
+      entire shell — bar, launcher, clipboard, OSD, capture overlays and the
+      notification daemon, with a second press restarting again rather than
+      restoring anything (`config/hypr/lua/binds.lua:40`, `apps.lua:54`)
+- [ ] Launcher emoji glyphs inherit `Theme.barFg` (white) and vanish on the
+      default light theme — colour-emoji entries survive because the font
+      ignores `Text.color`, but the 168 text-presentation ones (‼ ⁉ ™ ℹ ↔ ⌨ …)
+      do not (`ResultItem.qml:91-99`, `StyledText.qml:5`)
+- [ ] Bluetooth "Forget" unpairs on a single tap while its Wi-Fi twin — same
+      verb, same `Chip` component, also irreversible — arms first and says
+      "Sure?" (`BluetoothPage.qml:310-318` vs `WifiMenu.qml:110-131,265-271`)
+- [ ] A stray NUL byte in `NotificationCard.qml:114` makes the repo's grep treat
+      the shell's most-shared component as binary and skip it silently — a
+      search for a symbol defined there returns nothing, with no "binary file
+      matches" notice. Runtime behaviour is unaffected
+
+### Suggested second-pass sequence
+
+1. The three ★ losses of data or work: toast dismissal semantics, the
+   notification Clear with no arm, the silent clipboard copy failure
+2. The two ★ everyday frictions: `StyledSlider` on `WheelDetent`, and `/` mode
+   opening on the window you are already in
+3. The keybind row — colour picker through the shell, the cheatsheet's six
+   missing binds, and the mislabelled restart — all of it one file each

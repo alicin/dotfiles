@@ -281,10 +281,10 @@ Scope {
                                 tooltip: tip
                             }
 
-                            BatteryStatus {
-                                id: batMod
-
-                                popouts: popouts
+                            // Immediately left of the Control Center glyph it
+                            // used to be a tint on, and collapsed to nothing
+                            // the rest of the time.
+                            AwakeStatus {
                                 tooltip: tip
                             }
 
@@ -298,6 +298,16 @@ Scope {
                                 id: notifMod
 
                                 popouts: popouts
+                            }
+
+                            // Last before the clock: the two things you glance
+                            // at without meaning to click sit together at the
+                            // end of the row.
+                            BatteryStatus {
+                                id: batMod
+
+                                popouts: popouts
+                                tooltip: tip
                             }
 
                             Clock {

@@ -30,8 +30,8 @@ Item {
     }
 
     // Vertical slop only, via the wrapper: a handler `margin` extends every
-    // side, and the horizontal bleed stole scrolls made over the battery
-    // module's edge next door.
+    // side, and the horizontal bleed stole scrolls made over the edge of the
+    // module next door.
     Item {
         anchors.fill: parent
         anchors.topMargin: -Appearance.sizes.barSlop
@@ -58,11 +58,6 @@ Item {
 
         anchors.centerIn: parent
         icon: "equal_square_fill"
-        // Lit while Keep Awake holds the machine — otherwise the only
-        // indicator lived inside the closed panel, and nothing on screen
-        // reminded you it will no longer dim, lock or suspend. Pink, not the
-        // mauve accent: this glyph is *already* accent-tinted whenever its
-        // menu is open, so the two states were the same colour.
-        color: Idle.inhibited ? Theme.barAwake : Theme.barFg
+        color: Theme.barFg
     }
 }
