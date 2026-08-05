@@ -29,7 +29,7 @@ M.dmenu = "wofi -i --show dmenu"
 -- Window switcher: the launcher's `/` mode — same panel, same fuzzy matcher,
 -- windows ordered most-recently-focused (which the wofi pipeline below could
 -- never do: `hyprctl clients` is in creation order). Pressing it again closes.
-M.wmenu = "qs ipc -c qshell call launcher mode /"
+M.wmenu = "qs ipc -c qshell call launcher mode '/'"
 -- Old wofi window switcher, kept as fallback. Uses [==[ ]==] (level-2 long
 -- brackets) because the shell snippet contains [[:blank:]].
 -- M.wmenu = [==[hyprctl dispatch focuswindow address:"$(hyprctl -j clients | jq 'map("\(.workspace.id) ∴ \(.workspace.name) ┇ \(.title) ┇ \(.address)")' | sed "s/,$//; s/^\[//; s/^\]//; s/^[[:blank:]]*//; s/^\"//; s/\"$//" | grep -v "^$" | wofi -idO alphabetical | grep -o "0x.*$")"]==]
@@ -37,8 +37,8 @@ M.wmenu = "qs ipc -c qshell call launcher mode /"
 -- Command palette and emoji picker: the same launcher, opened straight into a
 -- prefix mode. Every verb in the palette already had a service behind it and
 -- no way to reach it from the keyboard.
-M.cmenu = "qs ipc -c qshell call launcher mode >"
-M.emoji = "qs ipc -c qshell call launcher mode :"
+M.cmenu = "qs ipc -c qshell call launcher mode '>'"
+M.emoji = "qs ipc -c qshell call launcher mode ':'"
 
 -- Status bar: qshell (Quickshell shell in the j4rv15 repo). Same restart
 -- semantics as the old hyprpanel line: kill any running instance, start fresh.
