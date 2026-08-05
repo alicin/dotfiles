@@ -220,8 +220,9 @@ Scope {
                     anchors.horizontalCenter: parent.horizontalCenter
                     // "No matches" is now only reachable in the modes that
                     // have nothing to fall back to — a plain query with no
-                    // app match grows a Run row instead.
-                    text: root.mode === ":" && !Emoji.loaded ? "Loading emoji…" : "No matches"
+                    // app match grows a Run row instead, and an empty command
+                    // line hasn't failed to match anything yet.
+                    text: root.mode === ":" && !Emoji.loaded ? "Loading emoji…" : root.mode === "!" && Search.bodyOf(field.text) === "" ? "" : "No matches"
                     color: Theme.surfaceFgDim
                 }
 

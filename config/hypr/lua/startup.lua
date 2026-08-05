@@ -39,8 +39,12 @@ hl.on("hyprland.start", function()
 
   -- Bar (and the notification daemon, and the launcher, and the OSD).
   hl.exec_cmd(apps.bar)
-  hl.exec_cmd("wl-paste --type text  --watch cliphist store")
-  hl.exec_cmd("wl-paste --type image --watch cliphist store")
+  -- clip-store.sh IS `cliphist store`, plus a note of which window had focus
+  -- when the copy happened — the one thing a clipboard history needs beyond
+  -- the content, and the one thing that cannot be reconstructed afterwards.
+  -- The picker degrades to showing no source if the side file is missing.
+  hl.exec_cmd("wl-paste --type text  --watch /home/ali/labs/dotfiles/scripts/clip-store.sh")
+  hl.exec_cmd("wl-paste --type image --watch /home/ali/labs/dotfiles/scripts/clip-store.sh")
 
   hl.exec_cmd("nm-applet")
   hl.exec_cmd("pidof kdeconnectd || /usr/bin/kdeconnectd")

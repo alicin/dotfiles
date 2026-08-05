@@ -82,7 +82,13 @@ Scope {
         // and read as a grow. Tall enough for the longest menu; input is masked
         // to the panel, so the extra transparent area costs nothing. Same
         // approach as the launcher window.
-        implicitHeight: Appearance.s(800)
+        //
+        // The Wi-Fi menu is what sets this: with the tailnet's devices and
+        // exit-node picker under the networks it now runs to roughly 870 at
+        // its worst (six networks, six peers, two VPN profiles), and a menu
+        // that overflows this surface is silently *clipped* — there is no
+        // scrolling at the menu level, so rows simply stop being drawn.
+        implicitHeight: Appearance.s(920)
         exclusiveZone: 0
 
         anchors {

@@ -57,6 +57,12 @@ Singleton {
         readonly property int launcherItemHeight: root.s(56)
         readonly property int launcherRadius: root.s(24)
 
+        // Clipboard cards. Portrait, because what is being previewed is a
+        // paragraph or a screenshot — both of which give up more of themselves
+        // per pixel with height than with width.
+        readonly property int clipCardWidth: root.s(196)
+        readonly property int clipCardHeight: root.s(244)
+
         readonly property int menuRadius: root.s(18)
         readonly property int menuRowHeight: root.s(40)
     }

@@ -340,16 +340,45 @@ Hyprland wiring (`~/.config/hypr/lua/`):
     Enter copies the answer.
   - Desktop-entry **actions** ("New Private Window") ride along under their
     app, findable by the app's name or by the action's own words.
-- **Clipboard history** (Super+Shift+V) — the same panel as the launcher (same
-  width, radius, item height, spring-up, gliding highlight) over the `cliphist`
-  store, replacing the old `cliphist list | wofi --show dmenu` binding, so the
-  existing history carries over and `wl-paste --watch cliphist store` stays the
-  only writer. Enter/click copies, middle-click or Shift+Delete drops an entry.
-  Image entries show a real thumbnail plus format/dimensions/size, parsed out
-  of cliphist's `[[ binary data 576 KiB png 2228x609 ]]` preview. Thumbnails
-  are decoded lazily (only for delegates the ListView actually builds) into
-  `$XDG_RUNTIME_DIR/qshell-clipthumbs`, and that cache is wiped on shell start
-  — it holds full-size decodes and the runtime dir is tmpfs, i.e. RAM.
+- **Clipboard history** (Super+Shift+V) — a wide strip across the bottom of
+  the screen holding one **card per entry**, in the shape macOS
+  [Paste](https://pasteapp.io/) uses: who copied it across the top, the
+  content itself filling the middle at a size worth reading, what/when along
+  the bottom. The 56px rows it replaces could show the first line of anything,
+  which is the wrong line as soon as you are after the *second* URL you copied
+  off a page, or the right one of four screenshots. Still the same `cliphist`
+  store as the old `cliphist list | wofi --show dmenu` binding, so history
+  carries over.
+  - **Kind chips** (All / Pinned / Text / Links / Images / Files / Colors)
+    filter the strip; Tab walks them. A colour-valued entry draws itself as
+    the colour, which is the one payload whose value *is* what it looks like.
+  - **Source attribution**: cliphist stores content and nothing else — no app,
+    no timestamp — and both are knowable only at the instant of the copy. The
+    `wl-paste --watch` lines therefore run `scripts/clip-store.sh`, which *is*
+    `cliphist store` plus a TSV of `id, seconds, window class, title`. The
+    picker degrades to naming the kind ("Text", "Image") and showing no time
+    if that file is missing; it decorates cards, it does not drive them.
+  - **Pins** survive both a screenshot session pushing entries off the end of
+    the store and `cliphist wipe`, because everything cliphist can name an
+    entry by dies with the entry: a pin keeps its own copy of the bytes under
+    `statePath("clipboard-pins")` and never asks cliphist for anything again.
+    Bytes go back out under the mime type they came in as, or the target sees
+    nothing it can take.
+  - **Paste-on-select** (`clipboardPaste`, off by default) sends the paste
+    into the window the picker was opened over, addressed by window rather
+    than aimed at whatever has focus — the focus grab is still coming down as
+    it goes out. Terminals get Ctrl+Shift+V, matched by class against
+    `clipboardPasteTerminals`. The copy is a tracked Process, not
+    `execDetached`, so the paste can wait for wl-copy to own the selection
+    rather than for a guessed delay.
+  - Enter copies (or pastes), ←/→ select, Ctrl+P pins, Ctrl+D or middle-click
+    drops one, and **Clear** wipes the history behind a second press — pins
+    are not history and do not go with it. The key legend along the bottom is
+    Paste's, and is there for the same reason the launcher grew a ? button.
+  - Thumbnails are decoded lazily (only for delegates the ListView actually
+    builds) into `$XDG_RUNTIME_DIR/qshell-clipthumbs`, and that cache is wiped
+    on shell start — it holds full-size decodes and the runtime dir is tmpfs,
+    i.e. RAM.
 - **Overview** (physical Alt+Tab; Super+Tab is converted to Ctrl+Tab by Toshy before Hyprland sees it) — end-4/dots-hyprland-style workspace grid
   (`overviewColumns` × however many rows the workspace count needs) with
   **live window thumbnails** (ScreencopyView via hyprland-toplevel-export) at
@@ -442,8 +471,8 @@ modules/control/      ControlCenter (push navigation host) + Home, AudioPage,
                       PageHeader the pages are built from
 modules/launcher/     Launcher, ResultItem (apps / commands / windows / emoji /
                       run / calculator — see services/Search.qml)
-modules/clipboard/    ClipboardHistory, ClipItem (cliphist-backed, launcher styling,
-                      lazy image thumbnails)
+modules/clipboard/    ClipboardHistory (Paste-style card strip), ClipCard
+                      (cliphist-backed, lazy thumbnails, source attribution)
 modules/capture/      RecordOverlay (dims around a live area recording)
 modules/notifications/NotificationPopups (toast stack)
 modules/osd/          OsdPanel (volume / brightness / keyboard-backlight pill)

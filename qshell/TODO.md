@@ -280,21 +280,33 @@ enable --now qshell.service` (the startup line already prefers it when it is).
 
 ### Clipboard
 
-- [ ] UI and functionality should be an copy of the mac os app Paste as much as possible. https://pasteapp.io/
-- [ ] Paste-on-select — `hyprctl dispatch sendshortcut CTRL,V,` after the
-      focus grab clears; settings flag (terminals want Ctrl+Shift+V)
-- [ ] Pinned entries (PersistentProperties precedent in Capture.qml) that
-      survive screenshot churn and `cliphist wipe`
-- [ ] Clear-all button — `Clipboard.wipe()` exists with no UI caller; confirm
-      step, destructive styling
+- [x] UI and functionality should be an copy of the mac os app Paste as much as possible. https://pasteapp.io/
+      — a wide strip of cards along the bottom: source app + time across the
+      top, the content at a readable size in the middle, kind + meta along the
+      bottom; kind chips, a key legend, hover/arrow selection. Attribution
+      needed a new writer (`scripts/clip-store.sh`), since cliphist records
+      neither the app nor a timestamp. Not copied: named pinboards, sync,
+      rules, per-app exclusions
+- [x] Paste-on-select — `hyprctl dispatch sendshortcut CTRL,V,` after the
+      focus grab clears; settings flag (terminals want Ctrl+Shift+V). Aimed at
+      the window by address rather than at "whatever has focus", and fired off
+      wl-copy's own exit rather than a guessed delay
+- [x] Pinned entries (PersistentProperties precedent in Capture.qml) that
+      survive screenshot churn and `cliphist wipe` — a pin keeps its own copy
+      of the bytes, because every name cliphist has for an entry dies with it
+- [x] Clear-all button — `Clipboard.wipe()` exists with no UI caller; confirm
+      step, destructive styling. Pins are not history and stay
 
 ### Networking
 
-- [ ] Wi-Fi disconnect/forget — only way off a network today is toggling
+- [x] Wi-Fi disconnect/forget — only way off a network today is toggling
       Wi-Fi entirely; wrong saved password has no recovery path (nmcli pattern
-      proven in `Vpn.qml`)
-- [ ] Tailscale exit-node picker / device list — the service already runs
-      `tailscale status --json`; drop `--peers=false` and the data's all there
+      proven in `Vpn.qml`). Used Quickshell's own Network.disconnect()/forget()
+      instead; Forget arms before it fires, and takes the password row with it
+- [x] Tailscale exit-node picker / device list — the service already runs
+      `tailscale status --json`; drop `--peers=false` and the data's all there.
+      Exit-node writes share the toggle's settle-poll, so a dismissed polkit
+      prompt still reports as a failure
 
 ### Theming & session
 

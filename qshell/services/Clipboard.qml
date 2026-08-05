@@ -3,12 +3,18 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Hyprland
+import qs.config
 import qs.services
 
 // Clipboard history on top of cliphist — the same store the old
 // `cliphist list | wofi --show dmenu | cliphist decode | wl-copy` binding used,
 // so history carries over and `wl-paste --watch cliphist store` (started in
 // hyprland's startup.lua) stays the only writer.
+//
+// Pins are the one thing kept outside it: everything cliphist can name an
+// entry by dies with the entry, so a pinned row keeps its own copy of the
+// bytes and never asks cliphist for anything again.
 Singleton {
     id: root
 
@@ -66,12 +72,7 @@ Singleton {
     function refresh(): void {
         lister.running = false;
         lister.running = true;
-    }
-
-    // cliphist takes the id as an argument; feeding it on stdin fails on the
-    // trailing newline ("converting id: strconv.Atoi").
-    function copy(id: string): void {
-        Quickshell.execDetached(["sh", "-c", `cliphist decode ${id} | wl-copy`]);
+        sourceFile.reload();
     }
 
     // delete reads the full "id<TAB>preview" line, so select it back out of
@@ -81,22 +82,390 @@ Singleton {
         entries = entries.filter(e => e.id !== id);
     }
 
+    // Pins are not history — they live in their own directory under a name
+    // cliphist has never heard of, so there is nothing here for this to take.
     function wipe(): void {
         Quickshell.execDetached(["cliphist", "wipe"]);
         Quickshell.execDetached(["sh", "-c", `rm -rf ${root.thumbDir}`]);
-        entries = [];
+        root.entries = [];
+        // Every id in here now points at nothing.
+        root.fullText = {};
     }
 
-    function search(query: string): var {
+    function search(query: string, filter: string): var {
+        const pool = filter && filter !== "all" ? root.items.filter(e => (filter === "pinned" ? e.pinned === true : root.kindOf(e) === filter)) : root.items;
         const q = query.trim();
         if (!q)
-            return root.entries;
-        return root.entries.map(e => ({
+            return pool;
+        return pool.map(e => ({
                     e,
                     // Full text when the preview was cut — search matches what
                     // the row visibly says.
-                    score: Apps.scoreText(root.fullText[e.id] ?? e.preview, q)
-                })).filter(r => r.score > 0).sort((a, b) => b.score - a.score).slice(0, 64).map(r => r.e);
+                    score: Apps.scoreText(root.entryText(e), q)
+                })).filter(r => r.score > 0).sort((a, b) => (b.e.pinned ? 1 : 0) - (a.e.pinned ? 1 : 0) || b.score - a.score).slice(0, 64).map(r => r.e);
+    }
+
+    // ── What a row *is* ──
+    //
+    // The filter bar's categories, and what each card draws. Deliberately
+    // coarse: five buckets you can name at a glance beat a mime taxonomy
+    // nobody wants to filter by.
+    function kindOf(entry: var): string {
+        if (entry.image)
+            return "image";
+        const text = root.entryText(entry);
+        if ((entry.paths ?? []).length > 0)
+            return "file";
+        if (/^\s*(https?|ftp|magnet|mailto):\S+\s*$/i.test(text))
+            return "link";
+        if (/^\s*(#[0-9a-f]{3,8}|rgba?\([^)]*\)|hsla?\([^)]*\))\s*$/i.test(text))
+            return "color";
+        return "text";
+    }
+
+    // The colour a colour-valued entry names, for the swatch on its card.
+    function colorOf(entry: var): color {
+        return root.entryText(entry).trim();
+    }
+
+    // ── Where a row came from ──
+    //
+    // cliphist stores content and nothing else — no source, no timestamp. Both
+    // are knowable only at the moment of the copy, which is why the wl-paste
+    // watcher runs scripts/clip-store.sh instead of `cliphist store` and
+    // leaves a TSV behind. Everything here degrades to blank if that file is
+    // missing: it decorates cards, it does not drive them.
+    property var sources: ({})
+
+    function sourceFor(entry: var): var {
+        return entry.pinned ? null : (root.sources[entry.id] ?? null);
+    }
+
+    // "now", "4m", "2h", "3d" — the clipboard's own sense of scale. Anything
+    // that predates the side file has no time and says nothing.
+    function ageOf(entry: var): string {
+        const at = root.sourceFor(entry)?.at ?? 0;
+        if (!at)
+            return "";
+        const secs = Math.max(0, Math.floor(Date.now() / 1000) - at);
+        if (secs < 45)
+            return "now";
+        if (secs < 3600)
+            return `${Math.round(secs / 60)}m`;
+        if (secs < 86400)
+            return `${Math.round(secs / 3600)}h`;
+        return `${Math.round(secs / 86400)}d`;
+    }
+
+    FileView {
+        id: sourceFile
+
+        path: `${Quickshell.env("XDG_STATE_HOME") || `${Quickshell.env("HOME")}/.local/state`}/qshell/clipboard-sources.tsv`
+        // Read on every listing rather than watched: the picker asks for a
+        // refresh when it opens, which is the only moment this is read at all.
+        printErrors: false
+
+        onLoaded: {
+            const map = {};
+            for (const line of text().split("\n")) {
+                // id, seconds, class, title — all four or the row is from a
+                // different shape of this file and every field after the
+                // missing one would be read as the wrong thing (a window title
+                // rendered as an application name, say).
+                const parts = line.split("\t");
+                if (parts.length !== 4)
+                    continue;
+                map[parts[0]] = {
+                    at: parseInt(parts[1], 10) || 0,
+                    cls: parts[2],
+                    title: parts[3]
+                };
+            }
+            root.sources = map;
+        }
+    }
+
+    // ── Pins ──
+
+    // The payload is copied out of cliphist and kept here, because a pin has
+    // to survive the two things that happen to cliphist: a screenshot session
+    // pushing entries off the end of the store, and `cliphist wipe`. Both take
+    // the id with them, and an id is all cliphist can be asked for.
+    readonly property string pinDir: Quickshell.statePath("clipboard-pins")
+
+    // Rows for the pin store. A property rather than a binding over the
+    // adapter because ScriptModel diffs by identity: fresh objects on every
+    // re-evaluation reset the model and yank the selection out from under
+    // whoever is typing.
+    property var pins: []
+
+    // Two pins inside the same millisecond would otherwise land on one file.
+    property int pinSeq: 0
+
+    // Pins first, then the history rows they were made FROM — the same entry
+    // twice, one of which survives a wipe, is a coin flip nothing on screen
+    // could help you win.
+    //
+    // Hidden by cliphist id, never by content: matching on a prefix of what a
+    // row *shows* hides unrelated entries that merely start the same way, and
+    // this store is full of them — two API keys for the same project share
+    // their first ninety characters, and every screenshot of this monitor
+    // previews as the identical `[[ binary data 660 KiB png 2560x1600 ]]`.
+    // Pinning one would have made the other invisible, unsearchable and
+    // undeletable. An id is exact, and re-copying the same thing earns a new
+    // one — so it shows up again as history, which is the truth.
+    readonly property var items: {
+        const hidden = root.pins.map(p => p.srcId).filter(id => id);
+        return [...root.pins, ...root.entries.filter(e => !hidden.includes(e.id))];
+    }
+
+    // The text a row actually shows: pins carry their own, history rows get
+    // the batched decode when the preview was cut.
+    function entryText(entry: var): string {
+        return entry.pinned ? entry.preview : (root.fullText[entry.id] ?? entry.preview);
+    }
+
+    function togglePin(entry: var): void {
+        if (entry.pinned)
+            root.unpin(entry);
+        else
+            root.pin(entry);
+    }
+
+    // Queued, not run on the spot: the record may only be written once the
+    // bytes are on disk, and two quick pins racing on the one Process would
+    // lose the first.
+    function pin(entry: var): void {
+        // Held Ctrl+P repeats at ~25/s and the row does not read as pinned
+        // until its payload has landed several turns later — without this you
+        // get a fistful of identical pins for one keypress.
+        if (pinner.current?.srcId === entry.id || pinner.queue.some(j => j.id === entry.id))
+            return;
+        const kind = `${entry.kind}`.toLowerCase();
+        pinner.queue = [...pinner.queue,
+            {
+                id: entry.id,
+                rec: {
+                    file: `${root.pinDir}/${Date.now().toString(36)}-${root.pinSeq++}.${entry.image ? kind || "bin" : "txt"}`,
+                    // Which history row this pin stands in for, so `items` can
+                    // hide that one row and nothing else.
+                    srcId: entry.id,
+                    mime: root.pinMime(entry),
+                    // The decoded text wherever we have it: a pinned path has
+                    // to still read (and search) as its filename once the id
+                    // behind the 100-char preview is gone.
+                    preview: entry.image ? entry.preview : (root.fullText[entry.id] ?? entry.preview),
+                    image: entry.image,
+                    kind: entry.kind,
+                    dims: entry.dims,
+                    size: entry.size
+                }
+            }
+        ];
+        root.pumpPins();
+    }
+
+    function unpin(entry: var): void {
+        Quickshell.execDetached(["rm", "-f", entry.file]);
+        pinStore.items = (pinStore.items ?? []).filter(r => r.file !== entry.file);
+        root.rebuildPins();
+    }
+
+    // wl-copy offers text by default; bytes have to go back out under the type
+    // they came in as or the target sees nothing it can take.
+    function pinMime(entry: var): string {
+        if (!entry.image)
+            return "";
+        const kind = `${entry.kind}`.toLowerCase();
+        if (!kind)
+            return "application/octet-stream";
+        if (kind === "svg")
+            return "image/svg+xml";
+        return `image/${kind === "jpg" ? "jpeg" : kind}`;
+    }
+
+    function pumpPins(): void {
+        if (pinner.running || pinner.current || pinner.queue.length === 0)
+            return;
+        const job = pinner.queue[0];
+        pinner.queue = pinner.queue.slice(1);
+        pinner.current = job.rec;
+        // A text payload comes back on stdout as well as to disk: the batched
+        // decode behind `fullText` may not have landed yet, and pinning a long
+        // path before it does would freeze cliphist's elided preview into the
+        // pin — the row would read "…" where its filename should be, forever.
+        const echo = job.rec.image ? "" : `head -c 400 '${job.rec.file}' | tr '\\n\\t' '  '`;
+        // Decoded to a .part and moved into place only once it has bytes in
+        // it. The shell creates the redirect target *before* exec'ing
+        // cliphist, so a failed decode — an id evicted since the listing, or
+        // the store briefly locked by the wl-paste watcher, which is the case
+        // this check exists for — used to leave a zero-byte file behind with
+        // no record pointing at it, and nothing ever swept the directory.
+        pinner.command = ["sh", "-c", `
+            mkdir -p '${root.pinDir}' || exit 1
+            if cliphist decode ${job.id} > '${job.rec.file}.part' && [ -s '${job.rec.file}.part' ]; then
+                mv '${job.rec.file}.part' '${job.rec.file}' || exit 1
+                ${echo}
+                exit 0
+            fi
+            rm -f '${job.rec.file}.part'
+            exit 1
+        `];
+        pinner.running = true;
+    }
+
+    function storePin(rec: var): void {
+        pinStore.items = [rec, ...(pinStore.items ?? [])];
+        root.rebuildPins();
+    }
+
+    function rebuildPins(): void {
+        const byFile = {};
+        for (const p of root.pins)
+            byFile[p.file] = p;
+        // Records never change once written, so a file we've already wrapped
+        // keeps its row object — see `pins`.
+        root.pins = (pinStore.items ?? []).map(rec => byFile[rec.file] ?? root.pinRow(rec));
+    }
+
+    // Shaped like a cliphist row so the delegate never has to ask which store
+    // a row came from, plus the file and type that make it independent of one.
+    function pinRow(rec: var): var {
+        return {
+            // Numeric everywhere else, so this can't collide with a real id.
+            id: `pin:${rec.file}`,
+            pinned: true,
+            // The history row this was pinned from — see `items`. Absent on
+            // pins written before this was recorded, which then hide nothing.
+            srcId: rec.srcId ?? "",
+            file: rec.file,
+            mime: rec.mime,
+            preview: rec.preview,
+            image: rec.image,
+            kind: rec.kind,
+            dims: rec.dims,
+            size: rec.size,
+            paths: rec.image ? [] : root.parsePaths(rec.preview),
+            // The stored text is the whole text; there is nothing to re-read.
+            truncated: false
+        };
+    }
+
+    FileView {
+        path: Quickshell.statePath("clipboard-pins.json")
+        // Temp-file + rename: a crash mid-write must never replace the pins
+        // with a truncated file.
+        atomicWrites: true
+        onAdapterUpdated: writeAdapter()
+        onLoaded: root.rebuildPins()
+        onLoadFailed: error => {
+            // Only a genuinely missing file gets defaults written over it —
+            // any other failure must not let the next write clobber data.
+            if (error === FileViewError.FileNotFound)
+                writeAdapter();
+        }
+
+        adapter: JsonAdapter {
+            id: pinStore
+
+            // [{ file, mime, preview, image, kind, dims, size }], newest first.
+            property var items: []
+        }
+    }
+
+    // ── Copying ──
+
+    // Puts a row on the clipboard and, when paste-on-select is on, sends it
+    // into `addr` — the window the picker was opened over. Pass an empty
+    // address to only load the clipboard.
+    function copyEntry(entry: var, addr: string, cls: string): void {
+        // Process defers a command set while it is still running and starts it
+        // on the old one's exit — so a second request would fire the *old*
+        // payload's paste at the new target and then run again. Dropping is
+        // right rather than queueing: the picker closes on the first one, so a
+        // second is a double-click, not a second intention.
+        if (copier.running)
+            return;
+        copier.addr = addr;
+        copier.cls = cls;
+        // A pin reads its own payload: after a wipe there is no id left to
+        // decode, which is the exact moment you reach for a pin. cliphist
+        // takes the id as an argument; feeding it on stdin fails on the
+        // trailing newline ("converting id: strconv.Atoi").
+        copier.command = ["sh", "-c", entry.pinned ? `wl-copy${entry.mime ? ` --type '${entry.mime}'` : ""} < '${entry.file}'` : `cliphist decode ${entry.id} | wl-copy`];
+        copier.running = true;
+    }
+
+    // Public because the launcher's emoji picker wants exactly this step once
+    // its own copy has landed.
+    function pasteInto(addr: string, cls: string): void {
+        if (!Settings.clipboardPaste)
+            return;
+        const target = root.windowAddress(addr);
+        if (!target)
+            return;
+        // Terminals have plain Ctrl+V spoken for. Anchored: a window class is
+        // an exact string, and an unanchored `st` alternative matches Steam,
+        // Postman and libreoffice-startcenter — all of which would then be
+        // sent a Ctrl+Shift+V that does nothing, with the clipboard correctly
+        // loaded, which looks exactly like the feature being broken.
+        const terminals = Settings.clipboardPasteTerminals;
+        const mods = terminals && new RegExp(`^(?:${terminals})$`, "i").test(cls) ? "CTRL SHIFT" : "CTRL";
+        // Addressed at the window rather than aimed at "whatever is focused":
+        // the picker's focus grab is still coming down as this goes out, and a
+        // paste that waits for focus to settle is a paste that lands somewhere
+        // else when it doesn't. A window that has closed in the meantime logs
+        // a hyprland warning and does nothing.
+        Hyprland.dispatch(Hyprland.usingLua ? `hl.dsp.send_shortcut({ mods = "${mods}", key = "V", window = "address:${target}" })` : `sendshortcut ${mods}, V, address:${target}`);
+    }
+
+    // A hyprland toplevel reports a bare hex address while its lastIpcObject
+    // reports a 0x-prefixed one, and only the prefixed form resolves. Anything
+    // that isn't an address is dropped rather than interpolated into lua.
+    function windowAddress(addr: string): string {
+        const hex = `${addr}`.replace(/^0x/i, "");
+        return /^[0-9a-f]+$/i.test(hex) ? `0x${hex}` : "";
+    }
+
+    Process {
+        id: copier
+
+        property string addr: ""
+        property string cls: ""
+
+        // The paste can only go out once wl-copy owns the selection, and
+        // execDetached leaves nothing to wait on — hence a tracked Process.
+        // A fixed sleep instead would be a visible stall on a fast machine and
+        // still a race on a loaded one.
+        onExited: exitCode => {
+            if (exitCode === 0)
+                root.pasteInto(copier.addr, copier.cls);
+        }
+    }
+
+    Process {
+        id: pinner
+
+        // One at a time — see pumpPins.
+        property var queue: []
+        property var current: null
+
+        onExited: exitCode => {
+            if (exitCode === 0 && pinner.current) {
+                // streamEnded runs before exited, so the payload's own text is
+                // already here and beats the preview the row was built from.
+                const decoded = pinner.current.image ? "" : payload.text.trim();
+                if (decoded)
+                    pinner.current.preview = decoded;
+                root.storePin(pinner.current);
+            }
+            pinner.current = null;
+            root.pumpPins();
+        }
+
+        stdout: StdioCollector {
+            id: payload
+        }
     }
 
     Process {

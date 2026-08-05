@@ -19,6 +19,10 @@ Singleton {
     readonly property bool connected: activeNetwork !== null
     readonly property string ssid: activeNetwork?.name ?? ""
 
+    // Only a saved network has anything to forget — an open one you happen to
+    // be sitting on has no stored profile to delete.
+    readonly property bool activeKnown: activeNetwork?.known ?? false
+
     // Device-level, so it covers any network mid-connect — per-network
     // stateChanging can't be watched reactively through a list filter.
     readonly property bool connecting: wifi?.state === ConnectionState.Connecting
@@ -49,6 +53,14 @@ Singleton {
     // a row that can only kill the link is a footgun.)
     function connectDevice(name: string): void {
         Quickshell.execDetached(["nmcli", "device", "connect", name]);
+    }
+
+    // disconnect() lives on the Network object, and the wifi menu's summary
+    // card — unlike every row below it — has no delegate to reach one through.
+    // Silent when nothing is up, so the caller isn't repeating a null check to
+    // ask for the obvious.
+    function disconnectWifi(): void {
+        activeNetwork?.disconnect();
     }
 
     // There's no explicit scan method on WifiDevice; cycling the scanner is
