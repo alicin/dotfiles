@@ -4,7 +4,7 @@ import qs.components
 import qs.services
 
 // Privacy lights, immediately left of the tray ellipsis. Presence is the
-// signal, so neither has an idle state:
+// signal, so none of them has an idle state:
 //
 //   amber mic    — an app is capturing the mic *right now* (live PipeWire
 //                  links) and the mic isn't muted. Not "unmuted": that's the
@@ -12,6 +12,8 @@ import qs.services
 //                  stop seeing. This one appearing means audio is flowing to
 //                  someone.
 //   green camera — a webcam is open right now.
+//   blue screen  — a portal screencast is running: your screen is going
+//                  somewhere off this machine.
 //
 // Filled squircles rather than bare glyphs: a coloured icon on a transparent
 // bar over an arbitrary wallpaper is at the mercy of whatever's behind it,
@@ -153,5 +155,25 @@ Row {
             Audio.toggleMicMute();
             Osd.show("mic");
         }
+    }
+
+    // Two filled rectangles, one mirrored onto the other — the same shape every
+    // screen-sharing control has used since AirPlay, and readable at 15px in a
+    // way a bare monitor outline isn't. Not tappable: there is no honest way to
+    // stop a cast from here. The portal owns the session and killing the node
+    // out from under it hangs the consumer rather than ending the share, so the
+    // light stays a light, per the note on `tappable` above.
+    //
+    // Blue for the same reason the other two are green and amber: it's the
+    // colour screen sharing already wears everywhere else, and — being from the
+    // same Open Color ramp — it carries the white glyph the badge needs.
+    // Detail names the receiver rather than just listing it, because "shared
+    // with Zoom" is the sentence you actually want to read, and the cast can
+    // exist for a beat before anything has linked to it.
+    Light {
+        active: Screencast.active
+        glyph: "rectangle_fill_on_rectangle_fill"
+        bg: Theme.privacyCast
+        detail: Screencast.apps.length > 0 ? `shared with ${Screencast.apps.join(", ")}` : "screen shared"
     }
 }

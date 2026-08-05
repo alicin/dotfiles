@@ -1007,6 +1007,50 @@ Column {
         }
     }
 
+    // ── Settings ──
+    // Twelve of the thirteen settings.json keys were hand-edit-only, despite
+    // the file having been live-reloaded from the start. Its own page rather
+    // than tiles on home: they are set once and left, which is the opposite of
+    // what home is for.
+    Rectangle {
+        width: parent.width
+        height: Appearance.s(46)
+        radius: Appearance.s(14)
+        color: Theme.surfaceHoverBg
+
+        StateLayer {
+            radius: parent.radius
+            color: Theme.surfaceFg
+            onClicked: root.navigate("settings")
+        }
+
+        FIcon {
+            id: settingsGlyph
+
+            x: Appearance.s(12)
+            anchors.verticalCenter: parent.verticalCenter
+            icon: "gear_alt_fill"
+            color: Theme.accent
+        }
+
+        StyledText {
+            anchors.left: settingsGlyph.right
+            anchors.leftMargin: Appearance.s(10)
+            anchors.verticalCenter: parent.verticalCenter
+            text: "Settings"
+            color: Theme.surfaceFg
+        }
+
+        FIcon {
+            anchors.right: parent.right
+            anchors.rightMargin: Appearance.s(12)
+            anchors.verticalCenter: parent.verticalCenter
+            icon: "chevron_right"
+            font.pixelSize: Appearance.font.size.small
+            color: Theme.surfaceFgDim
+        }
+    }
+
     // ── Session ──
     Row {
         id: sessionRow

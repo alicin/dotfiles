@@ -1,27 +1,43 @@
 pragma Singleton
 
+import QtQuick
 import Quickshell
 import Quickshell.Io
 
 // Live settings, backed by <shell root>/settings.json. The file is watched, so
 // editing it (or `qs -c qshell ipc call theme set <name>`) applies instantly.
+//
+// Writes go out the same door: a setter assigns to the JsonAdapter and
+// Quickshell serialises the whole file back. That is free for a switch — one
+// tap, one write — but a slider emits on every frame it moves under a finger,
+// and rewriting (and re-watching, and re-parsing) settings.json sixty times a
+// second is both wasteful and the classic way to read back a half-written
+// file. So numeric setters stage the value in memory, where every binding
+// below picks it up on the next frame, and the file catches up once the
+// gesture stops. Same shape as the `settle` timers in services/Displays.qml
+// and services/Brightness.qml, pointed the other way: those delay a *read*
+// until the world stops moving, this delays a *write* until the finger does.
 Singleton {
     id: root
 
+    // Values a setter has accepted but not yet committed to the file. Empty
+    // except during a drag and for one interval afterwards.
+    property var staged: ({})
+
     readonly property string theme: adapter.theme
-    readonly property int workspaces: adapter.workspaces
-    readonly property int launcherMaxShown: adapter.launcherMaxShown
-    readonly property real scale: adapter.scale
-    readonly property int overviewColumns: adapter.overviewColumns
+    readonly property int workspaces: root.staged.workspaces ?? adapter.workspaces
+    readonly property int launcherMaxShown: root.staged.launcherMaxShown ?? adapter.launcherMaxShown
+    readonly property real scale: root.staged.scale ?? adapter.scale
+    readonly property int overviewColumns: root.staged.overviewColumns ?? adapter.overviewColumns
     // Multiplies trackpad scrolling inside the shell's lists only.
     // Clamped so a bad edit can't make lists unscrollable or uncontrollable.
-    readonly property real scrollFactor: Math.max(0.25, Math.min(10, adapter.scrollFactor))
+    readonly property real scrollFactor: Math.max(0.25, Math.min(10, root.staged.scrollFactor ?? adapter.scrollFactor))
 
     // Global motion multiplier over every Appearance duration token. 0 is
     // "reduced motion": animations resolve in the same frame instead of being
     // removed, so nothing has to grow a second, non-animated code path.
     // Capped at 3 — beyond that the shell stops feeling responsive at all.
-    readonly property real animScale: Math.max(0, Math.min(3, adapter.animScale))
+    readonly property real animScale: Math.max(0, Math.min(3, root.staged.animScale ?? adapter.animScale))
 
     // Weather in the calendar popout. Off means nothing is ever fetched.
     // `weatherPlace` is "lat,lon"; empty asks for a one-time coarse IP lookup.
@@ -45,8 +61,119 @@ Singleton {
     // is one settings edit, not a code change.
     readonly property string clipboardPasteTerminals: adapter.clipboardPasteTerminals
 
+    // ── Setters ──
+    // Every numeric one clamps rather than trusting its caller. The Settings
+    // page's controls are already bounded, but these are also the surface an
+    // IPC handler or a keybind would drive, and several of them can strand
+    // you: scale 5 makes a 340px panel wider than a 1080p screen, and
+    // workspaces 0 leaves the bar with nothing on it at all. The bounds here
+    // are the *valid* range; the page picks a comfortable sub-range of it.
+
     function setTheme(name: string): void {
         adapter.theme = name;
+    }
+
+    // Matches the clamp Appearance applies when it reads this back — a setter
+    // that can store a value the reader will ignore is just a bug with extra
+    // steps.
+    function setScale(v: real): void {
+        root.stage("scale", Math.max(0.5, Math.min(2.5, v)));
+    }
+
+    function setAnimScale(v: real): void {
+        root.stage("animScale", Math.max(0, Math.min(3, v)));
+    }
+
+    function setScrollFactor(v: real): void {
+        root.stage("scrollFactor", Math.max(0.25, Math.min(10, v)));
+    }
+
+    // 20 is not a Hyprland limit — it is where the bar stops being a bar. Each
+    // workspace is a ~22px slot (Appearance.sizes.slotEmpty), so twenty of
+    // them already claim half the width of this laptop's 2560px panel.
+    function setWorkspaces(n: int): void {
+        root.stage("workspaces", Math.max(1, Math.min(20, n)));
+    }
+
+    // The launcher sizes its window to this count (Launcher.qml computes
+    // implicitHeight from it), so it is a window height, not a scroll cap: 20
+    // rows at 56px each is already taller than a 1080p screen.
+    function setLauncherMaxShown(n: int): void {
+        root.stage("launcherMaxShown", Math.max(1, Math.min(20, n)));
+    }
+
+    // Overview derives its row count as ceil(workspaces / columns), which is
+    // an infinity at zero.
+    function setOverviewColumns(n: int): void {
+        root.stage("overviewColumns", Math.max(1, Math.min(12, n)));
+    }
+
+    function setWeather(on: bool): void {
+        adapter.weather = on;
+    }
+
+    // Stored verbatim; services/Weather.qml passes it to the geocoder as an
+    // argument, never interpolated into the shell script, so an odd string is
+    // a failed lookup rather than anything worse. The page still validates the
+    // "lat,lon" shape, because a silently failing lookup is its own bad time.
+    function setWeatherPlace(place: string): void {
+        adapter.weatherPlace = place;
+    }
+
+    function setBatteryCriticalSuspend(on: bool): void {
+        adapter.batteryCriticalSuspend = on;
+    }
+
+    // Goes out as argv[0] of an execDetached (services/Search.qml), so it is
+    // one executable, not a command line — "kitty", never "kitty --hold".
+    function setTerminal(cmd: string): void {
+        adapter.terminal = cmd;
+    }
+
+    function setClipboardPaste(on: bool): void {
+        adapter.clipboardPaste = on;
+    }
+
+    // Not validated here, deliberately: "compiles as a regular expression" is
+    // a question with a try/catch answer, and the caller is the one holding the
+    // text the user is still editing. The Settings page's field checks it and
+    // refuses to call this; a `settings` IPC that skips the check gets exactly
+    // what it asked for.
+    function setClipboardPasteTerminals(re: string): void {
+        adapter.clipboardPasteTerminals = re;
+    }
+
+    function stage(key: string, value: real): void {
+        // Reassigned wholesale instead of mutated: writing into the existing
+        // object changes no QML property, so nothing bound to `staged`
+        // re-evaluates and the control sits at its old position until the
+        // commit lands — which is exactly the lag the staging exists to avoid.
+        //
+        // Rounded on the way in because a slider step lands on values like
+        // 1.1500000000000001, and settings.json is a file people read and
+        // hand-edit. Three decimals is finer than any step the page offers.
+        const next = Object.assign({}, root.staged);
+        next[key] = Math.round(value * 1000) / 1000;
+        root.staged = next;
+        commit.restart();
+    }
+
+    // 220ms after the last movement. A slider under a finger updates every
+    // frame (~16ms) and a wheel notch repeats far faster than this, so any
+    // real gesture coalesces into one write; it is still short enough that
+    // letting go and immediately reloading the shell catches the new value.
+    Timer {
+        id: commit
+
+        interval: 220
+        onTriggered: {
+            for (const key in root.staged)
+                adapter[key] = root.staged[key];
+            // Cleared only after the assignments, so the bindings above never
+            // see a frame where the staged value is gone and the adapter has
+            // not caught up — that gap would flash the old value.
+            root.staged = ({});
+        }
     }
 
     FileView {

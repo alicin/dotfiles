@@ -202,7 +202,18 @@ ShellRoot {
         }
 
         function privacy(): string {
-            return `mic inUse=${Audio.micInUse} muted=${Audio.micMuted} users=${JSON.stringify(Audio.micUsers)}\ncamera inUse=${Camera.inUse} handles=${Camera.users} apps=${JSON.stringify(Camera.apps)}`;
+            return `mic inUse=${Audio.micInUse} muted=${Audio.micMuted} users=${JSON.stringify(Audio.micUsers)}\ncamera inUse=${Camera.inUse} handles=${Camera.users} apps=${JSON.stringify(Camera.apps)}\nscreencast active=${Screencast.active} apps=${JSON.stringify(Screencast.apps)}`;
+        }
+
+        // The screencast predicate was written without a real cast to look at
+        // (see services/Screencast.qml) — this is how you check it against one:
+        // start a share, run this, and the actual graph replaces the inference.
+        function screencast(): string {
+            return Screencast.dump();
+        }
+
+        function ddc(): string {
+            return Ddc.dump();
         }
 
         function power(): string {

@@ -61,7 +61,10 @@ Item {
         radius: width * 0.38
         color: "transparent"
         border.width: 2.5
-        border.color: slot.isActive ? Theme.wsActiveFg : slot.isUrgent ? Theme.wsUrgentBg : Theme.barFgDim
+        // wsUrgentFg on an urgent slot, not wsUrgentBg — which is the colour
+        // of the fill *underneath* it, so an urgent empty workspace drew a
+        // squircle outlined in its own background and read as a solid blob.
+        border.color: slot.isActive ? Theme.wsActiveFg : slot.isUrgent ? Theme.wsUrgentFg : Theme.barFgDim
 
         Behavior on border.color {
             CAnim {}
@@ -112,7 +115,11 @@ Item {
             visible: slot.tops.length > 3
             anchors.verticalCenter: parent.verticalCenter
             text: `+${slot.tops.length - 3}`
-            color: slot.isActive ? Theme.wsActiveFg : Theme.barFgDim
+            // Each pill states the colour its own fill was chosen to carry.
+            // barFgDim is bar chrome and was being drawn on the urgent fill,
+            // where it measured 1.34:1 in mocha; wsUrgentFg — defined by every
+            // theme and until now read by none — clears 4.5:1 in all sixteen.
+            color: slot.isActive ? Theme.wsActiveFg : slot.isUrgent ? Theme.wsUrgentFg : Theme.barFgDim
             font.pixelSize: Appearance.s(10)
             font.weight: Font.Bold
         }

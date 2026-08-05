@@ -310,18 +310,66 @@ enable --now qshell.service` (the startup line already prefers it when it is).
 
 ### Theming & session
 
-- [ ] Rosé Pine theme entries — shell ships only catppuccin-latte/mocha while
+- [x] Rosé Pine theme entries — shell ships only catppuccin-latte/mocha while
       everything around it is Rosé Pine; `Theme.qml` is data-driven, pure palette
-      work
-- [ ] Screen-sharing privacy light — portal screencasts appear as PipeWire
-      video nodes; same pattern as `micUsers`, third Light + "shared with <app>"
-- [ ] Settings page (or `settings` IPC) — 5 of 6 settings.json keys are
-      hand-edit-only despite live reload already working
-- [ ] Home tiles: mic kill-switch (subtitle = `micUsers`), Tailscale/VPN
-      toggle; keybinds for the Control Center pages (IPC verbs exist, unbound)
-- [ ] External-monitor brightness via DDC — slider/OSD/Fn keys silently affect
+      work. Sixteen themes now: Rosé Pine (main/moon/dawn), Dracula, Nord, Tokyo
+      Night (night/day), Gruvbox, Everforest, Kanagawa, and the two missing
+      Catppuccins. The picker is the launcher's `#` mode, with swatches painted
+      in each theme's own colours — sixteen chips in a 340px panel is 18px each
+- [x] Screen-sharing privacy light — portal screencasts appear as PipeWire
+      video nodes; same pattern as `micUsers`, third Light + "shared with <app>".
+      The brief's premise was wrong and that was the finding: both portal
+      backends here publish the cast as `Video/Source`, the *same* class as the
+      webcams, so what discriminates is the v4l2 tail the cameras drag behind
+      them. Verified against a synthetic PipeWire stream, not a real cast —
+      `debug screencast` exists to close that gap
+- [x] Settings page (or `settings` IPC) — 5 of 6 settings.json keys are
+      hand-edit-only despite live reload already working. Twelve of thirteen
+      exposed now; numeric setters stage in memory and debounce the file write,
+      since a slider drag would otherwise rewrite settings.json every frame.
+      The panel widens for this page only
+- [x] Home tiles: mic kill-switch (subtitle = `micUsers`), Tailscale/VPN
+      toggle; keybinds for the Control Center pages (IPC verbs exist, unbound).
+      Tailscale got the tile; NM VPNs are a list and a tile can't choose from
+      one. Pages went to a `control` submap rather than four more combos
+- [x] External-monitor brightness via DDC — slider/OSD/Fn keys silently affect
       only the laptop panel when the external is connected (ddcutil needs
-      debouncing)
+      debouncing). `Brightness.display` now routes on the focused monitor and
+      falls back to brightnessctl for everything that isn't a DDC display.
+      **Untested against real hardware** — no external monitor has been attached
+      since it was written; `debug ddc` reports what it found
+
+### Theming fallout (found by an audit of the roster, 2026-08-05)
+
+- [x] Light themes drew near-black bar glyphs on transparent chrome — a light
+      palette's red *is* dark, and the bar's 75%-black drop shadow exists to
+      make light glyphs pop, so it buried them. Latte's critical-battery glyph
+      measured 0.14 relative luminance against its own 1.00 barFg. Light themes
+      now take barOk/barWarn/barUrgent/barAwake from their family's dark variant
+- [x] The charging bolt was `Theme.accentFg` on a `barOk` fill — a contrast
+      guarantee made against `accent`, borrowed for a colour it has no
+      relationship to. 1.49:1 in latte. Now `Theme.contrastFg(fill)`, worst case
+      5.13:1 across all sixteen
+- [x] `wsUrgentFg` was defined by every theme and read by none: the "+n"
+      overflow count sat on the urgent fill in bar chrome (1.34:1 in mocha), and
+      an urgent empty workspace drew its squircle outline in `wsUrgentBg` — the
+      colour of the fill underneath it
+- [x] Launcher emoji glyphs inherit `Theme.barFg` and vanish on light themes —
+      colour-emoji survive because the font ignores `Text.color`, the ~168
+      text-presentation ones don't (was also listed under Keybinds below)
+- [ ] `RecordStatus.qml:47,61,88` — white dot and white bold timer on a
+      `barUrgent` pill, which is a pastel by design in every dark theme: 2.32:1
+      in mocha, below 3.5:1 in 9 of 16. Broken today, not new. Its `StateLayer`
+      hover wash is `Theme.barFg` on the same pale pill, so hover is invisible too
+- [ ] `RecordOverlay.qml:230,396,407,415` — Start/Pause/Stop take
+      `Theme.ok/warn/urgent` as their *hover* fill under hardcoded white labels.
+      White on `ok` is 1.37:1 in dracula, 1.49 in mocha; the Stop label
+      disappears the moment you point at it, in all 12 dark themes. The pill is
+      deliberately theme-independent, so these want fixed saturated tints
+- [ ] `catppuccin-latte`'s surface `ok` (2.96:1) and `warn` (2.31:1) on
+      `surfaceBg` are below the 3:1 floor for status text. Left at upstream
+      Catppuccin values on purpose — diverging would make the one theme people
+      compare against other Catppuccin apps the odd one out. Revisit if it bites
 
 ## Second pass (2026-08-04)
 
@@ -545,10 +593,11 @@ payoff.
       entire shell — bar, launcher, clipboard, OSD, capture overlays and the
       notification daemon, with a second press restarting again rather than
       restoring anything (`config/hypr/lua/binds.lua:40`, `apps.lua:54`)
-- [ ] Launcher emoji glyphs inherit `Theme.barFg` (white) and vanish on the
+- [x] Launcher emoji glyphs inherit `Theme.barFg` (white) and vanish on the
       default light theme — colour-emoji entries survive because the font
       ignores `Text.color`, but the 168 text-presentation ones (‼ ⁉ ™ ℹ ↔ ⌨ …)
-      do not (`ResultItem.qml:91-99`, `StyledText.qml:5`)
+      do not (`ResultItem.qml:91-99`, `StyledText.qml:5`). Now `surfaceFg`;
+      there are five light themes to vanish on rather than one
 - [ ] Bluetooth "Forget" unpairs on a single tap while its Wi-Fi twin — same
       verb, same `Chip` component, also irreversible — arms first and says
       "Sure?" (`BluetoothPage.qml:310-318` vs `WifiMenu.qml:110-131,265-271`)

@@ -358,7 +358,8 @@ Scope {
                 audio: "audio",
                 bluetooth: "bluetooth",
                 kdeconnect: "kdeconnect",
-                display: "display"
+                display: "display",
+                settings: "settings"
             };
             if (name in pages) {
                 bar.pops.openControl(pages[name], bar.mods.control);

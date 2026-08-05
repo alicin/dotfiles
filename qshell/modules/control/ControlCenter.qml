@@ -63,7 +63,24 @@ Item {
             shownPage = "";
     }
 
-    implicitWidth: Appearance.s(340)
+    // Home's width, and the width every page inherited until one of them had a
+    // reason not to. 340 is sized for two tiles across and a slider with a
+    // percentage on the end.
+    readonly property int homeWidth: Appearance.s(340)
+
+    // Settings is rows of "label ………… value", several of them free-text — a
+    // regex of terminal classes, a lat,lon, a terminal command. At home's width
+    // the labels elided into their own values and the text fields showed about
+    // twenty characters of a string you are trying to edit. It is also the one
+    // page you open to read rather than to tap once and leave, so the extra
+    // width costs nothing anywhere else.
+    //
+    // The popout already animates its own width off this (Popouts.qml keys on
+    // the loaded item's implicitWidth), so widening is a number, not a
+    // mechanism.
+    readonly property int pageWidth: root.shownPage === "settings" ? Appearance.s(470) : root.homeWidth
+
+    implicitWidth: page === "" ? root.homeWidth : root.pageWidth
     implicitHeight: page === "" ? home.implicitHeight : (detail.item?.implicitHeight ?? home.implicitHeight)
     clip: true
 
@@ -75,6 +92,18 @@ Item {
     }
 
     Behavior on implicitHeight {
+        enabled: root.morph
+
+        Anim {
+            duration: Appearance.d(320)
+            curve: Appearance.anim.curves.emphasized
+        }
+    }
+
+    // Same gate as the height for the same reason: the first layout pass
+    // arrives at home's width from zero, and animating that plays a grow on
+    // every open.
+    Behavior on implicitWidth {
         enabled: root.morph
 
         Anim {
@@ -114,6 +143,8 @@ Item {
                 return kdecPage;
             case "display":
                 return displayPage;
+            case "settings":
+                return settingsPage;
             default:
                 return null;
             }
@@ -148,6 +179,14 @@ Item {
         id: displayPage
 
         DisplayPage {
+            onBack: root.go("")
+        }
+    }
+
+    Component {
+        id: settingsPage
+
+        SettingsPage {
             onBack: root.go("")
         }
     }

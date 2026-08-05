@@ -113,7 +113,13 @@ Item {
                     anchors.centerIn: parent
                     icon: "bolt_fill"
                     font.pixelSize: Appearance.s(9)
-                    color: Theme.accentFg
+                    // Chosen from the fill it sits on, not borrowed from a
+                    // token that contrasts with something else. This was
+                    // `Theme.accentFg`, which is defined against `accent` and
+                    // has no relationship to `barOk` — on every light theme
+                    // that is white-on-pale-green, 1.49:1 in latte, a 9px bolt
+                    // you cannot see. Stays right whatever a future theme picks.
+                    color: Theme.contrastFg(root.tint)
                 }
             }
 

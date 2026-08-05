@@ -58,16 +58,31 @@ Hyprland wiring (`~/.config/hypr/lua/`):
 - **Privacy lights** (`modules/bar/PrivacyStatus.qml`) — filled squircles with
   white glyphs, immediately left of the tray ellipsis, sized to the same height
   as the active workspace pill so both ends of the bar agree on how big a
-  container is. Presence is the signal, so neither has an idle state: a **green
-  camera** while a webcam is open, an **amber mic** while the mic is live (not
-  muted). Clicking the mic mutes it, which also makes it disappear — the light
-  is both the warning and the switch that clears it. Both fade and scale in,
+  container is. Presence is the signal, so none of them has an idle state: a
+  **green camera** while a webcam is open, an **amber mic** while the mic is
+  live (not muted), a **blue screen** while a portal screencast is running.
+  Clicking the mic mutes it, which also makes it disappear — the light is both
+  the warning and the switch that clears it. All three fade and scale in,
   because appearing out of nowhere in the corner of a bar is easy to miss and a
   moving thing isn't.
+  - The cast light is **not** clickable, unlike the mic: there is no honest way
+    to stop a share from the bar. The portal owns the session, and killing the
+    node out from under it hangs the consumer rather than ending the share.
+  - Telling a cast from a camera is not the media class, which was the
+    assumption going in and is wrong: both portal backends installed here
+    publish the cast as `Video/Source` — the *same* class the v4l2 webcams
+    carry. What separates them is the v4l2 tail the cameras drag behind them
+    (`device.api`, `media.role=Camera`, `api.v4l2.path`, a `v4l2_` node name),
+    any one of which hands the node to `Camera.qml` instead. The portal's own
+    giveaway (`xdph-streaming-` / `xdpw-stream-`) lands in `media.name`, not
+    `node.name`. See `services/Screencast.qml`, which is candid about having
+    been verified against a synthetic PipeWire stream rather than a real cast —
+    `qs ipc call debug screencast` is how you check it against one.
   - Badges rather than bare glyphs because a coloured icon on transparent bar
     chrome is at the mercy of the wallpaper behind it, while a solid fill
     carries its own contrast and reads as a status light instead of one more
-    clickable icon. Their fills (`Theme.privacyCam` / `privacyMic`) are
+    clickable icon. Their fills (`Theme.privacyCam` / `privacyMic` /
+    `privacyCast`) are
     deliberately **not** per-theme: these are safety indicators whose job is to
     be unmistakable — macOS keeps its camera/mic dots identical in light and
     dark for the same reason — and they have to carry a white glyph, which
@@ -421,8 +436,10 @@ qs ipc -c qshell call launcher mode /       # open straight into a prefix mode
 qs ipc -c qshell call clipboard toggle      # clipboard history (Super+Shift+V)
 qs ipc -c qshell call popouts toggle wifi   # battery / notifs
 qs ipc -c qshell call popouts toggle control # control center; also: audio /
-                                             # bluetooth / kdeconnect open it
-                                             # straight onto that page
+                                             # bluetooth / kdeconnect / display
+                                             # / settings open it straight onto
+                                             # that page
+qs ipc -c qshell call launcher mode '#'      # theme picker (swatches)
 qs ipc -c qshell call overview toggle       # workspace overview (Alt+Tab)
 qs ipc -c qshell call capture shot window   # area / window / full
 qs ipc -c qshell call capture record        # select area / start armed / stop
@@ -433,7 +450,10 @@ qs ipc -c qshell call brightness up         # down / kbdUp / kbdDown (media keys
 qs ipc -c qshell call theme set catppuccin-mocha
 qs ipc -c qshell call theme list            # / get
 qs ipc -c qshell call debug net             # networking introspection
-qs ipc -c qshell call debug privacy         # what's using the mic / camera
+qs ipc -c qshell call debug privacy         # what's using the mic / camera / screen
+qs ipc -c qshell call debug screencast      # every video node + why it did or
+                                            # didn't count as a cast
+qs ipc -c qshell call debug ddc             # DDC displays found, if any
 qs ipc -c qshell call debug search '>power' # what the launcher would list
 qs ipc -c qshell call debug notif           # newest notification's raw hints
 ```
@@ -459,9 +479,46 @@ slowed down.
 `scale` multiplies every size token (fonts, bar height, menus, launcher) —
 the whole shell grows/shrinks with one knob (`Appearance.s(px)`).
 
-Themes live in `config/Theme.qml`, same variable contract as the old AGS
-shell: transparent bar chrome with white-ish fg, surfaces (menus/launcher/
-cards) carry the palette proper. Add a theme: copy a block, keep every key.
+Every key except `clipboardPasteTerminals` also has a control on the **Settings
+page** (Control Center → Settings, or `qs ipc call popouts toggle settings`).
+Numeric setters stage the value in memory and debounce the file write by 220ms:
+a slider under a finger emits every frame, and rewriting — and re-watching, and
+re-reparsing — settings.json sixty times a second is both wasteful and the
+classic way to read back a half-written file. The panel widens from 340 to 470
+for this page alone, because it is rows of "label ………… value" with free-text
+fields in them rather than the one-tap toggles home is sized for.
+
+### Themes
+
+Sixteen of them in `config/Theme.qml`, a plain data map: Catppuccin ×4, Rosé
+Pine ×3, Tokyo Night ×2, Gruvbox ×2, Everforest ×2, Nord, Dracula, Kanagawa.
+Same variable contract as the old AGS shell — transparent bar chrome with
+white-ish fg, surfaces (menus/launcher/cards) carrying the palette proper. Add
+one by copying a block and keeping every key.
+
+Pick them in the **launcher's `#` mode**, which paints each row in that theme's
+own surface and accent and stays open across picks so you can compare — the
+panel restyles itself into its own preview. The Control Center and the Settings
+page both just name the current theme and hand off to it; a chip per theme
+sharing a 340px panel is 18px each.
+
+Two rules an upstream palette will not give you, both enforced by hand because
+they only exist because of how this shell draws:
+
+- **Bar chrome needs luminance, not fidelity.** `barFg` and the four state
+  tints are drawn over an arbitrary wallpaper under a 75%-black drop shadow
+  that exists to make light glyphs pop — so it buries dark ones. A *light*
+  theme's palette red is a dark red, and latte's critical-battery glyph
+  measured 0.14 relative luminance against its own 1.00 barFg. Light themes
+  therefore take `barOk`/`barWarn`/`barUrgent`/`barAwake` from their family's
+  **dark** variant. Their `ok`/`warn`/`urgent` siblings, drawn on panels, keep
+  the light values.
+- **Foregrounds belong to their own fill.** `accentFg`, `wsActiveFg` and
+  `wsUrgentFg` each contrast with one specific colour, and borrowing one for a
+  different fill borrows a guarantee that was never made — the charging bolt
+  was `accentFg` on `barOk`, which is white-on-pale-green at 1.49:1 in latte.
+  Use `Theme.contrastFg(fill)` when the fill is a theme colour rather than a
+  known one.
 
 ## Structure
 

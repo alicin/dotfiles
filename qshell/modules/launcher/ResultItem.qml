@@ -95,6 +95,12 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         visible: (root.modelData.char ?? "") !== ""
         text: root.modelData.char ?? ""
+        // StyledText defaults to Theme.barFg — bar chrome, near-white in every
+        // theme — and this one is drawn on a *panel*. Colour-emoji ignore
+        // Text.color so they survived it, but the ~168 text-presentation ones
+        // (‼ ⁉ ™ ℹ ↔ ⌨ …) are glyphs like any other and went white-on-white on
+        // all five light themes.
+        color: Theme.surfaceFg
         font.pixelSize: Appearance.s(26)
     }
 

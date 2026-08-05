@@ -19,6 +19,16 @@ import qs.config
 //   whose barFg is #ffffff for exactly this reason. Every theme here measures
 //   at least 0.55 relative luminance (mocha's #cdd6f4 is 0.68, for scale).
 //
+//   The same goes for barOk / barWarn / barUrgent / barAwake, which is less
+//   obvious and was wrong here for a while: a *light* theme's palette red is a
+//   dark red, and the bar draws it over a wallpaper under a 75%-black drop
+//   shadow (Bar.qml) that exists to make light glyphs pop and therefore buries
+//   dark ones. Latte's critical-battery glyph measured 0.14 relative luminance
+//   against its own 1.00 barFg. So every light theme takes these four from its
+//   family's *dark* variant — the bar is chrome and looks the same in both,
+//   and only the surfaces below it flip. Their `ok`/`warn`/`urgent` siblings,
+//   which are drawn on panels, keep the light palette's dark values.
+//
 //   barAwake must be perceptually distinct from accent. The glyph it colours
 //   is already accent-tinted whenever its menu is open, so a barAwake that is
 //   merely a second shade of the accent makes "held awake" and "menu open" the
@@ -42,10 +52,10 @@ Singleton {
                 wsActiveFg: "#8839ef",
                 wsUrgentBg: "#d20f39",
                 wsUrgentFg: "#ffffff",
-                barOk: "#40a02b",  // green  (battery charging)
-                barWarn: "#fe640b",  // peach
-                barUrgent: "#d20f39",  // red    (battery critical)
-                barAwake: "#ea76cb",  // pink   (keep awake)
+                barOk: "#a6e3a1",  // green  (battery charging)
+                barWarn: "#fab387",  // peach
+                barUrgent: "#f38ba8",  // red    (battery critical)
+                barAwake: "#f5c2e7",  // pink   (keep awake)
                 surfaceBg: "#f7eff1f5",
                 surfaceFg: "#4c4f69",
                 surfaceFgDim: "#6c6f85",
@@ -154,10 +164,10 @@ Singleton {
                 wsActiveFg: "#785f95",
                 wsUrgentBg: "#a54f68",
                 wsUrgentFg: "#ffffff",
-                barOk: "#56949f",  // green  (battery charging)
-                barWarn: "#ea9d34",  // peach
-                barUrgent: "#b4637a",  // red    (battery critical)
-                barAwake: "#d7827e",  // pink   (keep awake)
+                barOk: "#9ccfd8",  // green  (battery charging)
+                barWarn: "#f6c177",  // peach
+                barUrgent: "#eb6f92",  // red    (battery critical)
+                barAwake: "#ebbcba",  // pink   (keep awake)
                 surfaceBg: "#f7faf4ed",
                 surfaceFg: "#464261",
                 surfaceFgDim: "#797593",
@@ -238,10 +248,10 @@ Singleton {
                 wsActiveFg: "#276ac6",
                 wsUrgentBg: "#cb2354",
                 wsUrgentFg: "#ffffff",
-                barOk: "#587539",  // green  (battery charging)
-                barWarn: "#b15c00",  // peach
-                barUrgent: "#f52a65",  // red    (battery critical)
-                barAwake: "#d20065",  // pink   (keep awake)
+                barOk: "#9ece6a",  // green  (battery charging)
+                barWarn: "#ff9e64",  // peach
+                barUrgent: "#f7768e",  // red    (battery critical)
+                barAwake: "#ff007c",  // pink   (keep awake)
                 surfaceBg: "#f7e1e2e7",
                 surfaceFg: "#254182",
                 surfaceFgDim: "#515f92",
@@ -294,10 +304,10 @@ Singleton {
                 wsActiveFg: "#076678",
                 wsUrgentBg: "#cc241d",
                 wsUrgentFg: "#ffffff",
-                barOk: "#98971a",  // green  (battery charging)
-                barWarn: "#d65d0e",  // peach
-                barUrgent: "#cc241d",  // red    (battery critical)
-                barAwake: "#b16286",  // pink   (keep awake)
+                barOk: "#b8bb26",  // green  (battery charging)
+                barWarn: "#fe8019",  // peach
+                barUrgent: "#fb4934",  // red    (battery critical)
+                barAwake: "#d3869b",  // pink   (keep awake)
                 surfaceBg: "#f7fbf1c7",
                 surfaceFg: "#3c3836",
                 surfaceFgDim: "#665c54",
@@ -350,10 +360,10 @@ Singleton {
                 wsActiveFg: "#5c6a72",
                 wsUrgentBg: "#d04643",
                 wsUrgentFg: "#ffffff",
-                barOk: "#8da101",  // green  (battery charging)
-                barWarn: "#f57d26",  // peach
-                barUrgent: "#d04643",  // red    (battery critical)
-                barAwake: "#df69ba",  // pink   (keep awake)
+                barOk: "#a7c080",  // green  (battery charging)
+                barWarn: "#e69875",  // peach
+                barUrgent: "#e67e80",  // red    (battery critical)
+                barAwake: "#d699b6",  // pink   (keep awake)
                 surfaceBg: "#f7fdf6e3",
                 surfaceFg: "#5c6a72",
                 surfaceFgDim: "#829181",
@@ -498,6 +508,22 @@ Singleton {
         return themes[name]?.label ?? name;
     }
 
+    // Black or white, whichever is legible on `fill`. For glyphs drawn on a
+    // themed *fill* rather than on a surface — a charging bolt on barOk, a
+    // count on an urgent pill — where borrowing a token like accentFg means
+    // borrowing a contrast guarantee made against a different colour entirely.
+    //
+    // WCAG relative luminance against the 0.179 split, not the cheaper
+    // 0.299/0.587/0.114 perceptual average: across these sixteen palettes the
+    // average bottoms out at 2.53:1 (gruvbox-light's barWarn) while this
+    // matches picking the better of the two by measurement exactly, worst case
+    // 5.13:1. `color.r/g/b` arrive gamma-encoded, hence the linearisation.
+    function contrastFg(fill: color): color {
+        const f = c => c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+        const l = 0.2126 * f(fill.r) + 0.7152 * f(fill.g) + 0.0722 * f(fill.b);
+        return l > 0.179 ? "#000000" : "#ffffff";
+    }
+
     // ── Bar chrome ──
     readonly property color barFg: active.barFg
     readonly property color barFgDim: active.barFgDim
@@ -527,8 +553,21 @@ Singleton {
     // light and dark for exactly that reason. They also have to carry a white
     // glyph, which barOk/barWarn can't — those are foreground tints, and their
     // mocha variants are pale pastels meant to sit on a dark bar.
+    // Open Color green 8 / orange 8 / blue 8 — one ramp, so the three read as a
+    // set of lights rather than three unrelated colours.
+    //
+    // Their white glyph measures 3.45:1, 2.48:1 and 5.02:1 respectively. Only
+    // the last clears WCAG's 3:1 floor for non-text with room to spare, and
+    // amber does not clear it at all — but these are 15px *filled badges*
+    // whose job is to be spotted in peripheral vision, where hue and the fact
+    // that something appeared do the work, and every platform that ships a mic
+    // indicator uses this same amber. Recorded rather than quietly fixed: the
+    // number is bad and the choice is still deliberate.
     readonly property color privacyCam: "#2f9e44"
     readonly property color privacyMic: "#f08c00"
+    // Blue because that is what screen sharing already wears everywhere else,
+    // and because green and amber were taken by the two lights it sits beside.
+    readonly property color privacyCast: "#1971c2"
 
     // ── Surfaces (launcher) ──
     readonly property color surfaceBg: active.surfaceBg
