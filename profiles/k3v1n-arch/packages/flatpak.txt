@@ -1,1 +1,5 @@
-com.usebottles.bottles
+# k3v1n — Flatpak applications.
+# com.usebottles.bottles was dropped with the rest of the gaming stack.
+# Flatseal lives here rather than in aur.txt: it is a Flatpak permissions
+# editor and has no AUR package.
+com.github.tchx84.Flatseal

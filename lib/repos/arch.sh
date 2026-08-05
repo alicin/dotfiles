@@ -32,7 +32,10 @@ setup_pacman_parallel_downloads() {
 setup_arch_repositories() {
     log_header "Setting Up Arch Repositories"
 
-    sudo pacman -Syu --needed --noconfirm base-devel fakeroot debugedit flatpak
+    # git is NOT part of base-devel, and setup_yay below clones the AUR repo --
+    # on a freshly installed machine that fails with "git: command not found"
+    # before a single AUR package is built.
+    sudo pacman -Syu --needed --noconfirm base-devel fakeroot debugedit flatpak git
     setup_yay
     setup_pacman_parallel_downloads
     sudo pacman -Syu --noconfirm

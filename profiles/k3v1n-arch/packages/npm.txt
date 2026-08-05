@@ -1,4 +1,11 @@
-pm2
-zx
+# Global JS tooling. Installed with `pnpm add -g` (see profile-install.sh),
+# so `pnpm` must come from pacman.txt first.
 @github/copilot
+@google/gemini-cli
 @ionic/cli
+firebase-tools
+mcporter
+pm2
+serve
+yarn
+zx

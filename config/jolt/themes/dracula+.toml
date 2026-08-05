@@ -1,0 +1,17 @@
+name = "Dracula+"
+
+[dark]
+bg = "#212121"
+dialog_bg = "#292929"
+fg = "#f8f8f2"
+accent = "#82aaff"
+accent_secondary = "#c792ea"
+highlight = "#ffcb6b"
+muted = "#898989"
+success = "#50fa7b"
+warning = "#ffcb6b"
+danger = "#ff5555"
+border = "#353535"
+selection_bg = "#f8f8f2"
+selection_fg = "#545454"
+graph_line = "#82aaff"

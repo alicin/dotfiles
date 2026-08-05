@@ -1,0 +1,411 @@
+# ali launcher — grid layout.
+# This file is hand-editable. `items` is the visible order; entries reference
+# either a .desktop app id or a folder id defined in [folders].
+#
+[[items]]
+kind = "app"
+id = "code.desktop"
+
+[[items]]
+kind = "app"
+id = "google-chrome.desktop"
+
+[[items]]
+kind = "app"
+id = "firefox.desktop"
+
+[[items]]
+kind = "app"
+id = "org.gnome.tweaks.desktop"
+
+[[items]]
+kind = "app"
+id = "Fallout New Vegas.desktop"
+
+[[items]]
+kind = "app"
+id = "android-studio.desktop"
+
+[[items]]
+kind = "app"
+id = "gimp.desktop"
+
+[[items]]
+kind = "app"
+id = "kitty.desktop"
+
+[[items]]
+kind = "app"
+id = "io.dbeaver.DBeaver.desktop"
+
+[[items]]
+kind = "app"
+id = "com.usebottles.bottles.desktop"
+
+[[items]]
+kind = "app"
+id = "org.gnome.DiskUtility.desktop"
+
+[[items]]
+kind = "app"
+id = "yazi.desktop"
+
+[[items]]
+kind = "app"
+id = "discord.desktop"
+
+[[items]]
+kind = "app"
+id = "slack.desktop"
+
+[[items]]
+kind = "app"
+id = "appimagelaunchersettings.desktop"
+
+[[items]]
+kind = "app"
+id = "pacsea.desktop"
+
+[[items]]
+kind = "app"
+id = "btop.desktop"
+
+[[items]]
+kind = "app"
+id = "proton.vpn.app.gtk.desktop"
+
+[[items]]
+kind = "app"
+id = "org.gnome.baobab.desktop"
+
+[[items]]
+kind = "app"
+id = "org.gnome.Settings.desktop"
+
+[[items]]
+kind = "app"
+id = "org.gnome.Nautilus.desktop"
+
+[[items]]
+kind = "app"
+id = "org.gnome.Firmware.desktop"
+
+[[items]]
+kind = "app"
+id = "scrcpy.desktop"
+
+[[items]]
+kind = "app"
+id = "battlenet.desktop"
+
+[[items]]
+kind = "app"
+id = "blueberry.desktop"
+
+[[items]]
+kind = "app"
+id = "com.moonlight_stream.Moonlight.desktop"
+
+[[items]]
+kind = "app"
+id = "com.github.tchx84.Flatseal.desktop"
+
+[[items]]
+kind = "app"
+id = "com.raspberrypi.rpi-imager.desktop"
+
+[[items]]
+kind = "app"
+id = "designer.desktop"
+
+[[items]]
+kind = "app"
+id = "gparted.desktop"
+
+[[items]]
+kind = "app"
+id = "htop.desktop"
+
+[[items]]
+kind = "app"
+id = "jconsole-java-openjdk.desktop"
+
+[[items]]
+kind = "app"
+id = "linguist.desktop"
+
+[[items]]
+kind = "app"
+id = "micro.desktop"
+
+[[items]]
+kind = "app"
+id = "mpv.desktop"
+
+[[items]]
+kind = "app"
+id = "nm-connection-editor.desktop"
+
+[[items]]
+kind = "app"
+id = "nvtop.desktop"
+
+[[items]]
+kind = "app"
+id = "opera.desktop"
+
+[[items]]
+kind = "app"
+id = "org.freedesktop.IBus.Setup.desktop"
+
+[[items]]
+kind = "app"
+id = "org.freedesktop.MalcontentControl.desktop"
+
+[[items]]
+kind = "app"
+id = "org.gnome.Calculator.desktop"
+
+[[items]]
+kind = "app"
+id = "org.gnome.Characters.desktop"
+
+[[items]]
+kind = "app"
+id = "org.gnome.ColorProfileViewer.desktop"
+
+[[items]]
+kind = "app"
+id = "org.gnome.Connections.desktop"
+
+[[items]]
+kind = "app"
+id = "org.gnome.Console.desktop"
+
+[[items]]
+kind = "app"
+id = "org.gnome.Epiphany.desktop"
+
+[[items]]
+kind = "app"
+id = "org.gnome.Evince.desktop"
+
+[[items]]
+kind = "app"
+id = "org.gnome.FileRoller.desktop"
+
+[[items]]
+kind = "app"
+id = "org.gnome.Papers.desktop"
+
+[[items]]
+kind = "app"
+id = "org.gnome.SystemMonitor.desktop"
+
+[[items]]
+kind = "folder"
+id = "folder-fb307c62"
+
+[[items]]
+kind = "app"
+id = "org.gnome.Software.desktop"
+
+[[items]]
+kind = "app"
+id = "org.gnome.TextEditor.desktop"
+
+[[items]]
+kind = "app"
+id = "org.gnome.font-viewer.desktop"
+
+[[items]]
+kind = "app"
+id = "org.gnome.seahorse.Application.desktop"
+
+[[items]]
+kind = "app"
+id = "org.kde.kdeconnect.app.desktop"
+
+[[items]]
+kind = "app"
+id = "org.kde.kdeconnect.nonplasma.desktop"
+
+[[items]]
+kind = "app"
+id = "org.manjaro.pamac.manager.desktop"
+
+[[items]]
+kind = "app"
+id = "org.kde.kdeconnect.sms.desktop"
+
+[[items]]
+kind = "app"
+id = "org.pulseaudio.pavucontrol.desktop"
+
+[[items]]
+kind = "app"
+id = "protontricks.desktop"
+
+[[items]]
+kind = "app"
+id = "qdbusviewer.desktop"
+
+[[items]]
+kind = "app"
+id = "qt5ct.desktop"
+
+[[items]]
+kind = "app"
+id = "qv4l2.desktop"
+
+[[items]]
+kind = "app"
+id = "qt6ct.desktop"
+
+[[items]]
+kind = "app"
+id = "qvidcap.desktop"
+
+[[items]]
+kind = "app"
+id = "rog-control-center.desktop"
+
+[[items]]
+kind = "app"
+id = "rygel-preferences.desktop"
+
+[[items]]
+kind = "app"
+id = "scrcpy-console.desktop"
+
+[[items]]
+kind = "app"
+id = "steam.desktop"
+
+[[items]]
+kind = "app"
+id = "timeshift-gtk.desktop"
+
+[[items]]
+kind = "app"
+id = "transmission-gtk.desktop"
+
+[[items]]
+kind = "app"
+id = "uuctl.desktop"
+
+[[items]]
+kind = "app"
+id = "vim.desktop"
+
+[[items]]
+kind = "app"
+id = "virt-manager.desktop"
+
+[[items]]
+kind = "app"
+id = "winboat.desktop"
+
+[[items]]
+kind = "app"
+id = "winetricks.desktop"
+
+[[items]]
+kind = "app"
+id = "xdvi.desktop"
+
+[[items]]
+kind = "app"
+id = "com.mattjakeman.ExtensionManager.desktop"
+
+[[items]]
+kind = "app"
+id = "gnome-system-monitor-kde.desktop"
+
+[[items]]
+kind = "app"
+id = "org.gnome.Extensions.desktop"
+
+[[items]]
+kind = "app"
+id = "org.gnome.Tour.desktop"
+
+[[items]]
+kind = "app"
+id = "org.gnome.Yelp.desktop"
+
+[[items]]
+kind = "app"
+id = "jshell-java-openjdk.desktop"
+
+[[items]]
+kind = "app"
+id = "assistant.desktop"
+
+[[items]]
+kind = "app"
+id = "avahi-discover.desktop"
+
+[[items]]
+kind = "app"
+id = "bssh.desktop"
+
+[[items]]
+kind = "app"
+id = "bvnc.desktop"
+
+[[items]]
+kind = "app"
+id = "chrome-gnalgpeikcokngnkcmgnkeoedmhmcjoc-Default.desktop"
+
+[[items]]
+kind = "app"
+id = "cmake-gui.desktop"
+
+[[items]]
+kind = "app"
+id = "curseforge.desktop"
+
+[[items]]
+kind = "app"
+id = "dolphin-emu.desktop"
+
+[[items]]
+kind = "app"
+id = "faugus-launcher.desktop"
+
+[[items]]
+kind = "app"
+id = "org.deskflow.deskflow.desktop"
+
+[[items]]
+kind = "app"
+id = "de.feschber.LanMouse.desktop"
+
+[[items]]
+kind = "app"
+id = "com.mitchellh.ghostty.desktop"
+
+[[items]]
+kind = "app"
+id = "net.lutris.Lutris.desktop"
+
+[[items]]
+kind = "app"
+id = "Toshy_Tray.desktop"
+
+[[items]]
+kind = "app"
+id = "app.toshy.preferences.desktop"
+
+[[items]]
+kind = "app"
+id = "lstopo.desktop"
+
+[folders.folder-fb307c62]
+id = "folder-fb307c62"
+name = "Untitled"
+app_ids = [
+    "org.gnome.Snapshot.desktop",
+    "org.gnome.SimpleScan.desktop",
+]

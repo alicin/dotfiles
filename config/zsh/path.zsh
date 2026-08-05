@@ -22,6 +22,10 @@ _path_prepend "$HOME/.local/bin"
 _path_prepend "$HOME/.local/bin/scripts"
 _path_prepend "$DOTFILESSRC/bin"
 _path_prepend "$PNPM_HOME"
+# Current pnpm installs its binaries into $PNPM_HOME/bin; older versions put
+# them directly in $PNPM_HOME. h4l9000 has the flat layout and k3v1n the nested
+# one, so add both -- _path_prepend already skips whichever does not exist.
+_path_prepend "$PNPM_HOME/bin"
 
 _path_append "$CARGO_HOME/bin"
 _path_append "$BUN_INSTALL/bin"

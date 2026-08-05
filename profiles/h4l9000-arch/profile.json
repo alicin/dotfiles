@@ -5,50 +5,83 @@
   "os": "arch",
   "arch": "x86_64",
   "package_managers": {
-    "pacman": { "enabled": true, "file": "pacman.txt" },
-    "yay": { "enabled": true, "file": "aur.txt" },
-    "flatpak": { "enabled": true, "file": "flatpak.txt" },
-    "npm": { "enabled": true, "file": "npm.txt" }
+    "pacman": {
+      "enabled": true,
+      "file": "pacman.txt"
+    },
+    "yay": {
+      "enabled": true,
+      "file": "aur.txt"
+    },
+    "flatpak": {
+      "enabled": true,
+      "file": "flatpak.txt"
+    },
+    "npm": {
+      "enabled": true,
+      "file": "npm.txt"
+    }
   },
   "configs": [
     "atuin",
     "zsh",
     "bat",
     "btop",
+    "htop",
     "lazygit",
+    "gh",
     "hypr",
+    "quickshell",
+    "systemd",
+    "uwsm",
     "gtk-3.0",
     "gtk-4.0",
     "hyprpanel",
     "input-remapper-2",
-    "dunst",
     "wofi",
+    "fuzzel",
     "kitty",
-    "posting",
     "yazi",
+    "imv",
+    "micro",
+    "posting",
+    "jolt",
+    "ali",
+    "nvtop",
     "openrazer",
     "pacsea",
     "polychromatic",
-    "rclone",
-    "gogcli",
+    "rog",
+    "looking-glass",
+    "pavucontrol.ini",
     "code-flags.conf",
     "electron-flags.conf",
     "electron13-flags.conf",
     "electron25-flags.conf",
     "mimeapps.list"
   ],
-  "dotfiles": [".zshrc", ".gitconfig", ".editorconfig"],
-  "themes": ["fonts", "wallpapers"],
+  "dotfiles": [
+    ".zshrc",
+    ".gitconfig",
+    ".editorconfig"
+  ],
+  "themes": [
+    "fonts",
+    "wallpapers"
+  ],
   "scripts": {
-    "pre_install": ["prepare.sh"],
+    "pre_install": [
+      "prepare.sh"
+    ],
     "post_install": [
       "workspace.sh",
       "permissions.sh",
-      "services.sh",
-      "finalize.sh",
-      "monitor-manager.sh",
       "enable-multicore-build.sh",
-      "rog-backlight-fix.sh"
+      "toshy-install.sh",
+      "services.sh",
+      "rog-backlight-fix.sh",
+      "monitor-manager.sh",
+      "finalize.sh"
     ]
   },
   "environment": {

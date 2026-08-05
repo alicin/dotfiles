@@ -29,6 +29,31 @@ if is_linux; then
         sudo systemctl enable input-remapper.service --now 2>/dev/null || true
         systemctl --user daemon-reload
         systemctl --user enable --now yay-cache-clean.timer
+
+        # The Quickshell shell. config/hypr/lua/apps.lua starts the bar with
+        # `systemctl --user is-enabled --quiet qshell.service && systemctl
+        # --user restart qshell.service || <fallback>` -- so if the unit is
+        # never enabled the session silently drops to the unsupervised
+        # fallback path and a crashed shell stays dead. Enable, don't --now:
+        # it is WantedBy=graphical-session.target and Hyprland starts it.
+        #
+        # The unit is copied rather than reached through a linked
+        # ~/.config/systemd. Only h4l9000 symlinks that whole directory into the
+        # repo, and doing it elsewhere has two problems: its committed
+        # *.target.wants/ entries would enable h4l9000-sys.service, Sunshine and
+        # appimagelauncherd on a machine that has none of them; and because the
+        # directory IS the repo, every `systemctl --user enable` writes a new
+        # symlink into the tracked tree.
+        qshell_src="$(dirname "$0")/../config/systemd/user/qshell.service"
+        qshell_dst="${HOME}/.config/systemd/user/qshell.service"
+        if [[ ! -e "$qshell_dst" && -f "$qshell_src" ]]; then
+            mkdir -p "${HOME}/.config/systemd/user"
+            install -m 0644 "$qshell_src" "$qshell_dst"
+            systemctl --user daemon-reload
+        fi
+        if [[ -e "$qshell_dst" ]]; then
+            systemctl --user enable qshell.service
+        fi
     fi
 
     # Virtualization services (if available, cross-distro)

@@ -40,13 +40,15 @@ hl.env("XCURSOR_THEME",    "BreezeX-RosePine-Linux")
 hl.env("XCURSOR_SIZE",     "32")
 
 -- GPU device pin (compositor).
+-- Deliberately NOT set here. This file is shared by every host, and pinning
+-- AQ_DRM_DEVICES to one machine's card is how you brick another one: the value
+-- used to be hardcoded to ~/.config/hypr/igpu (a symlink to h4l9000's Intel
+-- by-path node), which on a single-GPU AMD host resolves to nothing and gets
+-- Aquamarine to report "Found no gpus" -> CBackend::create() failed -> crash
+-- loop. Hosts that genuinely need a pin set it themselves; see
+-- lua/hosts/h4l9000.lua. Single-GPU hosts want no pin at all so the compositor
+-- picks the only card present.
+--
 -- The AUTHORITATIVE, supergfx-mode-aware GPU/game environment lives in
 -- ~/.config/uwsm/env (sourced before the compositor launches; that is the path
--- tuigreet's remembered session uses). This line is only a safe static fallback
--- for a bare `--cmd Hyprland` launch that bypasses uwsm -- correct for the
--- Integrated/Hybrid desktop modes; in AsusMuxDgpu (MUX) mode use the uwsm session.
--- NOTE: AQ_DRM_DEVICES is ':'-delimited, so the value must NOT contain colons.
--- A raw by-path name (pci-0000:00:02.0-card) is split on its own colons into
--- garbage -> "Found no gpus" -> CBackend::create() failed -> crash loop. The
--- colon-free ~/.config/hypr/igpu symlink chains through the udev by-path link.
-hl.env("AQ_DRM_DEVICES", "/home/ali/.config/hypr/igpu")
+-- tuigreet's remembered session uses).

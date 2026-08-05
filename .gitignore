@@ -11,6 +11,23 @@ config/atuin/*receipt*.json
 config/ncspot/userstate.cbor
 config/pacsea/lists
 config/pacsea/logs
+
+# Runtime state that lives inside otherwise-hand-authored config dirs.
+# micro/ keeps whole copies of edited files under backups/ and buffers/ —
+# including, at one point, a copy of toshy_config.py — so this is a leak risk,
+# not just noise.
+config/micro/backups
+config/micro/buffers
+# The `ali` launcher: layout.toml is hand-edited and tracked; these two are
+# regenerated caches.
+config/ali/apps_cache.toml
+config/ali/frecency.toml
+# Sunshine/Deskflow/FreeRDP were deliberately NOT imported — they hold TLS
+# private keys. Listed here so a future `dotlink` of them fails loudly instead
+# of quietly committing a key.
+config/sunshine
+config/Deskflow
+config/freerdp
 .brew_cask_index
 btop.log
 __pycache__/

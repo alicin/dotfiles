@@ -1,233 +1,314 @@
-adw-gtk-theme
-ags-hyprpanel-git
-alsa-firmware
-alsa-utils
-amd-ucode
-android-studio
-android-tools
-arandr
-atuin
-baobab
+# k3v1n — Minisforum V3 (Ryzen 7 8840U / Radeon 780M) convertible tablet,
+# primary dev machine. Modelled on h4l9000 minus the ROG/nvidia/Intel and
+# Razer hardware, minus the gaming stack, plus a real dev toolchain.
+#
+# Blank lines and `#` comments are stripped by read_package_list().
+
+# ── Base system ─────────────────────────────────────────────────────────────
 base
 base-devel
-bindfs
-blueberry
-bluez
-bluez-utils
-brightnessctl
-btop
-btrfs-progs
-cliphist
-corectrl
-cpupower
-curseforge
-decibels
-deno
-discord
-dnsmasq
-docker
-efibootmgr
-epiphany
-evtest
-fastfetch
-faugus-launcher
-ffmpegthumbnailer
-firefox
-flatseal
-fprintd
-fuzzel
-fzf
-gamemode
-gamescope
-gdm
-gimp
-git
-gnome-backgrounds
-gnome-calculator
-gnome-calendar
-gnome-characters
-gnome-clocks
-gnome-color-manager
-gnome-connections
-gnome-console
-gnome-contacts
-gnome-control-center
-gnome-disk-utility
-gnome-firmware
-gnome-font-viewer
-gnome-keyring
-gnome-logs
-gnome-maps
-gnome-menus
-gnome-music
-gnome-remote-desktop
-gnome-session
-gnome-settings-daemon
-gnome-shell
-gnome-shell-extensions
-gnome-software
-gnome-system-monitor
-gnome-text-editor
-gnome-tour
-gnome-tweaks
-gnome-user-docs
-gnome-user-share
-gnome-weather
-google-chrome
-gparted
-greetd
-greetd-tuigreet
-grilo-plugins
-grim
-grimblast-git
-gst-plugin-pipewire
-gvfs
-gvfs-afc
-gvfs-dnssd
-gvfs-goa
-gvfs-google
-gvfs-gphoto2
-gvfs-mtp
-gvfs-nfs
-gvfs-onedrive
-gvfs-smb
-gvfs-wsdd
-htop
-hypridle
-hyprland
-hyprlock
-hyprpaper
-hyprpicker
-imv
-iwd
-jfetch-git
-jq
-kitty
-lazygit
-lib32-giflib
-lib32-gnutls
-lib32-gst-plugins-base-libs
-lib32-gtk3
-lib32-libjpeg-turbo
-lib32-libpulse
-lib32-libva
-lib32-libxcomposite
-lib32-libxinerama
-lib32-libxslt
-lib32-mpg123
-lib32-ocl-icd
-lib32-openal
-lib32-v4l-utils
-libpulse
-libsixel
-linux-firmware
 linux-zen
 linux-zen-headers
+linux-firmware
+amd-ucode
+mkinitcpio
+efibootmgr
+btrfs-progs
+sudo
+zram-generator
 logrotate
-loupe
-lutris
-malcontent
+cronie
 man-db
 man-pages
-mangohud
-meson
-micro
-mono
-mpv
-mumble
-nano
-nano-syntax-highlighting
-nautilus
-ncspot
-network-manager-applet
-networkmanager
-orca
 pacman-contrib
-pamac-aur
-papers
-pavucontrol
+smartmontools
+dmidecode
+pciutils
+usbutils
+dosfstools
+exfatprogs
+ntfs-3g
+openssh
+rsync
+
+# ── Archive / compression ───────────────────────────────────────────────────
+7zip
+zip
+unzip
+unrar
+unace
+arj
+lhasa
+lrzip
+bzip3
+cdrtools
+rpmextract
+squashfs-tools
+dpkg
+file-roller
+
+# ── Graphics (AMD Radeon 780M / RDNA3 iGPU) ─────────────────────────────────
+# No AQ_DRM_DEVICES pin needed: single GPU, the compositor picks it on its own.
+mesa
+mesa-utils
+vulkan-radeon
+vulkan-tools
+libva-utils
+xf86-video-amdgpu
+nvtop
+radeontop
+# hosts/k3v1n.lua autostarts `corectrl --minimize-systray` on session start.
+corectrl
+
+# ── Audio ───────────────────────────────────────────────────────────────────
 pipewire
 pipewire-alsa
 pipewire-jack
 pipewire-pulse
+wireplumber
+alsa-utils
+alsa-firmware
+sof-firmware
+libpulse
+pavucontrol
+pulsemixer
 playerctl
+
+# ── Network ─────────────────────────────────────────────────────────────────
+networkmanager
+network-manager-applet
+wpa_supplicant
+wireless_tools
+iwd
+dnsmasq
+tailscale
+wireguard-tools
+bluez
+bluez-utils
+# scripts/services.sh enables avahi-daemon; nothing else pulls it in.
+avahi
+nss-mdns
+
+# ── Hyprland session ────────────────────────────────────────────────────────
+hyprland
+# quickshell provides `qs`, which IS the desktop: bar, launcher, window
+# switcher, command palette, emoji picker, OSD and Control Center all route
+# through `qs ipc -c qshell` (config/hypr/lua/apps.lua). Without it the session
+# comes up as bare Hyprland with no UI at all.
+#
+# extra/quickshell is 0.3.0; h4l9000 runs quickshell-git at 0.3.0.r11, eleven
+# commits past that tag. The release should be fine, but if qshell fails to
+# load against it, `yay -S quickshell-git` (it Provides: quickshell) and drop
+# this line -- that is the only reason to go back to the AUR build.
+quickshell
+hypridle
+hyprlock
+hyprpaper
+hyprpicker
+uwsm
+xdg-desktop-portal-hyprland
+xdg-desktop-portal-gnome
+xdg-desktop-portal-wlr
 polkit-gnome
 polkit-kde-agent
-posting
-power-profiles-daemon
-proton-vpn-gtk-app
-protontricks
-pulsemixer
-pv
-python-pip
-python-pipx
-qemu-base
 qt5-wayland
-qt5ct
 qt6-wayland
+qt5ct
 qt6ct
-rclone
-rose-pine-cursor
-rygel
-ryzenadj
-s-tui
-samba
-scrcpy
-showtime
-simple-scan
-slurp
-smartmontools
-snapshot
-sof-firmware
-starship
-steam
-stremio-enhanced-bin
-sushi
-swww
-tbtools
-tecla
-thefuck
-timeshift
-trash-cli
-uwsm
-vim
-virt-manager
-virtualbox
-visual-studio-code-bin
-vulkan-extra-tools
-vulkan-radeon
-vulkan-tools
-waybar
-waydroid-git
-waydroid-helper-git
-waydroid-script-git
-wf-recorder
-wget
-wine-gecko
-wine-mono
-wine-staging
-winetricks
-wireguard-tools
-wireless_tools
-wireplumber
 wl-clipboard
+cliphist
+grim
+slurp
+wf-recorder
+brightnessctl
+ddcutil
+# No dunst: qshell IS the notification daemon (see config/systemd/user/qshell.service).
+# dunst ships a D-Bus activation file (org.knopwob.dunst.service), so merely having
+# it installed let it get activated and claim org.freedesktop.Notifications before
+# qshell could -- qshell then logged "Could not register notification server" and
+# every notification went to dunst instead. h4l9000 does not install it either.
 wofi
+fuzzel
+imv
+greetd
+greetd-tuigreet
+xorg-xwayland
+xorg-xhost
 xclip
-xcursor-breeze
-xdg-desktop-portal-gnome
-xdg-desktop-portal-hyprland
-xdg-desktop-portal-wlr
+
+# ── Tablet: pen, rotation ───────────────────────────────────────────────────
+# No squeekboard / on-screen keyboard: it popped up over a normal desktop
+# session. hosts/k3v1n.lua no longer autostarts it and scripts/osk.sh is out of
+# post_install, so nothing puts a keyboard on screen.
+iio-sensor-proxy
+libwacom
+evtest
+libinput
+
+# ── GNOME (kept alongside Hyprland) ─────────────────────────────────────────
+# Not decoration: startup.lua runs sync-gnome-tweaks-to-gtk, which reads the
+# theme/icon/font values GNOME Tweaks writes to dconf and mirrors them into
+# GTK's settings.ini. Removing Tweaks/control-center breaks GTK theming.
+gnome-shell
+gnome-session
+gnome-settings-daemon
+gnome-control-center
+gnome-tweaks
+gnome-keyring
+gnome-backgrounds
+gnome-calculator
+gnome-characters
+gnome-color-manager
+gnome-disk-utility
+gnome-font-viewer
+gnome-menus
+gnome-system-monitor
+gnome-text-editor
+gnome-software
+gdm
+nautilus
+nautilus-python
+sushi
+seahorse
+loupe
+papers
+snapshot
+baobab
+adw-gtk-theme
 xdg-user-dirs-gtk
 xdg-utils
-xf86-video-amdgpu
-xf86-video-ati
-xorg-server
-xorg-xhost
-xorg-xinit
-yay
-yay-debug
-yazi
-yelp
-yt-dlp
-zram-generator
+gvfs
+gvfs-afc
+gvfs-dnssd
+gvfs-goa
+gvfs-gphoto2
+gvfs-mtp
+gvfs-nfs
+gvfs-smb
+grilo-plugins
+gst-plugin-pipewire
+ffmpegthumbnailer
+
+# ── Terminal / shell ────────────────────────────────────────────────────────
+kitty
 zsh
+starship
+atuin
+fzf
+bat
+ripgrep
+fd
+eza
+jq
+btop
+htop
+fastfetch
+yazi
+trash-cli
+thefuck
+wget
+libsixel
+tree
+
+# ── Editors ─────────────────────────────────────────────────────────────────
+neovim
+vim
+nano
+nano-syntax-highlighting
+micro
+
+# ── Version control ─────────────────────────────────────────────────────────
+git
+git-lfs
+lazygit
+github-cli
+git-delta
+
+# ── Dev toolchain ───────────────────────────────────────────────────────────
+cmake
+meson
+ninja
+llvm
+clang
+gdb
+rust
+go
+deno
+python
+python-pip
+python-pipx
+uv
+# fnm, but deliberately NOT nodejs/npm/pnpm. scripts/prepare.sh runs before
+# this list and already sets the JS stack up: node via fnm, pnpm via its own
+# installer. config/zsh/plugins.zsh then evaluates `fnm env --use-on-cd` and
+# config/zsh/env.zsh points PNPM_HOME at ~/.local/share/pnpm, so pacman's node
+# and pnpm would be shadowed on PATH at best and fight the fnm-managed node at
+# worst. Same arrangement h4l9000 runs.
+#
+# fnm itself does need to come from pacman: prepare.sh installs it with
+# `brew install fnm`, and Homebrew left it unlinked in the Cellar with only
+# `brew` itself in /home/linuxbrew/.linuxbrew/bin -- so `command -v fnm` failed
+# in zsh, the `fnm env` eval never ran, and node was missing from every shell.
+# h4l9000 gets fnm from pacman too, which is why it never hit this.
+fnm
+glib2-devel
+debugedit
+dkms
+android-tools
+scrcpy
+jdk-openjdk
+
+# ── Python libs the tracked configs / scripts import ────────────────────────
+python-babel
+python-dotenv
+python-httpx
+python-jsonschema
+python-pycryptodomex
+python-pyqt6
+python-pytest
+python-rfc3339-validator
+python-yaml
+python-zstandard
+pyside6
+qt6-tools
+qt6-scxml
+
+# ── Databases ───────────────────────────────────────────────────────────────
+postgresql
+valkey
+sqlite
+mariadb-libs
+unixodbc
+
+# ── Containers / virtualisation ─────────────────────────────────────────────
+docker
+docker-buildx
+docker-compose
+qemu-base
+qemu-desktop
+virt-manager
+swtpm
+
+# ── Apps ────────────────────────────────────────────────────────────────────
+firefox
+mpv
+gimp
+transmission-gtk
+kdeconnect
+timeshift
+rclone
+yt-dlp
+simple-scan
+system-config-printer
+cups
+cups-pk-helper
+
+# ── Fonts ───────────────────────────────────────────────────────────────────
+# The Operator Mono / SFMono / Framework7 faces the configs actually name are
+# shipped in this repo under themes/fonts and linked by the profile. These are
+# the fallback + emoji coverage underneath them.
+inter-font
+noto-fonts
+noto-fonts-emoji
+noto-fonts-cjk
+ttf-nerd-fonts-symbols

@@ -1,3 +1,23 @@
+# h4l9000 — AUR packages. yay is bootstrapped by scripts/prepare.sh.
+#
+# Blank lines and `#` comments are stripped by read_package_list().
+#
+# quickshell-git provides `qs` — the bar, launcher, command palette, OSD and
+# Control Center that config/hypr/lua/apps.lua drives. It was missing from
+# every profile even though it IS the desktop.
+#
+# Listed as the -git build because that is what is actually installed here
+# (0.3.0.r11). Quickshell has since landed in extra/ at 0.3.0, and k3v1n uses
+# that instead — if this machine ever gets rebuilt, prefer extra/quickshell and
+# drop this line.
+#
+# rose-pine-hyprcursor satisfies HYPRCURSOR_THEME in config/uwsm/env; the
+# XCURSOR_THEME=BreezeX-RosePine-Linux value comes from rose-pine-cursor.
+#
+# The ags-hyprpanel-git / aylurs-gtk-shell-git / libastal-* block below is the
+# HyprPanel era. qshell replaced it and nothing loads astal any more; it is
+# kept here only because it is still installed on this machine.
+
 ags-hyprpanel-git
 android-studio
 appimagelauncher
@@ -47,8 +67,10 @@ python-inquirerpy
 python-openapi-pydantic
 python-textual-autocomplete
 quarrel-git
+quickshell-git
 rog-control-center
 rose-pine-cursor
+rose-pine-hyprcursor
 slack-desktop-wayland
 supergfxctl
 systemd-manager-tui

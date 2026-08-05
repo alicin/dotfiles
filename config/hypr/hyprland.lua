@@ -30,7 +30,28 @@ require("lua.submaps.control")
 require("lua.startup")
 
 -- ── Per-host overrides (h4l9000 / k3v1n / mcu / …) ──────────────────────────
-local host = os.getenv("HOSTNAME")
+-- $HOSTNAME is NOT reliably present here. It is a shell variable, not something
+-- login(1) or systemd export; on this laptop it only reaches the compositor
+-- because a previous session leaked it into `systemd --user` via
+-- dbus-update-activation-environment. On a freshly installed machine it is
+-- simply absent, and the host module would be skipped in silence -- taking the
+-- monitor layout, the workspace rules and the host autostarts with it. Fall
+-- back to /etc/hostname, which is always there and always correct.
+local function hostname()
+  local env = os.getenv("HOSTNAME")
+  if env and env ~= "" then return env end
+  local ok, name = pcall(function()
+    local f = io.open("/etc/hostname", "r")
+    if not f then return nil end
+    local line = f:read("l")
+    f:close()
+    return line
+  end)
+  if ok and name then return (name:gsub("%s+", "")) end
+  return nil
+end
+
+local host = hostname()
 if host and host ~= "" then
   local ok, err = pcall(require, "lua.hosts." .. host)
   if not ok then

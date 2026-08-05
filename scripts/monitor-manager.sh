@@ -3,6 +3,19 @@ set -euo pipefail
 
 # Hyprland Monitor Manager - udev rule installer
 # This script installs udev rules to automatically manage workspaces when monitors are connected/disconnected
+#
+# Needs root: writes /etc/udev/rules.d and calls udevadm. profile-install.sh runs
+# post_install scripts as the invoking user, and `set -e` plus an unprivileged
+# redirect into /etc/udev/rules.d meant this aborted on the first line every
+# time. Re-exec under sudo rather than failing.
+if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
+    if command -v sudo >/dev/null 2>&1; then
+        echo "Re-running with sudo..."
+        exec sudo -- "$0" "$@"
+    fi
+    echo "Please run as root (e.g., sudo bash $0)" >&2
+    exit 1
+fi
 
 # Target user
 TARGET_USER="ali"

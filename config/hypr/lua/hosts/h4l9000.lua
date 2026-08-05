@@ -2,6 +2,18 @@
 
 local apps = require("lua.apps")
 local edp = "eDP-1"
+
+-- ── GPU device pin (compositor) ─────────────────────────────────────────────
+-- Hybrid Intel+nvidia box, so the compositor has to be told which card to use.
+-- Only a fallback for a bare `--cmd Hyprland` launch that bypasses uwsm --
+-- correct for the Integrated/Hybrid desktop modes; in AsusMuxDgpu (MUX) mode
+-- use the uwsm session, whose ~/.config/uwsm/env is supergfx-mode-aware.
+--
+-- AQ_DRM_DEVICES is ':'-delimited, so the value must NOT contain colons. A raw
+-- by-path name (pci-0000:00:02.0-card) is split on its own colons into garbage
+-- -> "Found no gpus" -> crash loop. The colon-free ~/.config/hypr/igpu symlink
+-- chains through the udev by-path link, and survives card0/card1 renumbering.
+hl.env("AQ_DRM_DEVICES", "/home/ali/.config/hypr/igpu")
 local horizontal = "desc:LG Electronics LG HDR 4K 0x0007807F"
 local vertical = "desc:LG Electronics LG HDR 4K 0x0007FDE4"
 -- ── Monitors ────────────────────────────────────────────────────────────────

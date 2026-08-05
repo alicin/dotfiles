@@ -11,6 +11,15 @@ symlinked back into place:
 | `toshy_config.py` | The keymapper config. All our customizations live in its `SLICE_MARK_START/END` blocks (e.g. the `imv` keymap in the `user_apps` slice). The rest is upstream template. |
 | `toshy_user_preferences.sqlite` | GUI preferences that decide modifier behavior (optspec layout, Cmd-is-Ctrl, keyboard type, etc.). See the `toshy-hypr-bind` skill for what the values mean. |
 
+> **Never add `toshy` to a profile's `configs` array.** That array is fed to
+> `link_config()`, which symlinks the *whole* `~/.config/<name>` directory and
+> moves whatever was there into `~/.dotfiles-backup/`. For Toshy that means the
+> entire 74 MB install — `.venv`, dbus services, `scripts/` — gets swapped for
+> the three tracked files here, and every `~/.local/bin/toshy-*` symlink (they
+> all point into `~/.config/toshy/scripts/bin/`) dangles. Use
+> `scripts/toshy-install.sh` instead; it installs Toshy and re-creates the two
+> file-level symlinks below.
+
 Symlinks (created once):
 
 ```sh

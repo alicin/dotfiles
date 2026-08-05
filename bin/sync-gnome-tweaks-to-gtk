@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Mirror GNOME Tweaks/dconf values into GTK settings files.
+# This makes GTK apps launched from bare Hyprland/greetd respect Tweaks even
+# when xdg-desktop-portal Settings is not available.
+strip_quotes() { sed "s/^'//; s/'$//"; }
+
+get_gsetting() {
+  gsettings get "$1" "$2" | strip_quotes
+}
+
+gtk_theme=$(get_gsetting org.gnome.desktop.interface gtk-theme)
+icon_theme=$(get_gsetting org.gnome.desktop.interface icon-theme)
+font_name=$(get_gsetting org.gnome.desktop.interface font-name)
+cursor_theme=$(get_gsetting org.gnome.desktop.interface cursor-theme)
+cursor_size=$(gsettings get org.gnome.desktop.interface cursor-size)
+button_layout=$(get_gsetting org.gnome.desktop.wm.preferences button-layout)
+color_scheme=$(get_gsetting org.gnome.desktop.interface color-scheme)
+
+prefer_dark=0
+if [[ "$color_scheme" == "prefer-dark" ]]; then
+  prefer_dark=1
+fi
+
+mkdir -p "$HOME/.config/gtk-3.0" "$HOME/.config/gtk-4.0"
+
+for f in "$HOME/.config/gtk-3.0/settings.ini" "$HOME/.config/gtk-4.0/settings.ini"; do
+  cat > "$f" <<EOF
+[Settings]
+gtk-theme-name=$gtk_theme
+gtk-icon-theme-name=$icon_theme
+gtk-font-name=$font_name
+gtk-cursor-theme-name=$cursor_theme
+gtk-cursor-theme-size=$cursor_size
+gtk-decoration-layout=$button_layout
+gtk-application-prefer-dark-theme=$prefer_dark
+EOF
+done

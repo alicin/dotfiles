@@ -1,53 +1,49 @@
-ags-hyprpanel-git
-android-studio
-appmenu-glib-translator-git
-aylurs-gtk-shell-git
-bindfs
-blueberry
-curseforge
-faugus-launcher
-flatseal
-gnome-bluetooth
+# k3v1n — AUR packages, kept deliberately minimal.
+#
+# yay itself is bootstrapped by scripts/prepare.sh (lib/repos/arch.sh:setup_yay),
+# so it is not listed here. Blank lines and `#` comments are stripped by
+# read_package_list().
+#
+# Everything below is AUR-only — verified against the official repos, not
+# assumed. Anything that has since landed in extra/ was moved to pacman.txt:
+#
+#   quickshell        -> extra   (was quickshell-git; this is the big one)
+#   gnome-bluetooth   -> extra/gnome-bluetooth-3.0
+#   ncspot            -> extra   (dropped anyway, not dev tooling)
+#
+# Dropped as neither dev tooling nor referenced by any tracked config:
+#   grimblast-git, bindfs, systemd-manager-tui  — zero references anywhere
+#   gogcli                                      — GOG game CLI
+#   appimagelauncher, pacsea-bin, android-studio — only appear in h4l9000's
+#                                                  launcher cache
+#   blueberry           — GNOME Control Center and the qshell Bluetooth tile
+#                         both cover this. The `blueberry.py` window rule in
+#                         lua/rules.lua just goes inert.
+#   slack-desktop-wayland — mimeapps.list maps slack:// to it, which degrades
+#                           to "no handler"; add back with `yay -S` if wanted.
+#   ncspot-bin            — music player
+#   python-click-default-group, python-inquirerpy, python-openapi-pydantic,
+#   python-textual-autocomplete — these are posting's own dependencies and yay
+#                                 resolves them automatically; listing them by
+#                                 hand just pins them to break on a rename.
+
+# ── Browser ─────────────────────────────────────────────────────────────────
+# $BROWSER in config/uwsm/env and every handler in config/mimeapps.list point
+# at google-chrome.desktop, so this stays AUR rather than extra/chromium.
 google-chrome
-grimblast-git
-icoextract
-jfetch-git
-libastal-4-git
-libastal-apps-git
-libastal-auth-git
-libastal-battery-git
-libastal-bluetooth-git
-libastal-cava-git
-libastal-git
-libastal-gjs-git
-libastal-greetd-git
-libastal-hyprland-git
-libastal-io-git
-libastal-meta
-libastal-mpris-git
-libastal-network-git
-libastal-notifd-git
-libastal-powerprofiles-git
-libastal-river-git
-libastal-tray-git
-libastal-wireplumber-git
-libcava
-libpamac-aur
-pamac-aur
-posting
-protontricks
-python-click-default-group
-python-inquirerpy
-python-openapi-pydantic
-python-textual-autocomplete
-python-vdf
-rose-pine-cursor
-ryzenadj
-stremio-enhanced-bin
+
+# ── Editor ──────────────────────────────────────────────────────────────────
+# $EDITOR=code. extra/code is Code-OSS, which cannot reach the Microsoft
+# marketplace (no Copilot, no settings sync) -- worth the one AUR package on a
+# dev machine. Swap to extra/code if you'd rather drop it.
 visual-studio-code-bin
-waydroid-git
-waydroid-helper-git
-waydroid-script-git
-xcursor-breeze
-yay
-yay-debug
+
+# ── Cursors (required by config/uwsm/env) ───────────────────────────────────
+# HYPRCURSOR_THEME=rose-pine-hyprcursor and XCURSOR_THEME=BreezeX-RosePine-Linux
+# resolve to exactly these two. Both are data-only, no compile.
+rose-pine-hyprcursor
+rose-pine-cursor
+
+# ── Dev ─────────────────────────────────────────────────────────────────────
+# HTTP client TUI; config/posting is linked by this profile.
+posting

@@ -25,7 +25,10 @@ hl.on("hyprland.start", function()
   -- GTK apps without the portal/xsettings bridge that applies those values.
   -- Mirror Tweaks values into GTK's settings.ini files instead of hardcoding
   -- theme/icon/font here.
-  hl.exec_cmd("/home/ali/.local/bin/sync-gnome-tweaks-to-gtk")
+  -- Points at the repo copy, not ~/.local/bin: that path is gitignored, so on a
+  -- freshly provisioned machine the script simply would not be there and GTK
+  -- apps would silently fall back to the Adwaita default.
+  hl.exec_cmd("/home/ali/labs/dotfiles/bin/sync-gnome-tweaks-to-gtk")
 
   -- Daemons / one-shots.
   hl.exec_cmd(apps.idle)

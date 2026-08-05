@@ -12,7 +12,11 @@ M.term_float           = M.term .. " --class=com.ali.floating_shell"
 M.term_float_portrait  = M.term .. " --class=com.ali.floating_shell_portrait"
 
 -- Core apps.
-M.browser     = "google-chrome --disable-features=WaylandWpColorManagerV1"
+-- The AUR `google-chrome` package installs the binary as google-chrome-stable
+-- and ships no `google-chrome` symlink, so the bare name here never resolved --
+-- Super+W has been a no-op. $BROWSER in config/uwsm/env already used the right
+-- name; this is the one place that didn't.
+M.browser     = "google-chrome-stable --disable-features=WaylandWpColorManagerV1"
 M.filemanager = M.term_float .. " -e yazi"
 M.calendar    = M.term_float .. " khal interactive"
 M.editor      = "code"
@@ -20,8 +24,9 @@ M.overview    = "qs ipc -c qshell call overview toggle"
 
 -- Menus.
 -- M.menu  = "ali"
--- qshell launcher (caelestia-style panel from ~/labs/src/nullsector/j4rv15/qshell,
--- symlinked to ~/.config/quickshell/qshell). `toggle` closes it if already open.
+-- qshell launcher (caelestia-style panel; lives in this repo at qshell/, reached
+-- via config/quickshell/qshell -> ../../qshell and so ~/.config/quickshell/qshell).
+-- `toggle` closes it if already open.
 M.menu  = "qs ipc -c qshell call launcher toggle"
 -- Old wofi launcher, kept as fallback:
 -- M.menu  = "pkill wofi || wofi --show drun --allow-images"
@@ -40,7 +45,7 @@ M.wmenu = "qs ipc -c qshell call launcher mode '/'"
 M.cmenu = "qs ipc -c qshell call launcher mode '>'"
 M.emoji = "qs ipc -c qshell call launcher mode ':'"
 
--- Status bar: qshell (Quickshell shell in the j4rv15 repo). Same restart
+-- Status bar: qshell (the Quickshell shell in this repo, under qshell/). Same restart
 -- semantics as the old hyprpanel line: kill any running instance, start fresh.
 --
 -- Prefers the systemd user unit when it is enabled, so the shell has a
@@ -52,9 +57,6 @@ M.emoji = "qs ipc -c qshell call launcher mode ':'"
 -- Falls back to the plain launch when the unit isn't enabled, so this line
 -- works either way and enabling it needs no config change.
 M.bar = "systemctl --user is-enabled --quiet qshell.service && systemctl --user restart qshell.service || { qs kill -c qshell 2>/dev/null; qs -d -c qshell; }"
-
--- On-screen volume/brightness indicator (wob).
-M.onscreen_bar = [[bash ~/labs/dotfiles/scripts/wob.sh "#EB8A7DFF" "#2C2440FF"]]
 
 -- Brightness. Routed through qshell so its OSD reacts on the keypress: the
 -- kernel gives no change notification to watch, so a shell that only polls

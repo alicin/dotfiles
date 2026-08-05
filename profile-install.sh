@@ -14,6 +14,7 @@ source "${SCRIPT_DIR}/lib/logging.sh"
 source "${SCRIPT_DIR}/lib/os-detection.sh"
 source "${SCRIPT_DIR}/lib/symlink.sh"
 source "${SCRIPT_DIR}/lib/profile.sh"
+source "${SCRIPT_DIR}/lib/runtime.sh"
 
 # Show help
 show_help() {
@@ -42,6 +43,17 @@ show_help() {
     echo ""
 }
 
+# Read a plain package list: one name per line, `#` comments and blank lines
+# stripped, inline trailing comments stripped too. These lists used to be
+# cat'd straight into `pacman -S`, which meant a single explanatory line turned
+# into a bogus package name and failed the whole transaction -- so they carried
+# no documentation at all. Emits a space-separated list on stdout.
+read_package_list() {
+    local file="$1"
+    sed -e 's/[[:space:]]*#.*$//' -e 's/[[:space:]]*$//' "$file" \
+        | grep -v '^[[:space:]]*$'
+}
+
 # Install packages for profile
 install_profile_packages() {
     local profile_dir="$1"
@@ -66,7 +78,7 @@ install_profile_packages() {
                 local pacman_file="$profile_dir/packages/$(get_package_manager_file "pacman")"
                 if [[ -f "$pacman_file" ]]; then
                     log_step "Installing packages via pacman (skipping already installed)"
-                    sudo pacman -S --needed --noconfirm $(cat "$pacman_file")
+                    sudo pacman -S --needed --noconfirm $(read_package_list "$pacman_file")
                 else
                     log_warning "Pacman package file not found: $pacman_file"
                 fi
@@ -77,12 +89,46 @@ install_profile_packages() {
                 if [[ -f "$aur_file" ]]; then
                     if command -v yay >/dev/null 2>&1; then
                         log_step "Installing AUR packages via yay (skipping already installed)"
-                        yay -S --needed --noconfirm $(cat "$aur_file")
+                        yay -S --needed --noconfirm $(read_package_list "$aur_file")
                     else
                         log_warning "yay not found, skipping AUR packages"
                     fi
                 else
                     log_warning "AUR package file not found: $aur_file"
+                fi
+            fi
+
+            # Flatpak. The arch branch was missing this entirely, so every Arch
+            # profile declared `"flatpak": {"enabled": true}` and silently
+            # installed nothing -- only the fedora and debian branches ever
+            # handled it.
+            if is_package_manager_enabled "flatpak"; then
+                local flatpak_file="$profile_dir/packages/$(get_package_manager_file "flatpak")"
+                if [[ -f "$flatpak_file" ]]; then
+                    if command -v flatpak >/dev/null 2>&1; then
+                        log_step "Installing Flatpak applications (skipping already installed)"
+                        # --user throughout: a system-wide install needs a
+                        # polkit prompt, which does not exist over SSH or in any
+                        # non-interactive run ("Flatpak system operation Deploy
+                        # not allowed for user"). These are per-user apps anyway.
+                        flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+                        while IFS= read -r app; do
+                            [[ -z "$app" || "$app" =~ ^[[:space:]]*# ]] && continue
+                            if ! flatpak list --user --app --columns=application | grep -qx "$app"; then
+                                # Never fatal: a single unavailable app must not
+                                # abort the run (set -e) and take the npm stage
+                                # after it down as collateral.
+                                flatpak install --user -y flathub "$app" \
+                                    || log_warning "Flatpak install failed: $app"
+                            else
+                                log_substep "Skipping already installed: $app"
+                            fi
+                        done < "$flatpak_file"
+                    else
+                        log_warning "flatpak not found, skipping Flatpak applications"
+                    fi
+                else
+                    log_warning "Flatpak package file not found: $flatpak_file"
                 fi
             fi
 
@@ -262,13 +308,37 @@ install_profile_packages() {
     if is_package_manager_enabled "npm"; then
         local npm_file="$profile_dir/packages/$(get_package_manager_file "npm")"
         if [[ -f "$npm_file" ]]; then
+            # pnpm and node are installed by scripts/prepare.sh into per-user
+            # prefixes, and the shell rc files that put them on PATH
+            # (config/zsh/env.zsh, ~/.bashrc) are only read by interactive
+            # shells. Running the installer over `ssh host './install.sh'` --
+            # or from any non-interactive shell -- therefore reached this stage
+            # with no pnpm on PATH and died with 127 *after* every package had
+            # been installed. Put the runtime prefixes on PATH explicitly.
+            ensure_js_runtime_path
+            if ! command -v pnpm >/dev/null 2>&1; then
+                log_warning "pnpm not found -- skipping global npm packages"
+                log_info "Run scripts/prepare.sh first, or install pnpm manually"
+                return 0
+            fi
             log_step "Installing global npm packages via pnpm (skipping already installed)"
+            # Snapshot what is actually installed globally, once.
+            #
+            # The previous check was `if ! pnpm list -g "$package"`, which never
+            # fired: `pnpm list -g <name>` exits 0 whether the package is
+            # installed, absent, or complete nonsense. So every entry reported
+            # "Skipping already installed" and `pnpm add -g` was never once
+            # called -- the npm stage silently installed nothing on every run.
+            # Parse the JSON dependency map instead and test membership.
+            local installed_globals
+            installed_globals="$(pnpm list -g --depth=0 --json 2>/dev/null \
+                | jq -r '.[]?.dependencies // {} | keys[]' 2>/dev/null)"
             while IFS= read -r package; do
-                [[ -z "$package" || "$package" =~ ^# ]] && continue
-                if ! pnpm list -g "$package" >/dev/null 2>&1; then
-                    pnpm add -g "$package"
-                else
+                [[ -z "$package" || "$package" =~ ^[[:space:]]*# ]] && continue
+                if grep -qxF "$package" <<<"$installed_globals"; then
                     log_substep "Skipping already installed: $package"
+                else
+                    pnpm add -g "$package" || log_warning "pnpm add -g failed: $package"
                 fi
             done < "$npm_file"
         else

@@ -55,6 +55,16 @@ export XCURSOR_SIZE="32"
 #                         compositor and video decode stay on the iGPU.
 #   AsusMuxDgpu        -> nvidia drives the panel directly; everything on nvidia.
 # Per-app override either way: `igpu-run <cmd>` / `dgpu-run <cmd>`.
+#
+# ALL of this is gated on supergfxctl actually being installed, i.e. on a hybrid
+# Intel+nvidia ASUS box. On a single-GPU host (k3v1n: Radeon 780M) supergfxctl
+# does not exist, `$_gfx` comes back empty, and the `*)` arm below would happily
+# export nvidia PRIME vars plus an AQ_DRM_DEVICES pointing at ~/.config/hypr/igpu
+# -- a symlink to *this* laptop's Intel by-path node, which resolves to nothing
+# there. Aquamarine then reports "Found no gpus" and the compositor crash-loops.
+# Leaving the whole block unset lets Mesa pick the only card present, which is
+# the correct answer on any single-GPU machine.
+if [ -x /usr/bin/supergfxctl ]; then
 _gfx="$(/usr/bin/supergfxctl -g 2>/dev/null)"
 case "$_gfx" in
   Integrated|Vfio)
@@ -81,3 +91,4 @@ case "$_gfx" in
     ;;
 esac
 unset _gfx
+fi

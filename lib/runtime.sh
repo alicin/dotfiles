@@ -78,3 +78,26 @@ setup_runtime_tools() {
     setup_node "${NODE_VERSION:-22}"
     setup_pnpm
 }
+
+# Put the per-user JS runtime prefixes on PATH.
+#
+# setup_node/setup_pnpm install into ~/.local/share/{fnm,pnpm} and the Homebrew
+# prefix, and the only thing that normally exports them is an interactive shell
+# rc (config/zsh/env.zsh, or the pnpm block appended to ~/.bashrc). A
+# non-interactive run -- `ssh host './install.sh ...'`, cron, a subshell --
+# never reads those, so `pnpm` is simply absent. Safe to call repeatedly.
+ensure_js_runtime_path() {
+    export PNPM_HOME="${PNPM_HOME:-$HOME/.local/share/pnpm}"
+    case ":$PATH:" in
+        *":$PNPM_HOME:"*) ;;
+        *) PATH="$PNPM_HOME:$PATH" ;;
+    esac
+    case ":$PATH:" in
+        *":$PNPM_HOME/bin:"*) ;;
+        *) PATH="$PNPM_HOME/bin:$PATH" ;;
+    esac
+    export PATH
+
+    ensure_brew_path
+    load_fnm_env
+}

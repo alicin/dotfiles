@@ -1,5 +1,14 @@
-│
-└──
-├──
-6
-/home/ali/.local/share/pnpm/global/5
+# Global JS tooling. Installed with `pnpm add -g` (see profile-install.sh).
+#
+# This file previously contained pasted `pnpm ls -g` output -- the tree-drawing
+# characters and a stray count, not package names -- which made the npm stage
+# fail on every run. Regenerated from what is actually installed globally.
+@github/copilot
+@google/gemini-cli
+@steipete/oracle
+clawhub
+firebase-tools
+mcporter
+pm2
+serve
+yarn

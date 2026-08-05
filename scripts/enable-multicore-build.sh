@@ -50,6 +50,13 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ $EUID -ne 0 ]]; then
+  # Writes /etc/makepkg.conf. profile-install.sh runs post_install scripts as
+  # the invoking user, so exiting here meant this never actually ran from a
+  # profile install -- makepkg kept building single-threaded on a 16-thread box.
+  if command -v sudo >/dev/null 2>&1; then
+    echo "Re-running with sudo..."
+    exec sudo -- "$0" "$@"
+  fi
   echo "Run as root: sudo $0"
   exit 1
 fi

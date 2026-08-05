@@ -100,14 +100,32 @@ devices_api(
 )
 
 
-# Requires xwaykeyz v1.18.0 or later
+# Requires xwaykeyz v1.18.0 or later.
+#
+# This file is shared between machines whose xwaykeyz versions differ (h4l9000
+# is on 1.21.0, k3v1n on 1.25.1), and the first keyword was renamed
+# `enabled` -> `correction_enabled` somewhere in between. The original
+# `except NameError` guard does NOT cover that: a renamed keyword raises
+# TypeError, not NameError, so on the newer keymapper toshy-config.service
+# crashed on startup and systemd sat there restarting it forever.
+#
+# Try the current spelling first, fall back to the old one. Both disable the
+# correction, so the behavior is identical either way.
 try:
     keyboard_layout_correction(
-        enabled             = False,
+        correction_enabled  = False,
         correct_number_row  = False,
     )
 except NameError:
     pass
+except TypeError:
+    try:
+        keyboard_layout_correction(
+            enabled             = False,
+            correct_number_row  = False,
+        )
+    except (NameError, TypeError):
+        pass
 
 
 ###########################################################

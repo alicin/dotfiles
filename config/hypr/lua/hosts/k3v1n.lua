@@ -26,8 +26,12 @@ for i = 2, 9 do
 end
 
 -- ── Autostart ───────────────────────────────────────────────────────────────
+-- No squeekboard. It used to be launched here as the on-screen keyboard, but it
+-- puts a keyboard on screen in a normal desktop session -- not wanted even on a
+-- convertible. The other half of that feature (scripts/osk.sh, which installed a
+-- udev rule flipping GNOME's a11y screen-keyboard on whenever a keyboard was
+-- unplugged) is gone from this profile's post_install for the same reason.
 hl.on("hyprland.start", function()
-  hl.exec_cmd("/usr/bin/squeekboard")      -- on-screen keyboard
   hl.exec_cmd("corectrl --minimize-systray")
 end)
 
