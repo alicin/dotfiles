@@ -26,6 +26,7 @@ require("lua.monitors")
 require("lua.rules")
 require("lua.binds")
 require("lua.submaps.power")
+require("lua.submaps.control")
 require("lua.startup")
 
 -- ── Per-host overrides (h4l9000 / k3v1n / mcu / …) ──────────────────────────

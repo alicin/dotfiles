@@ -124,6 +124,21 @@ M.record_pause       = "qs -c qshell ipc call capture pause 2>/dev/null || "
 -- profile change raises the OSD on its own, and DND is visible on the bell.
 M.power_profile      = "qs -c qshell ipc call power cycle"
 M.dnd                = "qs -c qshell ipc call notifs dnd"
+
+-- Control Center, by page. Sound, Bluetooth and KDE Connect stopped having bar
+-- modules of their own when the panel absorbed them, which left their pages
+-- reachable only by opening the panel and clicking through — the IPC verbs have
+-- existed since that refactor with nothing bound to them.
+--
+-- "control" is the home screen, and it routes through the same toggle as the
+-- pages, so pressing it while a page is open navigates *back* instead of
+-- dismissing the panel. That makes it the natural Esc-ward key inside the
+-- submap as well as the way in.
+M.control            = "qs -c qshell ipc call popouts toggle control"
+M.control_audio      = "qs -c qshell ipc call popouts toggle audio"
+M.control_bluetooth  = "qs -c qshell ipc call popouts toggle bluetooth"
+M.control_kdeconnect = "qs -c qshell ipc call popouts toggle kdeconnect"
+M.control_display    = "qs -c qshell ipc call popouts toggle display"
 M.keycheat           = "/home/ali/labs/dotfiles/bin/keycheat"   -- shortcuts overlay (toggle)
 
 -- Lock / idle daemons (singleton: only spawn if not already running).

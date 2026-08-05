@@ -66,6 +66,10 @@ Column {
         // subtitle and would otherwise read "…" until you opened the page it
         // is the shortcut to.
         Displays.refresh();
+        // Same reason — the tile reports up/down and the exit node, and the
+        // only other thing that polls tailscaled is the Wi-Fi menu, which you
+        // may not have opened this session.
+        Tailscale.refresh();
     }
     Component.onDestruction: Brightness.polling = false
 
@@ -283,10 +287,12 @@ Column {
         }
     }
 
-    // ── Focus / caffeine / night light ──
-    // Three tiles in two columns: the third wraps onto its own row, which is
-    // what the Flow is for. A third *column* would put every label at half its
-    // current width, and "Do Not Disturb" is already the tightest one here.
+    // ── Focus / caffeine / night light / privacy ──
+    // Two columns, wrapping — which is what the Flow is for. A third *column*
+    // would put every label at half its current width, and "Do Not Disturb" is
+    // already the tightest one here. Reading order pairs them by subject:
+    // attention, then screen, then the two that are about who else is getting
+    // something from this machine.
     Flow {
         width: parent.width
         spacing: Appearance.s(8)
@@ -328,6 +334,49 @@ Column {
             subtitle: Displays.summary
             active: false
             onTapped: root.navigate("display")
+        }
+
+        // The mic kill switch. The bar's privacy light is the *warning* and can
+        // only mute — it exists only while audio is flowing, so it has nothing
+        // to say once it's cut and no way to hand the mic back. This is the
+        // half of that control which is always reachable.
+        Tile {
+            fIcon: Audio.micMuted ? "mic_slash_fill" : "mic_fill"
+            title: "Microphone"
+            // Names who is listening, because there's room here and the light
+            // next door can only show it on hover. Muted-while-held is its own
+            // state and says so: apps keep their capture links across a mute
+            // and go on receiving silence, so a bare "Muted" would understate
+            // how much is still pointed at you.
+            subtitle: {
+                const n = Audio.micUsers.length;
+                if (Audio.micMuted)
+                    return n > 0 ? `Muted · ${n} holding` : "Muted";
+                return n > 0 ? Audio.micUsers.join(", ") : "On";
+            }
+            // Lit means cut. Every other tile here lights when the thing it is
+            // named for is doing something, and for a kill switch that is
+            // being closed — not the mic being available.
+            active: Audio.micMuted
+            onTapped: {
+                Audio.toggleMicMute();
+                Osd.show("mic");
+            }
+        }
+
+        // Tailscale only, not "Tailscale/VPN": NetworkManager VPNs are a *list*
+        // (this machine has two WireGuard profiles), and a tile has one tap and
+        // two lines — it can say which one is up but not let you choose, and a
+        // control that can turn a thing off but not on is worse than no
+        // control. Those keep the Wi-Fi menu's per-connection rows.
+        Tile {
+            fIcon: "lock_shield_fill"
+            title: "Tailscale"
+            // The exit node when there is one: routing all traffic through
+            // another country is the state most worth catching by accident.
+            subtitle: Tailscale.busy ? "…" : Tailscale.up ? (Tailscale.exitNodeName || "Connected") : (Tailscale.stateLabel || "Off")
+            active: Tailscale.up
+            onTapped: Tailscale.toggle()
         }
     }
 

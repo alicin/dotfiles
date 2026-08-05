@@ -83,6 +83,14 @@ Singleton {
     }
 
     function toggle(): void {
+        // One write at a time, the same guard `setExitNode` below has always
+        // had. Both share the settle poll, and since a switch renders only its
+        // bound `checked` the knob doesn't move while the polkit prompt is
+        // open — so a second tap looks like the first one missed and queues a
+        // second password dialog behind it. Now that the Control Center tile
+        // is a second way in, there are two controls that can do it.
+        if (busy)
+            return;
         busy = true;
         lastError = "";
         const cmd = up ? "down" : "up";

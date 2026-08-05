@@ -27,6 +27,14 @@ Hyprland wiring (`~/.config/hypr/lua/`):
 - `apps.lua` `M.menu` — Super+D toggles the launcher via IPC.
 - `apps.lua` `M.clipboard` — Super+Shift+V toggles clipboard history via IPC
   (was a wofi pipe; the old command is kept commented out as a fallback).
+- `apps.lua` `M.control*` — Super+comma opens the Control Center; Super+Shift+
+  comma enters the `control` **submap** for its pages ((s)ound, (b)luetooth,
+  (k)de connect, (d)isplays, (c)ontrol). A submap rather than four more
+  modifier combos: the pages are siblings of one thing and aren't hot keys, and
+  Super+Shift had none of the obvious mnemonics left. Entering raises the OSD
+  key legend (`services/Osd.qml` `submapHints`) — keep that in sync with
+  `config/hypr/lua/submaps/control.lua`, since Hyprland's `submap` event
+  carries only the name, never the description.
 - `rules.lua` — `qshell:.*` layer surfaces fade (content animates itself).
 
 
@@ -147,6 +155,21 @@ Hyprland wiring (`~/.config/hypr/lua/`):
     the idle event and its dim/lock/suspend listeners all stay parked. The
     inhibitor lives on the **bar** window (`modules/bar/Bar.qml`), not here —
     it needs a mapped window, and this menu is destroyed on close.
+  - *Microphone* is the kill switch. The bar's privacy light is the warning
+    half and can only ever mute — it exists solely while audio is flowing, so
+    once you cut the mic it has nothing left to say and no way to hand it back.
+    The tile is the half that's always there. Its subtitle names who is
+    listening, and distinguishes muted-while-still-held (apps keep their
+    capture links across a mute and go on receiving silence) from plain muted.
+    Lit means *cut*, matching every other tile here: the badge lights when the
+    thing the tile is named for is doing something.
+  - *Tailscale* toggles the tailnet and shows the exit node when one is set —
+    routing everything through another country being the state most worth
+    catching by accident. Deliberately **not** a combined Tailscale/VPN tile:
+    NetworkManager VPNs are a list (this host has two WireGuard profiles), and
+    a tile has one tap and two lines, so it could name which one is up but not
+    let you pick — a control that turns things off but not on. Those keep the
+    Wi-Fi menu's per-connection rows.
   - *Media* is one snapping page per MPRIS player; flick sideways when more
     than one is playing, dots below show which. The delegate's player property
     is deliberately untyped — declaring it `MprisPlayer` makes the coercion

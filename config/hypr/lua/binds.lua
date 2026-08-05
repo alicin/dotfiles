@@ -40,6 +40,13 @@ hl.bind(MS .. " + P",     dsp.exec_cmd(apps.colorpicker))-- color picker
 hl.bind(MS .. " + C",     dsp.exec_cmd(apps.bar))        -- toggle bar
 hl.bind(M  .. " + slash", dsp.exec_cmd(apps.keycheat))   -- shortcuts cheatsheet
 hl.bind(M  .. " + N",     dsp.exec_cmd("qs ipc -c qshell call popouts toggle notifs")) -- notification center
+-- Comma for the settings-ish panel, the one convention every desktop shares.
+-- The submap entry lives here rather than in submaps/control.lua so the
+-- cheatsheet — which only parses this file — can see it; the submap's own
+-- definition is over there with the power one.
+hl.bind(M  .. " + comma", dsp.exec_cmd(apps.control))    -- control center
+hl.bind(MS .. " + comma", dsp.submap("control"),         -- control center pages: (s)ound (b)luetooth (k)de connect (d)isplays
+  { description = "Control Center pages: (s)ound (b)luetooth (k)de connect (d)isplays (c)ontrol" })
 
 -- ▸ Window
 hl.bind(M  .. " + Q",     dsp.window.close())                          -- close

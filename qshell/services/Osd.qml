@@ -27,9 +27,10 @@ Singleton {
     // The keys each submap answers to. Hyprland's `submap` event carries only
     // the name, and the bind that enters it carries the description — which
     // lives in the config, not in the event, so it's mirrored here.
-    // (config/hypr/lua/submaps/power.lua)
+    // (config/hypr/lua/submaps/*.lua)
     readonly property var submapHints: ({
-            power: "(l)ock  (e)xit  (r)eboot  (p)oweroff  (s)uspend  ·  Esc"
+            power: "(l)ock  (e)xit  (r)eboot  (p)oweroff  (s)uspend  ·  Esc",
+            control: "(s)ound  (b)luetooth  (k)de connect  (d)isplays  (c)ontrol  ·  Esc"
         })
 
     readonly property string submapLabel: root.submap === "" ? "" : (root.submapHints[root.submap] ?? root.submap)

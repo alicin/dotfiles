@@ -86,7 +86,13 @@ Scope {
 
         screen: Quickshell.screens.find(s => s.name === (root.pinned || Hyprland.focusedMonitor?.name)) ?? Quickshell.screens[0] ?? null
         color: "transparent"
-        implicitWidth: Appearance.s(420)
+        // Follows the pill instead of leading it. Label mode sizes itself to
+        // its text, and a submap hint is a whole key legend — the power one
+        // measures ~544px against the flat s(420) this used to be, so both
+        // submaps drew their first and last few characters outside the layer
+        // surface, where a surface clips them away. The pill can grow; the
+        // window it lives in has to be told.
+        implicitWidth: Math.max(Appearance.s(420), pill.width + Appearance.s(48))
         implicitHeight: Appearance.s(170)
 
         anchors {
@@ -123,10 +129,16 @@ Scope {
             anchors.bottom: parent.bottom
             anchors.bottomMargin: Appearance.s(64) - (1 - anim) * Appearance.s(16)
 
+            // Ceiling on how far label mode may grow. A hint wider than the
+            // screen is a config mistake, but it has to degrade to elided text
+            // rather than to text drawn past the edge of the surface, which is
+            // just missing. Leaves a margin so the pill never touches the sides.
+            readonly property int maxWidth: Math.max(Appearance.s(320), (win.screen?.width ?? Appearance.s(1200)) - Appearance.s(96))
+
             // Label mode shrinks to its text — a 320px pill with "Microphone
             // muted" adrift in it reads as a layout bug. Animated, so switching
             // kinds while one is already up morphs instead of snapping.
-            width: root.mode === "label" ? Math.max(Appearance.s(190), Appearance.s(78) + label.implicitWidth) : Appearance.s(320)
+            width: root.mode === "label" ? Math.min(maxWidth, Math.max(Appearance.s(190), Appearance.s(78) + label.implicitWidth)) : Appearance.s(320)
             // A touch taller for volume, to carry the device line.
             height: root.device !== "" ? Appearance.s(72) : Appearance.s(58)
 
@@ -253,6 +265,11 @@ Scope {
                 anchors.leftMargin: Appearance.s(14)
                 anchors.verticalCenter: glyphSlot.verticalCenter
                 visible: root.mode === "label"
+                // Only bites once the pill has hit its ceiling — below that the
+                // pill is sized *from* implicitWidth, so this is the same
+                // number and nothing elides.
+                width: Math.min(implicitWidth, pill.maxWidth - Appearance.s(78))
+                elide: Text.ElideRight
                 text: root.label
                 color: Theme.surfaceFg
             }

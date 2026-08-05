@@ -267,7 +267,7 @@ enable --now qshell.service` (the startup line already prefers it when it is).
 - [x] Command palette (`>` prefix): theme set (first UI for it), capture,
       power profiles, session verbs. The destructive three arm before they fire
 - [x] Desktop-entry actions / jump lists ("New Private Window") — DesktopEntry
-      exposes them, never surfaced. Findable by the app's name *or* the
+      exposes them, never surfaced. Findable by the app's name _or_ the
       action's own words
 - [x] Emoji picker as a `:` prefix mode over an embedded table, wl-copy on
       accept — `data/emoji.json` is the emoji font's cmap ∩ the UCD, loaded
@@ -313,35 +313,15 @@ enable --now qshell.service` (the startup line already prefers it when it is).
 - [ ] Rosé Pine theme entries — shell ships only catppuccin-latte/mocha while
       everything around it is Rosé Pine; `Theme.qml` is data-driven, pure palette
       work
-- [ ] Auto light/dark on a schedule (Timer + one settings key; chips row gets
-      an Auto chip)
-- [ ] Wallpaper switching tied to themes — hyprpaper is one hardcoded
-      forest.jpg under a deliberately-transparent bar; apply via
-      `hyprctl hyprpaper wallpaper`, persist per-theme
-- [ ] Shell-drawn lock screen (WlSessionLock) — hyprlock.conf is a
-      pre-rose-pine leftover; cheap interim: regenerate its colors from the active
-      theme
 - [ ] Screen-sharing privacy light — portal screencasts appear as PipeWire
       video nodes; same pattern as `micUsers`, third Light + "shared with <app>"
 - [ ] Settings page (or `settings` IPC) — 5 of 6 settings.json keys are
       hand-edit-only despite live reload already working
 - [ ] Home tiles: mic kill-switch (subtitle = `micUsers`), Tailscale/VPN
       toggle; keybinds for the Control Center pages (IPC verbs exist, unbound)
-- [ ] Dock — every hard part is built (icon resolution, toplevel enumeration,
-      reveal animations); absence may be deliberate, decide first
 - [ ] External-monitor brightness via DDC — slider/OSD/Fn keys silently affect
       only the laptop panel when the external is connected (ddcutil needs
       debouncing)
-
-## Suggested starting sequence
-
-1. The `notifySnippet` bug
-2. The six ★ small items: mic light, badge semantics, scroll detents, toast
-   hover-pause, body-click behavior, record-toggle honesty
-3. Calendar popout + low-battery warnings
-
-That batch is mostly one-file changes and covers what the shell currently
-_gets wrong_ rather than merely lacks.
 
 ## Second pass (2026-08-04)
 
@@ -359,28 +339,14 @@ payoff.
       crossed-out "no network" glyph while the tooltip says "Ethernet"; with
       both links up the SSID and strength are dropped
       (`WifiStatus.qml:31-37,41,141`)
-- [ ] Popouts land on top of the bar when a fullscreen window has hidden it —
-      the panel's `y` is a flat `s(6)`, but `Bar.qml` drops the bar's exclusive
-      zone to 0 on fullscreen, so every menu opened from the revealed bar covers
-      the module it came from. BarTooltip already carries the term
-      (`Popouts.qml:181`, `BarTooltip.qml:150-153`, `Bar.qml:89`)
 - [ ] Nothing marks which module owns the open menu — `Popouts.current` is read
       only by the hover-slide guards, and `moduleHoverBg`/`moduleActiveBg` are
       dead tokens no one binds; `Theme.qml:90-93` already describes the tint as
       if it shipped (`Theme.qml:20-21,46-47,76-77`, `StateLayer.qml:42-46`)
-- [ ] Muting via the mic light destroys the control — `active` requires
-      `!micMuted`, so the tap collapses the light to zero width and unmuting is
-      only reachable from the Control Center or the Fn key, in the exact state
-      (apps still holding the mic, hearing silence) the bar should be depicting
-      (`PrivacyStatus.qml:51,147`)
 - [ ] Privacy lights disclose on hover with no delay and no stand-down, shoving
       the right cluster sideways on a pass-through — they're the only child of
       `statusRow` with no `tooltip:`, so they miss BarTooltip's 450ms delay and
       its `!Overlays.any` guard (`PrivacyStatus.qml:34-43,51`, `Bar.qml:262-289`)
-- [ ] Scratchpad chips have neither the "+n" overflow nor any identity — icons
-      slice to 3 with no counter, no tooltip names the workspace, and a special
-      that is merely _up_ draws a filled pill with nothing in it
-      (`Workspaces.qml:173,212-232` vs `WorkspaceSlot.qml:109-118`)
 
 ### Popout menus
 
@@ -399,10 +365,6 @@ payoff.
       since StyledSwitch renders only its bound `checked` the knob doesn't move,
       so a second tap during the polkit window queues a second password prompt
       (`services/Tailscale.qml:85-95` vs `:98-112`)
-- [ ] A collapsed notification group expands one-way — the "+n more…" row is
-      only pushed while collapsed, so expanding destroys the only control that
-      could fold it back; the app header has no hit area and `navActivate` has
-      nothing left to toggle (`NotifsMenu.qml:59-81,269-320,335-353`)
 - [ ] A failed weather refresh leaves the last reading on screen, unmarked —
       neither `code` nor `fetchedAt` is reset on failure, so the row that only
       renders `error` in the `!valid` branch shows hours-old weather as current,
@@ -505,9 +467,12 @@ payoff.
       fully opaque — `Osd.kind` is cleared at the _start_ of the hide, so a
       brightness pill swaps sun→speaker and animates its fill to the audio
       volume on the way out (`OsdPanel.qml:38-48,120-131`, `services/Osd.qml:80-90`)
-- [ ] The submap OSD pill is wider than its own window and clipped at both ends
+- [x] The submap OSD pill is wider than its own window and clipped at both ends
       — the power hint measures ~544px inside a fixed `s(420)` surface, with no
-      cap, elide or wrap (`OsdPanel.qml:89,122,249-258`)
+      cap, elide or wrap (`OsdPanel.qml:89,122,249-258`). The window now sizes
+      itself from the pill rather than the other way round, capped to the screen
+      with the label eliding only past that. Forced by the new `control` submap,
+      whose hint is longer still
 - [ ] The newest toast can be drawn below the bottom edge of the popup surface —
       fixed `s(740)` height, top-anchored Column, up to five cards of unbounded
       height (three image-bearing cards already overflow)
