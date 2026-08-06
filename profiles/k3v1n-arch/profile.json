@@ -71,7 +71,6 @@
       "services.sh",
       "minisforum-finalize.sh",
       "v3-audio-fix.sh",
-      "monitor-manager.sh",
       "finalize.sh"
     ]
   },

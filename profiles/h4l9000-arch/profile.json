@@ -80,7 +80,6 @@
       "toshy-install.sh",
       "services.sh",
       "rog-backlight-fix.sh",
-      "monitor-manager.sh",
       "finalize.sh"
     ]
   },

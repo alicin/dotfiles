@@ -12,12 +12,8 @@ hl.config({
     layout                  = "dwindle",
     resize_on_border        = true,
     extend_border_grab_area = 20,
-    -- Allow fullscreen clients to tear (present without waiting for vblank).
-    -- REQUIRED for the Looking Glass client's `egl:vsync=no` to actually skip
-    -- the compositor's frame queue -- without this, LG frames queue to vblank
-    -- and the guest looks stuttery/choppy. Pairs with the `immediate` window
-    -- rule for looking-glass-client in lua/rules.lua.
-    allow_tearing           = true,
+    -- allow_tearing lives in hosts/h4l9000.lua with the rest of the Looking
+    -- Glass accommodations -- only that host runs the LG client.
     col = {
       active_border   = theme.active_border,
       inactive_border = theme.muted,
@@ -50,16 +46,11 @@ hl.config({
     font_family               = "OperatorMono Nerd Font",
   },
 
-  debug = {
-    -- VFR (variable frame rate) throttles Hyprland's render loop when the screen
-    -- looks idle, which starves the Looking Glass client's frame pacing -> guest
-    -- video collapses to a few FPS when the mouse isn't moving. Force full-rate.
-    -- Must live here (not in game.sh): with the Lua config parser, `hyprctl
-    -- keyword` is disabled ("use eval") and there is no runtime eval, so VFR can
-    -- only be set at config-load time. Cost: higher idle GPU/power when not
-    -- gaming; the win11 LG session needs it. In 0.55 the option is `debug:vfr`.
-    vfr = false,
-  },
+  -- debug.vfr = false (for Looking Glass frame pacing) used to be forced here
+  -- GLOBALLY, burning battery on the tablet for a VM only h4l9000 can run --
+  -- and on the claim that "there is no runtime eval", which is false:
+  -- `hyprctl -r eval 'hl.config({ ... })'` works. It now lives in
+  -- hosts/h4l9000.lua; everywhere else VFR stays on (the default).
 
   binds = {
     allow_workspace_cycles = true,

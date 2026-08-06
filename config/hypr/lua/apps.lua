@@ -3,8 +3,8 @@
 
 local M = {}
 
--- Wallpaper (used by hyprpaper.conf, not Hyprland itself).
-M.bg = os.getenv("HOME") .. "/.wallpaper/forest.jpg"
+-- (No wallpaper entry: hyprpaper reads its own conf from ~/.wallpapers/, and
+-- the old M.bg here pointed at a path that didn't exist, with no consumer.)
 
 -- Terminals.
 M.term                 = "kitty"
