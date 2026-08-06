@@ -91,8 +91,20 @@ Scope {
             root.open = false;
     }
 
+    // Read the row out of the model by index, NOT via list.currentItem.
+    // A ListView only instantiates delegates for rows near the viewport, so
+    // currentItem is null whenever the selection is on a row that has been
+    // scrolled out of the realized range — and `activate` quietly returns on
+    // null, so Enter did nothing at all and said nothing about why. The model
+    // always has the row, visible or not.
+    function currentRow(): var {
+        const rows = list.model?.values ?? [];
+        const i = list.currentIndex;
+        return (i >= 0 && i < rows.length) ? rows[i] : null;
+    }
+
     function activateCurrent(alt: bool): void {
-        root.activate(list.currentItem?.modelData ?? null, alt);
+        root.activate(root.currentRow(), alt);
     }
 
     // Opened from elsewhere in the shell (the Control Center's theme row).
@@ -256,17 +268,31 @@ Scope {
                     property point lastHoverPos: Qt.point(-1e9, -1e9)
 
                     model: ScriptModel {
+                        // The query this list was last built for. The reset to
+                        // row 0 has to hang off *this*, not off the field's
+                        // onTextChanged: the handler and this binding both fire
+                        // from the same textChanged notification, in an order
+                        // QML does not promise, and ListView independently
+                        // clamps currentIndex to count-1 when a model shrinks
+                        // under it. Reset last, keyed on the query actually
+                        // rendered, and typing can no longer leave the
+                        // selection sitting on the bottom row.
+                        property string builtFor: ""
+
                         values: Search.results(field.text)
-                        // Deliberately NOT resetting the selection here. The
-                        // results depend on live state — a window retitling, a
-                        // recording's elapsed time, a profile change — so this
-                        // fires while you are simply arrowing down a list, and
-                        // resetting on it moved the selection out from under
-                        // Enter. What warrants a reset is a new *query*, which
-                        // is where it now happens.
+
+                        // Still NOT an unconditional reset: results also change
+                        // on live state — a window retitling, a recording's
+                        // elapsed time, a profile change — and resetting on
+                        // those moves the selection out from under Enter while
+                        // you are simply arrowing down the list.
                         onValuesChanged: {
-                            if (list.currentIndex >= list.count)
+                            if (builtFor !== field.text) {
+                                builtFor = field.text;
+                                list.currentIndex = 0;
+                            } else if (list.currentIndex >= list.count) {
                                 list.currentIndex = Math.max(0, list.count - 1);
+                            }
                         }
                     }
 

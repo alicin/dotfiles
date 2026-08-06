@@ -57,6 +57,13 @@ Singleton {
     }
 
     function launch(entry: DesktopEntry): void {
+        // A destroyed DesktopEntry reads as null in QML, and this used to throw
+        // "Cannot read property 'execute' of null" from a stale cached row —
+        // noisy in the log and, more to the point, a silent no-op to whoever
+        // pressed Enter. Callers now re-resolve by id (see Search.appRow), but
+        // refuse the null here too rather than trusting every future caller.
+        if (!entry)
+            return;
         // The launch itself is never skipped, whatever the store is doing.
         root.record(entry);
         entry.execute();

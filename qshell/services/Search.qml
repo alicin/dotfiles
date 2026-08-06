@@ -193,14 +193,46 @@ Singleton {
     }
 
     function appRow(entry: var): var {
-        return root.cached(`a|${entry.id}`, () => ({
+        // `id`, captured by value, is what `run` closes over — not the
+        // DesktopEntry object.
+        //
+        // These rows are cached and only ever dropped wholesale past 4000
+        // entries, so a row outlives the entry it was built from. Quickshell
+        // rebuilds DesktopEntries whenever the applications directories change
+        // — installing or removing any package does it — and the old QObjects
+        // are destroyed, which in QML means every reference to them silently
+        // becomes null. A cached row then called Apps.launch(null), which threw
+        // "Cannot read property 'execute' of null" into the log and launched
+        // nothing: the launcher looked like it was ignoring Enter.
+        //
+        // Re-resolving by id at press time costs one hash lookup and cannot go
+        // stale. `entry` is still carried for the fields consumers read, and
+        // the cache is dropped on Apps.all changing (see below) so those stay
+        // fresh too.
+        const id = entry.id;
+        return root.cached(`a|${id}`, () => ({
                     kind: "app",
                     name: entry.name,
                     sub: entry.comment || entry.genericName || "",
                     icon: (entry.icon && Quickshell.iconPath(entry.icon, true)) || Quickshell.iconPath("application-x-executable", true) || "",
                     entry: entry,
-                    run: () => Apps.launch(entry)
+                    run: () => {
+                        const live = Apps.entryFor(id);
+                        if (live)
+                            Apps.launch(live);
+                    }
                 }));
+    }
+
+    // The app list changed, so every cached app row is built from entries that
+    // no longer exist. It is a render cache, not a store — drop it wholesale
+    // and let the next query rebuild, exactly as the size cap already does.
+    Connections {
+        target: Apps
+
+        function onAllChanged(): void {
+            root.rowCache = {};
+        }
     }
 
     // DesktopEntry.actions has been sitting there unread: "New Private

@@ -2021,7 +2021,13 @@ multipurpose_modmap("Enter2Cmd", {
 multipurpose_modmap("Caps2Esc - not Chromebook kbd", {
     Key.CAPSLOCK:               [Key.ESC, Key.RIGHT_CTRL]       # Caps2Esc - not Chromebook
 }, when = lambda ctx:
-    cnfg.Caps2Esc_Cmd and
+    # getattr, not a bare attribute: newer Toshy (xwaykeyz 1.25+) replaced the
+    # legacy Caps2Cmd / Caps2Esc_Cmd booleans with a single `capslock_mode`, and
+    # this file is shared with a machine still on the old one. A missing
+    # attribute here is not cosmetic -- these lambdas run inside apply_modmap on
+    # EVERY key event, so the AttributeError meant no modmap was ever applied:
+    # Super stopped reaching Hyprland as Super, and capslock latched.
+    getattr(cnfg, "Caps2Esc_Cmd", False) and
     cnfg.screen_has_focus and
     not ctx_kbd_is_chromebook and
     not ctx_app_is_remote
@@ -2030,7 +2036,7 @@ multipurpose_modmap("Caps2Esc - not Chromebook kbd", {
 multipurpose_modmap("Caps2Esc - Chromebook kbd", {
     Key.LEFT_META:               [Key.ESC, Key.RIGHT_CTRL]       # Caps2Esc - Chromebook
 }, when = lambda ctx:
-    cnfg.Caps2Esc_Cmd and
+    getattr(cnfg, "Caps2Esc_Cmd", False) and
     cnfg.screen_has_focus and
     ctx_kbd_is_chromebook and
     not ctx_app_is_remote
@@ -2307,7 +2313,7 @@ multipurpose_modmap("Left Opt is Sup & Opt - Win kbd", {
 modmap("Cond modmap - GUI - Caps2Cmd - not Cbk kdb", {
     Key.CAPSLOCK:               Key.RIGHT_CTRL,                 # Caps2Cmd
 }, when = lambda ctx:
-    cnfg.Caps2Cmd and
+    getattr(cnfg, "Caps2Cmd", False) and
     cnfg.screen_has_focus and
     not ctx_kbd_is_chromebook and
     not ctx_app_is_terminal and not ctx_app_is_remote
@@ -2315,7 +2321,7 @@ modmap("Cond modmap - GUI - Caps2Cmd - not Cbk kdb", {
 modmap("Cond modmap - GUI - Caps2Cmd - Cbk kdb", {
     Key.LEFT_META:              Key.RIGHT_CTRL,                 # Caps2Cmd - Chromebook
 }, when = lambda ctx:
-    cnfg.Caps2Cmd and
+    getattr(cnfg, "Caps2Cmd", False) and
     cnfg.screen_has_focus and
     ctx_kbd_is_chromebook and
     not ctx_app_is_terminal and not ctx_app_is_remote
