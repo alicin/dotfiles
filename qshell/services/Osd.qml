@@ -15,7 +15,13 @@ Singleton {
     id: root
 
     // "" | "volume" | "mic" | "brightness" | "kbd" | "power" | "countdown"
-    //    | "submap"
+    //
+    // Transient values only. The submap indicator is NOT a kind: it is
+    // sustained state with its own property below, and the panel derives what
+    // to draw from both. When they shared this one slot, a Pipewire burst and
+    // a submap event fought over it — the OSD flickered between the volume
+    // pill and the submap legend, and once autoHide fired the legend was gone
+    // for good while the submap was still rebinding the keyboard.
     property string kind: ""
 
     // The Hyprland submap currently active, "" outside one. A submap silently
@@ -27,7 +33,9 @@ Singleton {
     // The keys each submap answers to. Hyprland's `submap` event carries only
     // the name, and the bind that enters it carries the description — which
     // lives in the config, not in the event, so it's mirrored here.
-    // (config/hypr/lua/submaps/*.lua)
+    // HAND-MIRRORED from config/hypr/lua/submaps/*.lua: rebinding a submap's
+    // keys there silently leaves this legend teaching the old ones — update
+    // both, and the entry-bind descriptions in binds.lua, together.
     readonly property var submapHints: ({
             power: "(l)ock  (e)xit  (r)eboot  (p)oweroff  (s)uspend  ·  Esc",
             control: "(s)ound  (b)luetooth  (k)de connect  (d)isplays  (c)ontrol  ·  Esc"
@@ -41,12 +49,10 @@ Singleton {
         function onRawEvent(event: HyprlandEvent): void {
             if (event.name !== "submap")
                 return;
-            // Leaving a submap sends an empty payload.
+            // Leaving a submap sends an empty payload. Nothing else to do:
+            // the panel shows the legend whenever `submap` is set and no
+            // transient value is on screen.
             root.submap = event.data ?? "";
-            if (root.submap !== "")
-                root.show("submap");
-            else if (root.kind === "submap")
-                root.hide();
         }
     }
 
@@ -60,20 +66,22 @@ Singleton {
     property bool launcherOpen: false
     property bool clipboardOpen: false
 
+    // A text field inside a bar popout (Wi-Fi password, the Settings page's
+    // fields) has focus. Written by Popouts.qml, consumed by services/Osk.qml:
+    // popouts are Qt layer surfaces, which never drive zwp_text_input_v3, so
+    // without this the on-screen keyboard can't know those fields exist — and
+    // a settings field you cannot type into is the panel at its most useless.
+    // Lives here with the other panel announcements rather than growing a new
+    // singleton for one bit.
+    property bool popoutTextFocus: false
+
     function show(k: string): void {
         // The countdown is exempt: it's the only feedback that a shutter is
-        // about to fire, and suppressing it doesn't stop the screenshot. So is
-        // the submap indicator — a rebound keyboard is a state you need to see
-        // regardless of what else is on screen.
-        if ((root.launcherOpen || root.clipboardOpen) && k !== "countdown" && k !== "submap")
+        // about to fire, and suppressing it doesn't stop the screenshot.
+        if ((root.launcherOpen || root.clipboardOpen) && k !== "countdown")
             return;
         root.kind = k;
-        // A submap lasts as long as it lasts; every other kind is a value that
-        // just changed and is done being interesting after a beat.
-        if (k === "submap")
-            autoHide.stop();
-        else
-            autoHide.restart();
+        autoHide.restart();
     }
 
     // Explicit dismissal, for callers that need the screen clear at a known

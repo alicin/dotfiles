@@ -13,11 +13,25 @@ import qs.config
 Singleton {
     id: root
 
-    readonly property real scale: Math.max(0.5, Math.min(2.5, Settings.scale))
+    // Touch mode is resolved from hardware in services/Tablet.qml and parked on
+    // Settings; see the comment on Settings.touchActive for why it travels that
+    // way round rather than this file importing a service.
+    readonly property bool touch: Settings.touchActive
+
+    readonly property real scale: Math.max(0.5, Math.min(2.5, Settings.scale * (root.touch ? Settings.touchScale : 1)))
 
     function s(px: real): int {
         return Math.round(px * root.scale);
     }
+
+    // A floor for anything you tap, in the shell's own units — which are the
+    // compositor's logical pixels, so at k3v1n's 166% output scale 48 of them
+    // is ~9.5mm of glass, about the width of a thumb pad. Deliberately NOT run
+    // through s(): a finger does not get bigger when you raise the scale
+    // slider, so this is a constant that the scaled sizes have to clear, not
+    // another thing to multiply. Zero off a touchscreen, where it should never
+    // pad a mouse target.
+    readonly property int touchTarget: root.touch ? 48 : 0
 
     // Every duration token goes through here, so one settings key
     // (`animScale`) scales the whole shell's motion — 0.5 for a snappier
@@ -40,6 +54,10 @@ Singleton {
     readonly property QtObject sizes: QtObject {
         id: sizes
 
+        // Deliberately NOT floored to touchTarget. The bar is already a
+        // comfortable tap target at its normal height, and growing it in touch
+        // mode spent screen height — the scarcest thing on a tablet, with a
+        // keyboard about to claim a third of it — on a problem it did not have.
         readonly property int barHeight: root.s(34)
         readonly property int barInner: root.s(26) //  module pill height
         readonly property int icon: root.s(16) //      app/tray icons
@@ -56,8 +74,16 @@ Singleton {
         readonly property int barSlop: root.s(4)
 
         readonly property int launcherWidth: root.s(620)
-        readonly property int launcherItemHeight: root.s(56)
+        readonly property int launcherItemHeight: Math.max(root.s(56), root.touchTarget)
         readonly property int launcherRadius: root.s(24)
+
+        // ── On-screen keyboard ──
+        // The panel's height comes from the screen (Settings.oskHeight), so
+        // what lives here is only what a key looks like once the rows have been
+        // divided out of it.
+        readonly property int oskGap: root.s(4)
+        readonly property int oskPad: root.s(6)
+        readonly property int oskRadius: root.s(8)
 
         // Clipboard cards: a source line, a 4:3 preview, a footer line. The
         // preview's aspect is fixed rather than "whatever is left over", so a
@@ -71,7 +97,7 @@ Singleton {
         readonly property int clipCardHeight: sizes.clipCardPad * 2 + root.s(20 + 6 + 6 + 16) + sizes.clipPreviewH
 
         readonly property int menuRadius: root.s(18)
-        readonly property int menuRowHeight: root.s(40)
+        readonly property int menuRowHeight: Math.max(root.s(40), root.touchTarget)
     }
 
     readonly property QtObject rounding: QtObject {

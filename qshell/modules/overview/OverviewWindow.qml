@@ -30,7 +30,11 @@ Item {
     // offset by the owning monitor's position, and one shared scale/origin
     // scrambled the external screen's workspaces into cell corners.
     readonly property var winMon: overview.monitors[info?.monitor ?? -1] ?? null
-    readonly property real geoScale: winMon ? view.cellW / (winMon.width / winMon.scale - winMon.reserved[0] - winMon.reserved[2]) : view.wsScale
+    // Same transform swap as the view's own metrics: IPC width/height are the
+    // untransformed mode size, and this map is freshly fetched so its
+    // transform field is current.
+    readonly property bool winMonSwapped: ((winMon?.transform ?? 0) % 2) === 1
+    readonly property real geoScale: winMon ? view.cellW / ((winMonSwapped ? winMon.height : winMon.width) / winMon.scale - winMon.reserved[0] - winMon.reserved[2]) : view.wsScale
     readonly property real monOx: winMon?.x ?? view.monX
     readonly property real monOy: winMon?.y ?? view.monY
     readonly property var monRes: winMon?.reserved ?? view.reserved

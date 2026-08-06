@@ -150,6 +150,16 @@ Scope {
         }
     }
 
+    // Swipe in from the left edge. The same flick closes it again — see the
+    // launcher's copy of this for why a gesture has to be its own way out.
+    Connections {
+        target: Gestures
+
+        function onOverviewRequested(): void {
+            root.open = !root.open;
+        }
+    }
+
     IpcHandler {
         target: "overview"
 
@@ -213,8 +223,18 @@ Scope {
         readonly property real monX: monInfo?.x ?? 0
         readonly property real monY: monInfo?.y ?? 0
         readonly property var reserved: monInfo?.reserved ?? [0, 0, 0, 0]
-        readonly property real usableW: (mon ? mon.width / mon.scale : width) - reserved[0] - reserved[2]
-        readonly property real usableH: (mon ? mon.height / mon.scale : height) - reserved[1] - reserved[3]
+        // Hyprland's IPC reports the UNtransformed mode size; the logical
+        // swap on rotation happens compositor-side only. Without the swap a
+        // portrait panel drew every workspace with landscape geometry. The
+        // transform comes from root.monitors (refetched on every open), not
+        // lastIpcObject — a transform change emits no Hyprland event, so the
+        // cached copy can be stale.
+        readonly property var monFresh: root.monitors[mon?.id ?? -1] ?? null
+        readonly property bool monSwapped: ((monFresh?.transform ?? 0) % 2) === 1
+        readonly property real monLogW: (mon ? (monSwapped ? mon.height : mon.width) / mon.scale : width)
+        readonly property real monLogH: (mon ? (monSwapped ? mon.width : mon.height) / mon.scale : height)
+        readonly property real usableW: monLogW - reserved[0] - reserved[2]
+        readonly property real usableH: monLogH - reserved[1] - reserved[3]
 
         readonly property int cols: Settings.overviewColumns
         readonly property int rows: Math.ceil(Settings.workspaces / cols)

@@ -62,6 +62,19 @@ Item {
         id: area
 
         anchors.fill: parent
+        // Vertical slop up to the touch floor: the visual is a 5px track with
+        // a 15px knob, and a fingertip cannot land on that. Zero with a
+        // pointer (touchTarget is 0 outside touch mode).
+        anchors.topMargin: -Math.max(0, (Appearance.touchTarget - root.height) / 2)
+        anchors.bottomMargin: -Math.max(0, (Appearance.touchTarget - root.height) / 2)
+        // A finger dragging horizontally always wobbles a few px vertically,
+        // and inside the popout's (vertical) Flickable that wobble crossed the
+        // drag threshold and handed the grab to the list: the slider froze
+        // mid-drag and the page scrolled instead — with the value committed
+        // wherever the steal happened, which for the scale sliders means the
+        // whole shell resized to an accident. The drag belongs to the slider
+        // until the finger lifts.
+        preventStealing: true
         cursorShape: Qt.PointingHandCursor
         onPressed: mouse => root.moved(root.valueAt(mouse.x))
         onPositionChanged: mouse => {

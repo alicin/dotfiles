@@ -91,8 +91,20 @@ Scope {
             root.open = false;
     }
 
+    // Read the row out of the model by index, NOT via list.currentItem.
+    // A ListView only instantiates delegates for rows near the viewport, so
+    // currentItem is null whenever the selection is on a row that has been
+    // scrolled out of the realized range — and `activate` quietly returns on
+    // null, so Enter did nothing at all and said nothing about why. The model
+    // always has the row, visible or not.
+    function currentRow(): var {
+        const rows = list.model?.values ?? [];
+        const i = list.currentIndex;
+        return (i >= 0 && i < rows.length) ? rows[i] : null;
+    }
+
     function activateCurrent(alt: bool): void {
-        root.activate(list.currentItem?.modelData ?? null, alt);
+        root.activate(root.currentRow(), alt);
     }
 
     // Opened from elsewhere in the shell (the Control Center's theme row).
@@ -104,6 +116,17 @@ Scope {
         function onRequestMode(prefix: string): void {
             root.open = true;
             field.text = prefix;
+        }
+    }
+
+    // Swipe up from the bottom edge — the "home" gesture. A toggle, not an
+    // open: the same flick has to put it away again, because on a tablet it is
+    // also the only way out that doesn't involve finding Escape.
+    Connections {
+        target: Gestures
+
+        function onLauncherRequested(): void {
+            root.open = !root.open;
         }
     }
 
@@ -143,16 +166,39 @@ Scope {
 
         screen: Quickshell.screens.find(s => s.name === (root.pinned || Hyprland.focusedMonitor?.name)) ?? Quickshell.screens[0] ?? null
         color: "transparent"
-        implicitWidth: Appearance.sizes.launcherWidth + Appearance.s(40)
+        // The strip the on-screen keyboard reserves on this screen, if any.
+        // Shared by the bottom margin below and the height cap: the margin
+        // lifts the surface clear of the keyboard, and without the cap that
+        // lift pushed the surface's top past the screen edge — measured at
+        // y=-14 with the keyboard up, the first result row clipped away.
+        readonly property int oskLift: Osk.active && Osk.reservedScreen === (win.screen?.name ?? "") ? Osk.reservedPx : 0
+
+        // Clamped to the screen the way every height already is: portrait +
+        // touchScale ≥ ~1.3 made the panel wider than a 960-logical output,
+        // and a bottom-anchored layer surface wider than its output gets
+        // centred with BOTH edges cut. OsdPanel.maxWidth is the precedent.
+        readonly property int panelW: Math.min(Appearance.sizes.launcherWidth, (win.screen?.width ?? 1920) - Appearance.s(24))
+
+        implicitWidth: win.panelW + Appearance.s(40)
         // Derived from launcherMaxShown rather than a constant 700: the panel
         // is bottom-anchored inside this surface, so a taller list than the
         // surface allows gets its *top* clipped away — raising that documented
         // setting past 10 silently cut the first rows off. Still constant for
-        // any given setting, so the surface itself never resizes mid-use.
-        implicitHeight: Appearance.s(100) + Settings.launcherMaxShown * (Appearance.sizes.launcherItemHeight + Appearance.s(4))
+        // any given setting, so the surface itself never resizes mid-use —
+        // except when the keyboard appears, which is a resize you can see
+        // coming.
+        implicitHeight: Math.min(Appearance.s(100) + Settings.launcherMaxShown * (Appearance.sizes.launcherItemHeight + Appearance.s(4)), (win.screen?.height ?? 1080) - Appearance.sizes.barHeight - win.oskLift - Appearance.s(16))
 
         anchors {
             bottom: true
+        }
+
+        // Above the on-screen keyboard, which is the whole point of having one:
+        // the launcher is the panel you most need to type into on a tablet, and
+        // it springs up from the same bottom edge. See ClipboardHistory.qml for
+        // why the compositor doesn't do this for us.
+        margins {
+            bottom: win.oskLift
         }
 
         exclusionMode: ExclusionMode.Ignore
@@ -170,7 +216,10 @@ Scope {
 
         HyprlandFocusGrab {
             active: root.open
-            windows: [win]
+            // The OSK is in the whitelist because a grab treats any tap
+            // outside it as "dismiss" — without this, the first key typed on
+            // the on-screen keyboard closed the launcher it was typing into.
+            windows: Osk.panelWindow ? [win, Osk.panelWindow] : [win]
             onCleared: root.open = false
         }
 
@@ -201,7 +250,7 @@ Scope {
             y: win.height - (height + Appearance.s(14)) * (1 - offsetScale)
             anchors.horizontalCenter: parent.horizontalCenter
 
-            width: Appearance.sizes.launcherWidth
+            width: win.panelW
             height: pad + listArea.height + Appearance.s(8) + searchBg.height + pad
             radius: Appearance.sizes.launcherRadius
             color: Theme.surfaceBg
@@ -256,17 +305,31 @@ Scope {
                     property point lastHoverPos: Qt.point(-1e9, -1e9)
 
                     model: ScriptModel {
+                        // The query this list was last built for. The reset to
+                        // row 0 has to hang off *this*, not off the field's
+                        // onTextChanged: the handler and this binding both fire
+                        // from the same textChanged notification, in an order
+                        // QML does not promise, and ListView independently
+                        // clamps currentIndex to count-1 when a model shrinks
+                        // under it. Reset last, keyed on the query actually
+                        // rendered, and typing can no longer leave the
+                        // selection sitting on the bottom row.
+                        property string builtFor: ""
+
                         values: Search.results(field.text)
-                        // Deliberately NOT resetting the selection here. The
-                        // results depend on live state — a window retitling, a
-                        // recording's elapsed time, a profile change — so this
-                        // fires while you are simply arrowing down a list, and
-                        // resetting on it moved the selection out from under
-                        // Enter. What warrants a reset is a new *query*, which
-                        // is where it now happens.
+
+                        // Still NOT an unconditional reset: results also change
+                        // on live state — a window retitling, a recording's
+                        // elapsed time, a profile change — and resetting on
+                        // those moves the selection out from under Enter while
+                        // you are simply arrowing down the list.
                         onValuesChanged: {
-                            if (list.currentIndex >= list.count)
+                            if (builtFor !== field.text) {
+                                builtFor = field.text;
+                                list.currentIndex = 0;
+                            } else if (list.currentIndex >= list.count) {
                                 list.currentIndex = Math.max(0, list.count - 1);
+                            }
                         }
                     }
 
@@ -437,7 +500,9 @@ Scope {
                     anchors.right: parent.right
                     anchors.rightMargin: Appearance.s(8)
                     anchors.verticalCenter: parent.verticalCenter
-                    width: Appearance.s(30)
+                    // Touch floor: at s(30) this was a 35-43px target on the
+                    // panel a finger uses most. 0 outside touch mode.
+                    width: Math.max(Appearance.s(30), Appearance.touchTarget)
                     height: width
 
                     StateLayer {

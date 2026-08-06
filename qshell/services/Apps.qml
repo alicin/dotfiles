@@ -57,6 +57,13 @@ Singleton {
     }
 
     function launch(entry: DesktopEntry): void {
+        // A destroyed DesktopEntry reads as null in QML, and this used to throw
+        // "Cannot read property 'execute' of null" from a stale cached row —
+        // noisy in the log and, more to the point, a silent no-op to whoever
+        // pressed Enter. Callers now re-resolve by id (see Search.appRow), but
+        // refuse the null here too rather than trusting every future caller.
+        if (!entry)
+            return;
         // The launch itself is never skipped, whatever the store is doing.
         root.record(entry);
         entry.execute();
@@ -147,6 +154,11 @@ Singleton {
         }
 
         const name = argv0.slice(argv0.lastIndexOf("/") + 1);
+        // Bounded: this grew for the whole session, and a recycled pid then
+        // served the previous process's name for icon lookup. A wholesale
+        // reset is fine — it is a cache over /proc, one read rebuilds it.
+        if (Object.keys(root.exeByPid).length > 256)
+            root.exeByPid = {};
         root.exeByPid[pid] = name;
         return name;
     }

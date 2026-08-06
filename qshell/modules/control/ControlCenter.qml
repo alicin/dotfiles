@@ -126,8 +126,6 @@ Item {
                 return kdecPage;
             case "display":
                 return displayPage;
-            case "settings":
-                return settingsPage;
             default:
                 return null;
             }
@@ -166,11 +164,6 @@ Item {
         }
     }
 
-    Component {
-        id: settingsPage
-
-        SettingsPage {
-            onBack: root.go("")
-        }
-    }
+    // No settings page: Settings is its own window now (SettingsWindow.qml,
+    // opened from Home's gear row or `qs -c qshell ipc call settings open`).
 }

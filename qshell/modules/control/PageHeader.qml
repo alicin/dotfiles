@@ -17,7 +17,9 @@ Item {
     signal back
 
     width: parent?.width ?? 0
-    implicitHeight: Appearance.s(38)
+    // Floored: the back target is the only way out of a Control Center page,
+    // and s(38) came out 44px in touch mode. 0 with a pointer.
+    implicitHeight: Math.max(Appearance.s(38), Appearance.touchTarget)
 
     Item {
         id: backBtn

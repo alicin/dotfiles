@@ -52,8 +52,16 @@ Item {
         // only calibrates, so the panel rising through a parked cursor can't
         // steal the selection either.
         function hoverSelect(): void {
+            // Touch has no hover: the synthesized events are a finger
+            // scrolling the list, and following them yanked the selection to
+            // whatever row the finger crossed. A tap still activates its own
+            // row via onClicked, and OSK Enter uses the keyboard selection —
+            // neither needs hover. The dragging/moving guard covers a finger
+            // scroll on a docked (pointer-mode) touchscreen the same way.
+            if (Appearance.touch)
+                return;
             const view = root.ListView.view;
-            if (!view)
+            if (!view || view.dragging || view.moving)
                 return;
             const p = mapToItem(null, mouseX, mouseY);
             const first = view.lastHoverPos.x < -1e8;

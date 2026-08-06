@@ -71,6 +71,18 @@ Scope {
         }
     }
 
+    // The Settings window opened (the gear row inside this very popout, or
+    // IPC): the panel's job is done, and a popout holding its focus grab
+    // under a fresh toplevel only delays the window's first click.
+    Connections {
+        target: SettingsUi
+
+        function onOpenChanged(): void {
+            if (SettingsUi.open)
+                root.close();
+        }
+    }
+
     PanelWindow {
         id: win
 
@@ -83,12 +95,25 @@ Scope {
         // to the panel, so the extra transparent area costs nothing. Same
         // approach as the launcher window.
         //
-        // The Wi-Fi menu is what sets this: with the tailnet's devices and
-        // exit-node picker under the networks it now runs to roughly 870 at
-        // its worst (six networks, six peers, two VPN profiles), and a menu
-        // that overflows this surface is silently *clipped* — there is no
-        // scrolling at the menu level, so rows simply stop being drawn.
-        implicitHeight: Appearance.s(920)
+        // The Wi-Fi menu is what set this: with the tailnet's devices and
+        // exit-node picker under the networks it runs to roughly 870 at its
+        // worst (six networks, six peers, two VPN profiles).
+        //
+        // …but s(920) is 1058px at this machine's scale, on a 960px-tall
+        // screen — the surface hung 137px below the bottom edge, and a menu
+        // that overflows it used to be silently *clipped*, rows simply not
+        // drawn. So it is now capped to what the screen actually has left, and
+        // the panel below scrolls instead of clipping. Two bugs, one fix: the
+        // Settings page grew past a screen height the moment it gained the
+        // tablet cards, and the Wi-Fi menu has been able to do it all along.
+        readonly property int roomBelowBar: Math.max(Appearance.s(200), (win.screen?.height ?? 1080) - Appearance.sizes.barHeight - win.oskReserve)
+
+        // The keyboard's exclusive zone does not push this window (it opts out
+        // of exclusion so it can sit over the bar's), so it has to be subtracted
+        // by hand — otherwise the bottom of every menu is behind the keyboard.
+        readonly property int oskReserve: Osk.active && Osk.reservedScreen === (win.screen?.name ?? "") ? Osk.reservedPx : 0
+
+        implicitHeight: Math.min(Appearance.s(920), win.roomBelowBar)
         exclusiveZone: 0
 
         anchors {
@@ -107,7 +132,9 @@ Scope {
 
         HyprlandFocusGrab {
             active: root.open
-            windows: [win, root.barWindow]
+            // The OSK too, or typing a Wi-Fi password / settings value on the
+            // on-screen keyboard dismisses the panel on the first key.
+            windows: Osk.panelWindow ? [win, root.barWindow, Osk.panelWindow] : [win, root.barWindow]
             onCleared: root.close()
         }
 
@@ -184,8 +211,13 @@ Scope {
             scale: 0.9 + 0.1 * anim
             transformOrigin: Item.Top
 
+            // Tall enough for its content, but never taller than the screen has
+            // left. Past that the content scrolls (see `flick`), which is the
+            // difference between a long menu and a truncated one.
+            readonly property int maxHeight: win.height - panel.y - Appearance.s(8)
+
             width: (loader.item?.implicitWidth ?? 0) + pad * 2
-            height: (loader.item?.implicitHeight ?? 0) + pad * 2
+            height: Math.min((loader.item?.implicitHeight ?? 0) + pad * 2, panel.maxHeight)
             radius: Appearance.sizes.menuRadius
             color: Theme.surfaceBg
             border.width: 1
@@ -215,8 +247,40 @@ Scope {
             }
 
             FocusScope {
+                id: fscope
+
                 anchors.fill: parent
                 focus: true
+
+                // Announce "a text field in this popout has focus" for the
+                // on-screen keyboard. `cursorPosition` is the cheap duck-type
+                // for TextInput/TextEdit — nothing else in these menus has
+                // one. Written imperatively with a claim flag rather than
+                // bound: with one Popouts per screen, a closed instance's
+                // binding would fight the open one's over the singleton.
+                readonly property Item focusItem: Window.activeFocusItem
+                property bool claimed: false
+
+                function syncTextFocus(): void {
+                    const has = root.open && fscope.focusItem !== null && fscope.focusItem.cursorPosition !== undefined;
+                    if (has) {
+                        Osd.popoutTextFocus = true;
+                        fscope.claimed = true;
+                    } else if (fscope.claimed) {
+                        Osd.popoutTextFocus = false;
+                        fscope.claimed = false;
+                    }
+                }
+
+                onFocusItemChanged: fscope.syncTextFocus()
+
+                Connections {
+                    target: root
+
+                    function onOpenChanged(): void {
+                        fscope.syncTextFocus();
+                    }
+                }
                 // Esc gives the menu first refusal (the Control Center pops a
                 // detail page back to home) and only then dismisses the panel.
                 Keys.onEscapePressed: {
@@ -236,29 +300,76 @@ Scope {
                 Keys.onEnterPressed: loader.item?.navActivate?.()
                 Keys.onDeletePressed: loader.item?.navRemove?.()
 
-                Loader {
-                    id: loader
+                // Scrolls only when it has to: `interactive` is false while the
+                // content fits, so a menu that is not overflowing behaves
+                // exactly as it did before this existed — no rubber-banding, no
+                // drag stealing clicks off the rows underneath.
+                Flickable {
+                    id: flick
+
+                    // Back to the top when the *menu* changes, or when the
+                    // Control Center pushes a page — those are navigations, and
+                    // reopening halfway down where you left off reads as a
+                    // rendering fault. NOT on every contentHeight change: a
+                    // Wi-Fi scan adding rows mid-scroll must not yank the list
+                    // back to the top under your finger.
+                    readonly property string menu: root.shown
+                    readonly property var subPage: loader.item?.shownPage
+
+                    onMenuChanged: contentY = 0
+                    onSubPageChanged: contentY = 0
+
+                    // Content shrinking (a page pop, devices vanishing) can
+                    // strand contentY past the end; StopAtBounds won't pull it
+                    // back on its own.
+                    function clampY(): void {
+                        contentY = Math.max(0, Math.min(contentY, contentHeight - height));
+                    }
+
+                    onContentHeightChanged: clampY()
+                    onHeightChanged: clampY()
 
                     x: panel.pad
                     y: panel.pad
-                    active: root.shown !== ""
+                    width: panel.width - panel.pad * 2
+                    height: panel.height - panel.pad * 2
+                    contentWidth: loader.width
+                    contentHeight: loader.height
+                    interactive: contentHeight > height
+                    boundsBehavior: Flickable.StopAtBounds
+                    clip: true
 
-                    sourceComponent: {
-                        switch (root.shown.startsWith("tray:") ? "tray" : root.shown) {
-                        case "wifi":
-                            return wifiMenu;
-                        case "battery":
-                            return batteryMenu;
-                        case "notifs":
-                            return notifsMenu;
-                        case "calendar":
-                            return calendarMenu;
-                        case "control":
-                            return controlMenu;
-                        case "tray":
-                            return trayMenu;
-                        default:
-                            return null;
+                    // Explicit target: Items declared inside a Flickable are
+                    // reparented to contentItem, and if the handler travelled
+                    // with them its default `view: parent` would resolve to the
+                    // contentItem — which has no contentHeight, so the wheel
+                    // would silently do nothing.
+                    WheelScroll {
+                        view: flick
+                    }
+
+                    Loader {
+                        id: loader
+
+                        active: root.shown !== ""
+
+                        sourceComponent: {
+                            switch (root.shown.startsWith("tray:") ? "tray" : root.shown) {
+                            case "wifi":
+                                return wifiMenu;
+                            case "battery":
+                                return batteryMenu;
+                            case "notifs":
+                                return notifsMenu;
+                            case "calendar":
+                                return calendarMenu;
+                            case "control":
+                                return controlMenu;
+                            case "tray":
+                                return trayMenu;
+                            default:
+                                return null;
+                            }
                         }
                     }
                 }
