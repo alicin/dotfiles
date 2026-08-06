@@ -122,6 +122,30 @@ else
     exit 1
 fi
 
+# ── Scheme canary ───────────────────────────────────────────────────────────
+# The 2026-07-05 modifier scheme (physical Super/Ctrl pass through natively to
+# Hyprland) lives in edits OUTSIDE the SLICE_MARK blocks, which a Toshy
+# install/upgrade regenerates wholesale: the 2026-08-05 run reset even the
+# user_apps slice, and only the relink above restored the scheme. The relink
+# guarantees the symlink; this guards the CONTENT -- if the tracked file itself
+# ever loses the scheme (bad merge, installer file adopted into the repo),
+# every SUPER-based Hyprland bind dies silently at once. Restore procedure and
+# out-of-slice inventory: config/toshy/README.md, "The upgrade trap".
+log_step "Checking the modifier scheme survived"
+LIVE_CONFIG="$(readlink -f "${TOSHY_HOME}/toshy_config.py")"
+if [[ "${LIVE_CONFIG}" != "$(readlink -f "${TRACKED_DIR}/toshy_config.py")" ]]; then
+    log_error "toshy_config.py is not the tracked repo file (points at: ${LIVE_CONFIG})"
+    exit 1
+fi
+if grep -q '# ALI: Super stays native' "${LIVE_CONFIG}"; then
+    log_substep "native-Super scheme present"
+else
+    log_error "The '# ALI: Super stays native' modmap edits are GONE from the tracked config."
+    log_error "Every SUPER-based Hyprland bind will die silently. Restore from git history"
+    log_error "(config/toshy/README.md, 'The upgrade trap') before restarting Toshy."
+    exit 1
+fi
+
 log_step "Restarting Toshy services"
 systemctl --user daemon-reload
 systemctl --user restart toshy-config.service || \

@@ -410,8 +410,16 @@ MACHINE_ID = get_machine_id_hash()
 KBTYPE = None
 
 # Short names for the `xwaykeyz/keyszer` string and Unicode processing helper functions
-ST = to_US_keystrokes           # was 'to_keystrokes' originally
-UC = unicode_keystrokes
+# ALI: upstream deprecated the old aliases (removal "any time after mid-2027",
+# per xwaykeyz 1.25 config_api) — when they go, this whole config fails to
+# load at this line and the service flaps. Prefer the new names; fall back for
+# the older xwaykeyz still running on h4l9000.
+try:
+    ST = str_to_keystrokes          # was 'to_US_keystrokes', before that 'to_keystrokes'
+    UC = unicode_addr_to_keystrokes
+except NameError:
+    ST = to_US_keystrokes
+    UC = unicode_keystrokes
 ignore_combo = ComboHint.IGNORE
 
 ###############################################################################
@@ -2027,7 +2035,7 @@ multipurpose_modmap("Caps2Esc - not Chromebook kbd", {
     # attribute here is not cosmetic -- these lambdas run inside apply_modmap on
     # EVERY key event, so the AttributeError meant no modmap was ever applied:
     # Super stopped reaching Hyprland as Super, and capslock latched.
-    getattr(cnfg, "Caps2Esc_Cmd", False) and
+    (getattr(cnfg, "Caps2Esc_Cmd", False) or getattr(cnfg, "capslock_mode", "") == "caps_is_esc_and_cmd") and
     cnfg.screen_has_focus and
     not ctx_kbd_is_chromebook and
     not ctx_app_is_remote
@@ -2036,7 +2044,7 @@ multipurpose_modmap("Caps2Esc - not Chromebook kbd", {
 multipurpose_modmap("Caps2Esc - Chromebook kbd", {
     Key.LEFT_META:               [Key.ESC, Key.RIGHT_CTRL]       # Caps2Esc - Chromebook
 }, when = lambda ctx:
-    getattr(cnfg, "Caps2Esc_Cmd", False) and
+    (getattr(cnfg, "Caps2Esc_Cmd", False) or getattr(cnfg, "capslock_mode", "") == "caps_is_esc_and_cmd") and
     cnfg.screen_has_focus and
     ctx_kbd_is_chromebook and
     not ctx_app_is_remote
@@ -2313,7 +2321,7 @@ multipurpose_modmap("Left Opt is Sup & Opt - Win kbd", {
 modmap("Cond modmap - GUI - Caps2Cmd - not Cbk kdb", {
     Key.CAPSLOCK:               Key.RIGHT_CTRL,                 # Caps2Cmd
 }, when = lambda ctx:
-    getattr(cnfg, "Caps2Cmd", False) and
+    (getattr(cnfg, "Caps2Cmd", False) or getattr(cnfg, "capslock_mode", "") == "caps_is_cmd") and
     cnfg.screen_has_focus and
     not ctx_kbd_is_chromebook and
     not ctx_app_is_terminal and not ctx_app_is_remote
@@ -2321,7 +2329,7 @@ modmap("Cond modmap - GUI - Caps2Cmd - not Cbk kdb", {
 modmap("Cond modmap - GUI - Caps2Cmd - Cbk kdb", {
     Key.LEFT_META:              Key.RIGHT_CTRL,                 # Caps2Cmd - Chromebook
 }, when = lambda ctx:
-    getattr(cnfg, "Caps2Cmd", False) and
+    (getattr(cnfg, "Caps2Cmd", False) or getattr(cnfg, "capslock_mode", "") == "caps_is_cmd") and
     cnfg.screen_has_focus and
     ctx_kbd_is_chromebook and
     not ctx_app_is_terminal and not ctx_app_is_remote
@@ -2370,7 +2378,7 @@ modmap("Cond modmap - GUI - Win kbd - multi_lang OFF", {
     # - Default Win
     Key.RIGHT_ALT:              Key.RIGHT_CTRL,                 # WinMac - Multi-language (Remove)
     Key.RIGHT_META:             Key.RIGHT_ALT,                  # WinMac - Multi-language (Remove)
-    Key.RIGHT_CTRL:             Key.RIGHT_META,                 # WinMac - Multi-language (Remove)
+    Key.RIGHT_CTRL:             Key.LEFT_CTRL,                  # ALI: Right-Ctrl native, like Left-Ctrl (was ->RIGHT_META, the OLD scheme's Ctrl-is-Super — it made Right-Ctrl+C launch VS Code in GUI apps while staying Ctrl in terminals). Same output the Terms block below already uses.
 }, when = lambda ctx:
     not cnfg.multi_lang and
     cnfg.screen_has_focus and
@@ -5078,8 +5086,8 @@ keymap("VSCodes", {
     C("Alt-RC-Up"):             C("Shift-Alt-Up"),              # Insert cursor above
     C("Alt-RC-Down"):           C("Shift-Alt-Down"),            # Insert cursor below
 
-    C("Shift-Super-Right"):     C("Shift-Alt-Right"),           # Expand Selection (increase logical scope of smart selection)
-    C("Shift-Super-Left"):      C("Shift-Alt-Left"),            # Shrink Selection (reduce logical scope of smart selection)
+    C("Shift-Super-Right"):     C("Shift-Alt-Right"),           # Expand Selection — ALI: UNREACHABLE, the "ALI - Super = Option key" keymap in user_apps wins these combos by first-match; kept for reference only.
+    C("Shift-Super-Left"):      C("Shift-Alt-Left"),            # Shrink Selection — ALI: UNREACHABLE, same shadow as the line above.
 
     C("Shift-Super-RC-Right"):  C("Shift-Alt-Right"),           # Expand Selection (increase logical scope of smart selection) [alt]
     C("Shift-Super-RC-Left"):   C("Shift-Alt-Left"),            # Shrink Selection (reduce logical scope of smart selection) [alt]
@@ -5318,7 +5326,7 @@ if DISTRO_ID == 'manjaro'  and DESKTOP_ENV == 'gnome':
     )
 
 keymap("Cmd+W dialog fix - Alt+F4", {
-    C("RC-W"):                  iEF2(C("Alt-F4"), True),
+    C("RC-W"):                  iEF2(C("Super-Q"), True),       # ALI: Super-Q, not Alt-F4 — nothing binds Alt+F4 on this desktop (Hyprland close is Super+Q, same as the Manjaro-GNOME variant above), so Cmd+W on these dialog windows was a no-op.
 }, when = lambda ctx:
     cnfg.screen_has_focus and
     ctx_ovl_dialog_ergo and
@@ -6227,7 +6235,7 @@ keymap("General GUI", {
     C("RC-F3"):                 C("Super-d"),                   # Default SL - Show Desktop (gnome/kde,elementary)
     C("RC-Super-f"):            C("Alt-F10"),                   # Default SL - Maximize app (gnome/kde)
     C("RC-Q"):                  C("Alt-F4"),                    # Default SL - not-popos
-    C("Alt-Tab"):               ignore_combo,                   # Default - Cmd Tab - App Switching Default
+    C("Alt-Tab"):               C("Alt-Tab"),                   # ALI: pass through (was ignore_combo) — physical Right-Win is the only input-side Alt, and swallowing it made Right-Win+Tab do nothing; through, it reaches Hyprland's ALT+Tab overview bind.
 
     C("RC-Tab"):            [iEF2NT(),bind, C("Alt-Tab")],           # Default - Cmd Tab - App Switching Default
     C("Shift-RC-Tab"):      [iEF2NT(),bind, C("Alt-Shift-Tab")],     # Default - Cmd Tab - App Switching Default
