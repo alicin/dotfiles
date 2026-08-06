@@ -4091,6 +4091,17 @@ keymap("ALI - pass physical Super through to Hyprland (WM)", {
     C("Super-k"):               C("Super-k"),
     C("Super-n"):               C("Super-n"),
     C("Super-p"):               C("Super-p"),
+    # Tab and Grave: stock keymaps further down still interpret the OLD
+    # scheme's Super combos -- "GenGUI overrides" turns Super-Tab into
+    # Ctrl+Tab in every app including terminals, and the VSCodes keymap eats
+    # Super-Grave -- which under native-Super hijacked the overview
+    # (Super+Tab) and scratchpad (Super+`) binds. First-match order makes
+    # these self-maps win. In-app tab cycling stays on physical Ctrl+Tab and
+    # VS Code's terminal toggle on physical Ctrl+` (both native now).
+    C("Super-Tab"):             C("Super-Tab"),
+    C("Shift-Super-Tab"):       C("Shift-Super-Tab"),
+    C("Super-Grave"):           C("Super-Grave"),
+    C("Shift-Super-Grave"):     C("Shift-Super-Grave"),
     C("Super-Backspace"):       C("Super-Backspace"),
     C("Super-Delete"):          C("Super-Delete"),
     C("RC-F3"):                 ignore_combo,                   # kill stray General-GUI Cmd+F3 -> Super+D emitter
