@@ -39,17 +39,36 @@ Singleton {
     // The keyboard backlight moved, and not because we moved it.
     signal kbdChangedExternally
 
-    readonly property string displayDev: "intel_backlight"
-    readonly property string kbdDev: "asus::kbd_backlight"
+    // Discovered from `brightnessctl -m -l`, not hardcoded: this shell runs on
+    // more than one machine and the device names are per-hardware —
+    // intel_backlight on the ROG laptop, amdgpu_bl1 on the Radeon tablet. The
+    // names used to be constants, so on any host that was not h4l9000 every
+    // read and write went to a device that does not exist: brightnessctl
+    // errored, the OSD sat at whatever it had, and the panel never moved.
+    //
+    // Empty until the probe returns; `reader` below waits for that rather than
+    // running `brightnessctl -d "" info`.
+    property string displayDev: ""
 
-    // The panel is driven over the eDP HDR backlight interface
+    // Empty when the machine has no keyboard backlight at all, which is the
+    // case on k3v1n: its only LEDs are capslock/numlock/scrolllock and the
+    // wifi light. `kbdAvailable` then stays false and the Control Center row
+    // hides itself.
+    property string kbdDev: ""
+
+    // The ROG's panel is driven over the eDP HDR backlight interface
     // (i915.enable_dpcd_backlight=3), whose raw register spans the full HDR
     // luminance range — in ordinary SDR desktop use nothing gets any brighter
     // past the top fifth of it. So everything in the shell works on a *logical*
     // 0-1 mapped onto the panel's useful range, and 100% is its real maximum
     // rather than four-fifths of the way up with dead travel above.
     // Keep in sync with MAX_PCT in scripts/rog-backlight-control.sh.
-    readonly property int usefulPct: 80
+    //
+    // That is a property of *that* interface, not of backlights generally: on a
+    // plain amdgpu backlight the whole 0..max range is useful, and applying the
+    // 80 would cap the panel at four-fifths and misreport every reading as
+    // 1.25x what it is. So it is conditioned on the device.
+    readonly property int usefulPct: root.displayDev === "intel_backlight" ? 80 : 100
 
     // Logical 0..1 (see above), not the raw register fraction, and specifically
     // the built-in panel's — `display` below is whichever screen is being
@@ -88,7 +107,9 @@ Singleton {
     // Logical 0..1 on whichever screen `target` picked out.
     readonly property real display: root.ddcTarget ? root.ddcTarget.level : root.panel
 
-    // 0..kbdMax, integer steps
+    // 0..kbdMax, integer steps. kbdMax is a starting guess only — the reader
+    // below overwrites it with the device's real max_brightness, so a keyboard
+    // with four levels reports four without anything here changing.
     property int kbd: 0
     property int kbdMax: 3
 
@@ -114,10 +135,13 @@ Singleton {
             Ddc.refresh();
     }
 
-    // Known before the first keypress, so stepping doesn't have to guess.
-    Component.onCompleted: root.refresh()
+    // Find the hardware first, then read it. refresh() is a no-op until the
+    // probe has named a display device.
+    Component.onCompleted: probe.running = true
 
     function refresh(): void {
+        if (!root.displayDev)
+            return;
         reader.running = false;
         reader.running = true;
     }
@@ -147,6 +171,8 @@ Singleton {
     }
 
     function setKbd(level: int): void {
+        if (!root.kbdDev)
+            return;
         const next = Math.max(0, Math.min(root.kbdMax, level));
         root.kbd = next;
         Quickshell.execDetached(["brightnessctl", "-d", root.kbdDev, "set", `${next}`]);
@@ -194,7 +220,9 @@ Singleton {
     FileView {
         id: kbdHwFile
 
-        path: `/sys/class/leds/${root.kbdDev}/brightness_hw_changed`
+        // Empty path when the machine has no keyboard light, so the FileView
+        // has nothing to open rather than polling /sys/class/leds//... forever.
+        path: root.kbdDev ? `/sys/class/leds/${root.kbdDev}/brightness_hw_changed` : ""
         blockLoading: true
         blockAllReads: true
         printErrors: false // -ENODATA until the key has been pressed once
@@ -203,7 +231,7 @@ Singleton {
     Timer {
         id: kbdHwPoll
 
-        running: true
+        running: root.kbdDev !== ""
         interval: 120
         repeat: true
         onTriggered: {
@@ -225,10 +253,48 @@ Singleton {
         }
     }
 
+    // Hardware discovery. `brightnessctl -m -l` prints one
+    // "name,class,current,percent,max" per device, so a single run names both
+    // the panel and the keyboard light without knowing either in advance.
+    //
+    // The panel is the first `backlight`-class device. The keyboard light is a
+    // `leds` device whose name ends in kbd_backlight (asus::kbd_backlight,
+    // dell::kbd_backlight, tpacpi::kbd_backlight …) — deliberately matched by
+    // suffix rather than vendor, and left empty when nothing matches, which is
+    // how a machine with no keyboard light reports itself.
+    Process {
+        id: probe
+
+        command: ["brightnessctl", "-m", "-l"]
+
+        stdout: StdioCollector {
+            onStreamFinished: {
+                let display = "";
+                let kbd = "";
+                for (const line of text.split("\n")) {
+                    const f = line.split(",");
+                    if (f.length < 5)
+                        continue;
+                    if (!display && f[1] === "backlight")
+                        display = f[0];
+                    else if (!kbd && f[1] === "leds" && /kbd_backlight$/.test(f[0]))
+                        kbd = f[0];
+                }
+                root.displayDev = display;
+                root.kbdDev = kbd;
+                if (!kbd)
+                    root.kbdAvailable = false;
+                root.refresh();
+            }
+        }
+    }
+
     Process {
         id: reader
 
-        command: ["sh", "-c", `brightnessctl -m -d ${root.displayDev} info; brightnessctl -m -d ${root.kbdDev} info 2>/dev/null`]
+        // The kbd half is dropped entirely when there is no such device, rather
+        // than running `brightnessctl -d "" info` and relying on it failing.
+        command: ["sh", "-c", root.kbdDev ? `brightnessctl -m -d ${root.displayDev} info; brightnessctl -m -d ${root.kbdDev} info 2>/dev/null` : `brightnessctl -m -d ${root.displayDev} info`]
 
         stdout: StdioCollector {
             onStreamFinished: {

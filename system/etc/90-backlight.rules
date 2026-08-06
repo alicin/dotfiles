@@ -1,0 +1,26 @@
+# Let the desktop set brightness without root.
+# Installed to /etc/udev/rules.d/90-backlight.rules by scripts/finalize.sh.
+#
+# Arch's brightnessctl package ships ONLY the binary -- no udev rule, no setuid
+# helper -- and /sys/class/backlight/*/brightness is root:root 0644. So every
+# `brightnessctl set` from a user session fails with "Operation not permitted",
+# which is exactly what the Fn brightness keys and the qshell OSD were hitting:
+# the read half worked, so the OSD moved, and the panel never changed.
+#
+# h4l9000 hid this because its brightness goes through asusctl (see
+# scripts/rog-backlight-control.sh), not brightnessctl.
+#
+# Group the nodes to `video` (display) and `input` (keyboard backlight) and add
+# group write. Both groups are granted to the user in scripts/finalize.sh.
+#
+# Matches add|change, not just add: `udevadm trigger` defaults to the change
+# action, so an add-only rule silently does nothing when reapplied by hand and
+# only ever takes effect at boot.
+
+ACTION=="add|change", SUBSYSTEM=="backlight", \
+  RUN+="/usr/bin/chgrp video /sys/class/backlight/%k/brightness", \
+  RUN+="/usr/bin/chmod g+w /sys/class/backlight/%k/brightness"
+
+ACTION=="add|change", SUBSYSTEM=="leds", KERNEL=="*kbd_backlight*", \
+  RUN+="/usr/bin/chgrp input /sys/class/leds/%k/brightness", \
+  RUN+="/usr/bin/chmod g+w /sys/class/leds/%k/brightness"

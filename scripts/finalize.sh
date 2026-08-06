@@ -24,8 +24,20 @@ if is_linux; then
             /etc/greetd/config.toml
     fi
 
+    echo "Setting up backlight permissions..."
+    # See system/etc/90-backlight.rules: without this, brightnessctl cannot
+    # write /sys/class/backlight/*/brightness and every brightness key is a
+    # no-op that still moves the OSD.
+    if [[ -f "${SCRIPT_DIR}/../system/etc/90-backlight.rules" ]]; then
+        sudo install -m 0644 "${SCRIPT_DIR}/../system/etc/90-backlight.rules" \
+            /etc/udev/rules.d/90-backlight.rules
+        sudo udevadm control --reload-rules
+        sudo udevadm trigger -c add -s backlight -s leds
+    fi
+
     echo "Setting up groups..."
-    for group in libvirt kvm docker input wheel vboxusers; do
+    # `video` is what the backlight rule above grants write to.
+    for group in libvirt kvm docker input video wheel vboxusers; do
         if getent group "$group" >/dev/null 2>&1; then
             sudo usermod -aG "$group" "$(whoami)"
         fi
