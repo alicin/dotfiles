@@ -682,6 +682,27 @@ modules/capture/      RecordOverlay (dims around a live area recording)
 modules/notifications/NotificationPopups (toast stack)
 modules/osd/          OsdPanel (volume / brightness / keyboard-backlight pill)
 modules/overview/     Overview (grid, drag/drop plumbing), OverviewWindow (live thumbnail)
+modules/pip/          PipView (screen-sized host surface + IPC), PipCard (the floating
+                      live thumbnail — capture, chrome, drag)
+modules/keycheat/     KeyCheat (shortcut sheet, parsed from ~/.config/hypr/lua/binds.lua)
+```
+
+Two services carry state their module cannot own alone:
+
+```
+services/Pip.qml      the pinned window's ADDRESS (never the toplevel — Quickshell
+                      destroys those on closewindow), corner, size. A singleton
+                      because services/Search.qml offers the row and cannot import
+                      qs.modules.
+services/Search.qml   the six launcher modes, the arithmetic parser, and the qalc
+                      bridge (gate + debounce + Unicode-minus normalisation)
+```
+
+Outside the shell:
+
+```
+scripts/ocr.sh        read a region: [text|qr]. Takes an optional geometry argument
+                      so it can be tested without a human dragging a rectangle.
 ```
 
 ## Toolchain notes
