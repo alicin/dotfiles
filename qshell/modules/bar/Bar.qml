@@ -224,7 +224,14 @@ Scope {
                                 const t = Hyprland.activeToplevel;
                                 if (!t)
                                     return "";
-                                return t.title || t.wayland?.title || t.lastIpcObject?.title || "";
+                                const s = t.title || t.wayland?.title || t.lastIpcObject?.title || "";
+                                // Hard cap at 60: browsers and editors put
+                                // whole document paths in titles, and past
+                                // this the centre region is all title anyway
+                                // (the elide only kicks in at the layout
+                                // width, which in landscape is much wider
+                                // than anyone needs to read).
+                                return s.length > 60 ? s.slice(0, 59) + "…" : s;
                             }
 
                             WheelDetent {
@@ -268,6 +275,22 @@ Scope {
                             }
 
                             PrivacyStatus {}
+
+                            // Tablet controls: both collapse to nothing out of
+                            // touch mode, so a docked session's bar is exactly
+                            // the bar it was. They sit ahead of the tray for
+                            // the same reason the recorder does — the row is
+                            // right-anchored, so anything that appears and
+                            // vanishes has to be left of the things that
+                            // don't, or the whole row shuffles under your
+                            // finger the moment you undock.
+                            OskStatus {
+                                tooltip: tip
+                            }
+
+                            RotateStatus {
+                                tooltip: tip
+                            }
 
                             Tray {
                                 popouts: popouts
@@ -332,6 +355,24 @@ Scope {
 
                 barWindow: win
             }
+        }
+    }
+
+    // Swipe in from the right edge → Control Center. Out here rather than in
+    // the Variants for the same reason the IPC handler below is: a connection
+    // per screen would open the panel on every one of them at once, and only
+    // one of them is under your thumb.
+    Connections {
+        target: Gestures
+
+        function onControlRequested(): void {
+            const bar = root.bars[Hyprland.focusedMonitor?.name] ?? Object.values(root.bars)[0];
+            if (!bar)
+                return;
+            if (bar.pops.open)
+                bar.pops.close();
+            else
+                bar.pops.openControl("", bar.mods.control);
         }
     }
 

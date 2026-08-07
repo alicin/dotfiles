@@ -1,0 +1,287 @@
+#!/usr/bin/env python3
+"""Move floating windows out from under the on-screen keyboard, and back after.
+
+    osk-float-rescue reserve <monitor> <px>
+    osk-float-rescue restore
+
+qshell's OSK is a layer surface with an exclusive zone, which is all it takes to
+get *tiled* windows out of the way: the compositor shrinks the layout by the
+reserved height and keeps it shrunk, including for windows opened while the
+keyboard is up. Floating windows are exempt from that by definition -- their
+whole point is that the layout does not own their geometry -- so a floating
+terminal or a dialog simply ends up with its bottom third behind the keyboard,
+which on a dialog is usually where the buttons are.
+
+This walks the floating windows on the keyboard's monitor and lifts (and, if
+they are too tall to fit at all, shortens) the ones that would be cut. The
+original geometry is written to $XDG_RUNTIME_DIR so `restore` can put it back.
+
+Restore is deliberately conservative: a window is only restored if it is still
+exactly where this script left it. Move or resize a window yourself while the
+keyboard is up and it keeps the geometry you gave it -- the alternative is the
+keyboard closing and yanking a window you just placed back to where it was
+several minutes ago.
+"""
+
+import fcntl
+import json
+import os
+import subprocess
+import sys
+
+STATE = os.path.join(
+    os.environ.get("XDG_RUNTIME_DIR") or "/tmp",
+    "qshell-osk-floats.json",
+)
+
+# Breathing room between a window's bottom edge and the keyboard, and between
+# its top edge and the bar. Matches `gaps_out` in config/hypr/lua/options.lua,
+# so a lifted window sits where a tiled one would.
+MARGIN = 12
+
+# Hyprland reports monitor geometry in the *mode's* pixels and everything else
+# in logical coordinates, so the two only line up after dividing by the scale.
+# These transforms have the axes swapped (90 and 270 degrees, plus their
+# flipped forms), which matters the moment the tablet is rotated.
+SWAPPED_TRANSFORMS = {1, 3, 5, 7}
+
+
+def hyprctl_json(*args):
+    try:
+        out = subprocess.run(
+            ["hyprctl", "-j", *args],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=True,
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    try:
+        return json.loads(out)
+    except ValueError:
+        return None
+
+
+def dispatch(commands):
+    """One --batch round trip, so a dozen windows aren't a dozen IPC calls.
+
+    Each command is a *Lua dispatcher expression* (`hl.dsp.window.move({...})`),
+    not a classic dispatcher string. This config uses Hyprland's Lua parser,
+    and under it `hyprctl dispatch movewindowpixel ...` is pasted verbatim into
+    `hl.dispatch(movewindowpixel ...)` — a Lua syntax error, refused for every
+    classic form. The repo's own Overview.qml dispatches the same way.
+
+    The expressions contain no ';', so --batch's separator splitting is safe.
+    """
+    if not commands:
+        return True
+    batch = " ; ".join("dispatch " + c for c in commands)
+    try:
+        subprocess.run(["hyprctl", "--batch", batch], capture_output=True, timeout=5)
+        return True
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def lua_move(address, x, y):
+    return f'hl.dsp.window.move({{ window = "address:{address}", x = {int(x)}, y = {int(y)} }})'
+
+
+def lua_resize(address, w, h):
+    return f'hl.dsp.window.resize({{ window = "address:{address}", x = {int(w)}, y = {int(h)} }})'
+
+
+def load_state():
+    try:
+        with open(STATE, "r") as fh:
+            state = json.load(fh)
+    except (OSError, ValueError):
+        return {}
+    return state if isinstance(state, dict) else {}
+
+
+def save_state(state):
+    tmp = STATE + ".tmp"
+    try:
+        with open(tmp, "w") as fh:
+            json.dump(state, fh)
+        os.replace(tmp, STATE)
+    except OSError:
+        pass
+
+
+def clear_state():
+    try:
+        os.unlink(STATE)
+    except OSError:
+        pass
+
+
+def usable_band(monitor, reserve):
+    """(top, bottom) of the strip a window may occupy, in logical coordinates."""
+    scale = monitor.get("scale") or 1
+    width = monitor.get("width", 0)
+    height = monitor.get("height", 0)
+    if monitor.get("transform", 0) in SWAPPED_TRANSFORMS:
+        width, height = height, width
+
+    # [left, top, right, bottom] -- Hyprland serialises reservedTopLeft then
+    # reservedBottomRight, so index 1 is the bar and index 3 is us.
+    reserved = monitor.get("reserved") or [0, 0, 0, 0]
+
+    top = monitor.get("y", 0) + reserved[1] + MARGIN
+    # max(), not reserved[3]: this runs the instant the keyboard's surface
+    # appears and the compositor may not have recomputed the reservation yet,
+    # so trusting it alone would mean a first pass that moves nothing. If
+    # something else also reserves at the bottom, reserved[3] is the larger
+    # number and wins.
+    bottom = monitor.get("y", 0) + height / scale - max(reserved[3], reserve) - MARGIN
+    return top, bottom
+
+
+def reserve(monitor_name, reserve_px):
+    monitors = hyprctl_json("monitors")
+    clients = hyprctl_json("clients")
+    if monitors is None or clients is None:
+        return
+
+    monitor = next((m for m in monitors if m.get("name") == monitor_name), None)
+    if monitor is None:
+        return
+
+    top, bottom = usable_band(monitor, reserve_px)
+    if bottom <= top:
+        return
+
+    state = load_state()
+    commands = []
+
+    # Every floating window on the monitor, NOT just the visible workspaces:
+    # the keyboard is monitor-wide, so a dialog on workspace 3 is just as
+    # covered the moment you swipe there — and this ran on OSK transitions,
+    # not workspace switches, so a visibility filter left off-screen dialogs
+    # permanently behind the keyboard in pinned-on mode. Restore's
+    # moved-since check protects anything the user repositions meanwhile.
+    for client in clients:
+        if not client.get("floating") or not client.get("mapped") or client.get("hidden"):
+            continue
+        if client.get("fullscreen"):
+            continue
+        if client.get("monitor") != monitor.get("id"):
+            continue
+
+        address = client.get("address")
+        at = client.get("at") or [0, 0]
+        size = client.get("size") or [0, 0]
+        x, y = at[0], at[1]
+        w, h = size[0], size[1]
+        if not address or w <= 0 or h <= 0:
+            continue
+
+        if y + h <= bottom:
+            continue  # not in the way
+
+        new_h = min(h, int(bottom - top))
+        new_y = max(int(top), int(bottom) - new_h)
+        if new_y == y and new_h == h:
+            continue
+
+        # Only the *first* rescue records the original. A second pass (the
+        # keyboard grew, or the layer got re-laid-out) would otherwise record
+        # the already-lifted position as the thing to restore, and closing the
+        # keyboard would leave the window where the keyboard had put it.
+        if address not in state:
+            state[address] = {"x": x, "y": y, "w": w, "h": h}
+
+        # Resize FIRST, then move: hl.dsp.window.resize anchors at the window's
+        # centre (verified live — a 20x80 shrink shifted `at` by 10,40), so the
+        # exact move afterwards is what pins the final position.
+        if new_h != h:
+            commands.append(lua_resize(address, w, new_h))
+        commands.append(lua_move(address, x, new_y))
+
+        state[address]["appliedX"] = x
+        state[address]["appliedY"] = new_y
+        state[address]["appliedW"] = w
+        state[address]["appliedH"] = new_h
+
+    dispatch(commands)
+    if state:
+        save_state(state)
+
+
+def restore():
+    state = load_state()
+    if not state:
+        return
+
+    clients = hyprctl_json("clients") or []
+    live = {c.get("address"): c for c in clients}
+
+    commands = []
+    for address, saved in state.items():
+        client = live.get(address)
+        if client is None:
+            continue  # window is gone; nothing to put back
+
+        at = client.get("at") or [0, 0]
+        size = client.get("size") or [0, 0]
+        # Tolerance, not equality: `applied*` records what we COMMANDED, and
+        # clients renegotiate — a terminal snaps to cell increments, a dialog
+        # refuses below its min-height — so an exact compare misread every
+        # such window as user-moved and stranded it lifted/shortened forever.
+        # 16px is well under any deliberate placement and over any snap.
+        def off(actual, key):
+            return abs(actual - saved.get(key, 1 << 30)) > 16
+
+        moved_since = (
+            off(at[0], "appliedX")
+            or off(at[1], "appliedY")
+            or off(size[0], "appliedW")
+            or off(size[1], "appliedH")
+        )
+        if moved_since:
+            # Somebody -- probably the person holding the tablet -- has placed
+            # this window since. Their geometry wins over ours.
+            continue
+
+        if size[1] != saved["h"] or size[0] != saved["w"]:
+            commands.append(lua_resize(address, saved["w"], saved["h"]))
+        commands.append(lua_move(address, saved["x"], saved["y"]))
+
+    # Only forget the originals once the restore batch actually went out — a
+    # failed hyprctl here used to lose every saved geometry outright.
+    if dispatch(commands):
+        clear_state()
+
+
+def main(argv):
+    # reserve and restore are both fired detached off one 90ms timer in
+    # Osk.qml and could interleave: a reserve still mid-flight (two hyprctl
+    # round trips) when restore starts would read the pre-save state file and
+    # clear nothing. One blocking lock serialises them in launch order.
+    lock = os.open(STATE + ".lock", os.O_CREAT | os.O_RDWR, 0o600)
+    fcntl.flock(lock, fcntl.LOCK_EX)
+
+    if len(argv) >= 2 and argv[1] == "reserve":
+        if len(argv) < 4:
+            print("usage: osk-float-rescue reserve <monitor> <px>", file=sys.stderr)
+            return 2
+        try:
+            px = int(float(argv[3]))
+        except ValueError:
+            return 2
+        reserve(argv[2], px)
+        return 0
+
+    if len(argv) >= 2 and argv[1] == "restore":
+        restore()
+        return 0
+
+    print(__doc__.strip().splitlines()[2].strip(), file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

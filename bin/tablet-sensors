@@ -1,0 +1,338 @@
+#!/usr/bin/env python3
+"""Report tablet-relevant hardware state on stdout, one JSON object per line.
+
+    {"keyboard": true, "tabletMode": false, "orientation": "normal",
+     "accelerometer": false, "touchscreen": true}
+
+`touchscreen` is the device-type gate for the whole touch stack: the shell
+only lets hardware-auto resolve to tablet mode on a machine that actually has
+a direct-multitouch touchscreen, so the keyboard heuristic below can never
+flip a plain laptop into touch mode.
+
+qshell's services/Tablet.qml runs this and reads it with a SplitParser. It is a
+helper rather than three pollers in QML because every one of these facts has a
+real event source, and polling them would mean the shell shelling out several
+times a second forever to learn nothing:
+
+  keyboard     udev input events -> rescan /proc/bus/input/devices
+  tabletMode   select() on the gpio-keys evdev node (EV_SW / SW_TABLET_MODE)
+  orientation  monitor-sensor's stdout (iio-sensor-proxy)
+
+Only changes are printed, plus one line at startup so the reader starts with a
+known state instead of an assumption.
+
+Stdlib only, and no root: the switch node carries a `uaccess` ACL for the seat
+user. If any single source is unavailable the others keep working and its field
+keeps its default -- a machine with no switch is just a machine that never
+reports one.
+"""
+
+import fcntl
+import json
+import os
+import re
+import select
+import shutil
+import signal
+import subprocess
+import sys
+
+# ── evdev ────────────────────────────────────────────────────────────────────
+EV_SW = 0x05
+SW_TABLET_MODE = 0x01
+
+_IOC_READ = 2
+
+
+def _ioc(direction, typ, nr, size):
+    return (direction << 30) | (size << 16) | (ord(typ) << 8) | nr
+
+
+EVIOCGSW = lambda length: _ioc(_IOC_READ, "E", 0x1B, length)  # noqa: E731
+
+# ── keyboard identification ──────────────────────────────────────────────────
+# Scancodes that only a device you can actually type on will claim. Q/A/Z catch
+# the three letter rows, SPACE the bar; a power button, a lid, a set of media
+# keys or an rfkill switch have none of them, which is what separates the real
+# keyboard from the five other things the kernel also calls a keyboard.
+TYPING_KEYS = (16, 30, 44, 57)  # KEY_Q, KEY_A, KEY_Z, KEY_SPACE
+
+# Devices that pass the typing test but are present whether or not a keyboard
+# is physically attached, so counting them would pin `keyboard` to true forever.
+#
+#   AT Translated Set 2 keyboard   the i8042 stub. This chassis has no internal
+#                                  keyboard at all (chassis type 32, detachable)
+#                                  and the node exists regardless.
+#   XWayKeyz (virtual) Keyboard    Toshy's own uinput device -- it is downstream
+#                                  of the real keyboard and outlives it.
+PHANTOM_KEYBOARDS = re.compile(
+    r"AT Translated Set 2 keyboard|XWayKeyz|xwaykeyz|uinput",
+    re.IGNORECASE,
+)
+
+
+def parse_input_devices():
+    """/proc/bus/input/devices -> [{name, handlers, bits{}}]."""
+    try:
+        with open("/proc/bus/input/devices", "r") as fh:
+            blob = fh.read()
+    except OSError:
+        return []
+
+    devices = []
+    current = None
+    for line in blob.splitlines():
+        if line.startswith("I: "):
+            current = {"name": "", "handlers": "", "bits": {}}
+            devices.append(current)
+        elif current is None:
+            continue
+        elif line.startswith("N: Name="):
+            current["name"] = line[8:].strip().strip('"')
+        elif line.startswith("H: Handlers="):
+            current["handlers"] = line[12:].strip()
+        elif line.startswith("B: "):
+            key, _, val = line[3:].partition("=")
+            current["bits"][key.strip()] = val.strip()
+    return devices
+
+
+def bitmap_to_int(words):
+    """The kernel prints a bitmap as unsigned longs, most significant first.
+
+    Rebuilding it as one integer is the only way to ask "is bit N set" without
+    caring how many words the field happened to need.
+    """
+    value = 0
+    for i, word in enumerate(reversed(words.split())):
+        try:
+            value |= int(word, 16) << (64 * i)
+        except ValueError:
+            return 0
+    return value
+
+
+def keyboard_attached():
+    # Known false-positive class: wireless-mouse receivers (Logitech
+    # Unifying/Bolt and most 2.4GHz combos) enumerate a keyboard interface
+    # claiming the full key range with no keyboard present — plugging one in
+    # undocked pins the shell to desktop mode until Super+Ctrl+T. The fix is
+    # to add the receiver's NAME to PHANTOM_KEYBOARDS as they are met. A
+    # pointer-sibling heuristic ("same USB parent also has a mouse node")
+    # would NOT work here: the real magnetic keyboard is itself a
+    # keyboard+touchpad combo device and would be filtered out with them.
+    for dev in parse_input_devices():
+        if "kbd" not in dev["handlers"].split():
+            continue
+        if PHANTOM_KEYBOARDS.search(dev["name"]):
+            continue
+        keys = bitmap_to_int(dev["bits"].get("KEY", ""))
+        if all(keys >> code & 1 for code in TYPING_KEYS):
+            return True
+    return False
+
+
+ABS_MT_SLOT = 0x2F
+ABS_MT_TRACKING_ID = 0x39
+INPUT_PROP_DIRECT = 1
+
+
+def touchscreen_present():
+    """A direct-multitouch touchscreen exists (same test bin/touch-gestures
+    uses to find the digitiser). This is the DEVICE-TYPE GATE for the whole
+    touch stack: the keyboard heuristic below is a guess that can misfire on
+    an ordinary laptop (an internal keyboard hiding behind the phantom filter,
+    a bogus SW_TABLET_MODE from a WMI driver), and a machine with no
+    touchscreen must never resolve to tablet mode from a guess."""
+    for dev in parse_input_devices():
+        if not bitmap_to_int(dev["bits"].get("PROP", "")) >> INPUT_PROP_DIRECT & 1:
+            continue
+        abs_bits = bitmap_to_int(dev["bits"].get("ABS", ""))
+        if abs_bits >> ABS_MT_SLOT & 1 and abs_bits >> ABS_MT_TRACKING_ID & 1:
+            return True
+    return False
+
+
+def find_switch_node():
+    """The event node of whatever declares SW_TABLET_MODE, or None."""
+    for dev in parse_input_devices():
+        if not bitmap_to_int(dev["bits"].get("SW", "")) >> SW_TABLET_MODE & 1:
+            continue
+        for handler in dev["handlers"].split():
+            if handler.startswith("event"):
+                return "/dev/input/" + handler
+    return None
+
+
+def read_switch(fd):
+    buf = bytearray(8)
+    try:
+        fcntl.ioctl(fd, EVIOCGSW(len(buf)), buf)
+    except OSError:
+        return False
+    return bool(int.from_bytes(buf, "little") >> SW_TABLET_MODE & 1)
+
+
+# ── subprocess sources ───────────────────────────────────────────────────────
+def spawn(argv):
+    """Start a line-oriented reader, or return None if the tool isn't here."""
+    if shutil.which(argv[0]) is None:
+        return None
+    try:
+        return subprocess.Popen(
+            argv,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            bufsize=1,
+        )
+    except OSError:
+        return None
+
+
+ORIENTATION_RE = re.compile(r"orientation changed:\s*(\S+)")
+
+# monitor-sensor announces what it found before it reports anything, as
+# "=== Has accelerometer (orientation: normal)" or "=== No accelerometer".
+# Reported so the UI can say *why* autorotate is doing nothing instead of
+# hardcoding this machine's answer into a label.
+ACCEL_RE = re.compile(r"^===\s*(Has|No) accelerometer")
+
+# iio-sensor-proxy's names, in the transform the display needs to counter them.
+# `normal` is the panel as built; `left-up` means the device's left edge is up,
+# so the picture has to rotate the other way.
+ORIENTATIONS = {"normal", "bottom-up", "left-up", "right-up"}
+
+
+def main():
+    signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+
+    state = {
+        "keyboard": keyboard_attached(),
+        "tabletMode": False,
+        "orientation": "normal",
+        "accelerometer": False,
+        "touchscreen": touchscreen_present(),
+    }
+
+    switch_fd = None
+    node = find_switch_node()
+    if node:
+        try:
+            switch_fd = os.open(node, os.O_RDONLY | os.O_NONBLOCK)
+            state["tabletMode"] = read_switch(switch_fd)
+        except OSError:
+            switch_fd = None
+
+    # `--udev` (not `--kernel`): the udev-processed stream fires after the
+    # device nodes and their ACLs exist, which is the point at which a rescan
+    # will actually see the new keyboard.
+    udev = spawn(["udevadm", "monitor", "--udev", "--subsystem-match=input"])
+
+    # Silent on this panel -- the AMD sensor hub exposes an ambient light sensor
+    # and nothing else, so there is no accelerometer to change orientation. Kept
+    # wired regardless: it costs one pipe, and it is the entire difference
+    # between "autorotate is unimplemented" and "autorotate has no sensor".
+    sensor = spawn(["monitor-sensor"])
+
+    def emit():
+        sys.stdout.write(json.dumps(state) + "\n")
+        sys.stdout.flush()
+
+    emit()
+
+    sources = [fd for fd in (switch_fd,) if fd is not None]
+    for proc in (udev, sensor):
+        if proc is not None:
+            sources.append(proc.stdout)
+
+    # udev reports a docked keyboard as a burst of add events across its several
+    # interfaces; rescanning on each one would emit the same line four times.
+    # A timeout-based settle collapses the burst into a single rescan.
+    pending_rescan = False
+
+    while sources:
+        timeout = 0.25 if pending_rescan else None
+        try:
+            ready, _, _ = select.select(sources, [], [], timeout)
+        except (OSError, ValueError):
+            break
+        except KeyboardInterrupt:
+            break
+
+        if not ready and pending_rescan:
+            pending_rescan = False
+            attached = keyboard_attached()
+            touch = touchscreen_present()
+            if attached != state["keyboard"] or touch != state["touchscreen"]:
+                state["keyboard"] = attached
+                state["touchscreen"] = touch
+                emit()
+            continue
+
+        for source in ready:
+            if switch_fd is not None and source == switch_fd:
+                # 24 bytes per input_event on 64-bit: timeval(16) + type + code
+                # + value. Read the lot and keep only the switch transitions.
+                try:
+                    data = os.read(switch_fd, 24 * 64)
+                except BlockingIOError:
+                    continue
+                except OSError:
+                    sources.remove(switch_fd)
+                    continue
+                if not data:
+                    sources.remove(switch_fd)
+                    continue
+                changed = False
+                for off in range(0, len(data) - 23, 24):
+                    typ, code, value = (
+                        int.from_bytes(data[off + 16 : off + 18], sys.byteorder),
+                        int.from_bytes(data[off + 18 : off + 20], sys.byteorder),
+                        int.from_bytes(data[off + 20 : off + 24], sys.byteorder, signed=True),
+                    )
+                    if typ == EV_SW and code == SW_TABLET_MODE:
+                        if bool(value) != state["tabletMode"]:
+                            state["tabletMode"] = bool(value)
+                            changed = True
+                if changed:
+                    emit()
+                continue
+
+            line = source.readline()
+            if not line:
+                if udev is not None and source is udev.stdout:
+                    # udevadm died: keyboard dock/undock rescans would never
+                    # run again, while the always-alive switch fd kept this
+                    # process looking healthy — so Tablet.qml's exit-watchdog
+                    # never fired either. Die instead; the shell restarts us
+                    # and startup re-derives every fact from scratch.
+                    print("tablet-sensors: udevadm monitor ended; exiting for a clean restart", file=sys.stderr)
+                    sources.clear()
+                    break
+                sources.remove(source)
+                continue
+
+            if udev is not None and source is udev.stdout:
+                pending_rescan = True
+            elif sensor is not None and source is sensor.stdout:
+                found = ACCEL_RE.match(line.strip())
+                if found:
+                    has = found.group(1) == "Has"
+                    if has != state["accelerometer"]:
+                        state["accelerometer"] = has
+                        emit()
+                    continue
+                match = ORIENTATION_RE.search(line)
+                if match and match.group(1) in ORIENTATIONS:
+                    if match.group(1) != state["orientation"]:
+                        state["orientation"] = match.group(1)
+                        emit()
+
+    for proc in (udev, sensor):
+        if proc is not None:
+            proc.terminate()
+
+
+if __name__ == "__main__":
+    main()

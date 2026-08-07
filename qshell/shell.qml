@@ -13,12 +13,22 @@ import qs.services
 import qs.modules.bar
 import qs.modules.capture
 import qs.modules.clipboard
+import qs.modules.control
+import qs.modules.gestures
 import qs.modules.launcher
 import qs.modules.notifications
 import qs.modules.osd
+import qs.modules.osk
 import qs.modules.overview
 
 ShellRoot {
+    id: shellRoot
+
+    // A singleton nobody references is never instantiated; this one's whole
+    // point is to sit and watch the theme setting, so it gets its reference
+    // here. (Every other service is referenced by some panel already.)
+    readonly property var themeSync: ThemeSync
+
     Bar {}
 
     Launcher {}
@@ -33,7 +43,20 @@ ShellRoot {
 
     Overview {}
 
+    // The standalone Settings window (macOS System Settings shaped) — a
+    // LazyLoader that only materialises while SettingsUi.open is true.
+    SettingsWindow {}
+
     CaptureThumb {}
+
+    // Touchscreen edge swipes. Nothing but three input strips, and only in
+    // touch mode — see modules/gestures/EdgeSwipes.qml.
+    EdgeSwipes {}
+
+    // Last, deliberately: the on-screen keyboard sits on the Overlay layer and
+    // has to draw above the panels you would type into. Same-layer surfaces
+    // stack in creation order.
+    OskPanel {}
 
     // Brightness media keys. Volume needs nothing here — Pipewire signals every
     // change, whoever made it — but the kernel gives no such signal for the
@@ -268,7 +291,7 @@ ShellRoot {
         }
 
         function kdectest(): string {
-            Quickshell.execDetached(["sh", "-c", "kdeconnect-cli --list-devices > /tmp/claude-1000/kdec.out 2>&1"]);
+            Quickshell.execDetached(["sh", "-c", "kdeconnect-cli --list-devices > /tmp/kdec.out 2>&1"]);
             return "spawned";
         }
 

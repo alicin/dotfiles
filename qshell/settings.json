@@ -2,14 +2,25 @@
     "animScale": 1,
     "batteryCriticalSuspend": true,
     "clipboardPaste": false,
-    "clipboardPasteTerminals": "kitty|foot|alacritty|wezterm|ghostty|konsole|terminator|xterm|st",
+    "clipboardPasteTerminals": "ghostty|floating_shell|kitty|foot|alacritty|wezterm|konsole|terminator|xterm|st",
+    "edgeSwipes": true,
     "launcherMaxShown": 8,
+    "osk": "auto",
+    "oskHeight": 0.32,
     "overviewColumns": 6,
+    "rotationLock": false,
     "scale": 1.15,
     "scrollFactor": 3.5,
-    "terminal": "kitty",
+    "tabletMode": "auto",
+    "terminal": "ghostty",
     "theme": "catppuccin-latte",
+    "touchScale": 1,
     "weather": true,
     "weatherPlace": "",
-    "workspaces": 12
+    "workspaces": 12,
+    "workspacesByHost": {
+        "h4l9000": 12,
+        "k3v1n": 9,
+        "mcu": 10
+    }
 }

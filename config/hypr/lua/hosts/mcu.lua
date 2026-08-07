@@ -28,3 +28,9 @@ hl.workspace_rule({ workspace = "6", monitor = secondary, default = true, persis
 for i = 7, 10 do
   hl.workspace_rule({ workspace = tostring(i), monitor = secondary, persistent = true })
 end
+
+-- ── Host-specific binds ─────────────────────────────────────────────────────
+-- Workspace 10: lua/binds.lua covers 1-9 for every host (k3v1n's count); the
+-- tenth exists only here and on h4l9000, so its keys live in the host files.
+hl.bind("SUPER + F5",         hl.dsp.focus({ workspace = 10 }))
+hl.bind("SUPER + SHIFT + F5", hl.dsp.window.move({ workspace = 10, follow = false }))

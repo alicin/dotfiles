@@ -142,14 +142,26 @@ Scope {
     PanelWindow {
         id: win
 
+        readonly property int oskLift: Osk.active && Osk.reservedScreen === (win.screen?.name ?? "") ? Osk.reservedPx : 0
+
         screen: Quickshell.screens.find(s => s.name === (root.pinned || Hyprland.focusedMonitor?.name)) ?? Quickshell.screens[0] ?? null
         color: "transparent"
-        implicitHeight: Appearance.s(460)
+        // Capped like the launcher: lifted over the keyboard, the fixed height
+        // has to give, or the strip's top goes past the screen edge.
+        implicitHeight: Math.min(Appearance.s(460), (win.screen?.height ?? 1080) - Appearance.sizes.barHeight - win.oskLift - Appearance.s(16))
 
         anchors {
             bottom: true
             left: true
             right: true
+        }
+
+        // Lifted clear of the on-screen keyboard. Everything bottom-anchored in
+        // this shell opts out of exclusive zones so it can sit over the bar's,
+        // and the keyboard's reservation comes through that same door — so the
+        // compositor will not move this panel and it has to move itself.
+        margins {
+            bottom: win.oskLift
         }
 
         exclusionMode: ExclusionMode.Ignore
@@ -165,7 +177,9 @@ Scope {
 
         HyprlandFocusGrab {
             active: root.open
-            windows: [win]
+            // The OSK is whitelisted so typing into the filter field from the
+            // on-screen keyboard doesn't dismiss the picker on the first key.
+            windows: Osk.panelWindow ? [win, Osk.panelWindow] : [win]
             onCleared: root.open = false
         }
 
@@ -308,15 +322,29 @@ Scope {
                     }
                 }
 
-                Row {
-                    id: chips
+                // Scrollable when it overflows, inert when everything fits
+                // (the Popouts pattern). In portrait the header leaves
+                // ~330-460px for seven chips needing ~520-650: the tail chips
+                // (Images/Files/Colors) were clipped off with no route to
+                // them by touch at all.
+                Flickable {
+                    id: chipsFlick
 
                     anchors.left: parent.left
                     anchors.right: count.left
                     anchors.rightMargin: Appearance.s(12)
                     anchors.verticalCenter: parent.verticalCenter
-                    spacing: Appearance.s(6)
+                    height: chips.implicitHeight
+                    contentWidth: chips.implicitWidth
                     clip: true
+                    interactive: contentWidth > width
+                    boundsBehavior: Flickable.StopAtBounds
+                    flickableDirection: Flickable.HorizontalFlick
+
+                    Row {
+                    id: chips
+
+                    spacing: Appearance.s(6)
 
                     Repeater {
                         model: root.filters
@@ -364,6 +392,7 @@ Scope {
                                 }
                             }
                         }
+                    }
                     }
                 }
 

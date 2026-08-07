@@ -71,14 +71,52 @@ hl.on("monitor.removed", follow_dock_state)
 -- field on hl.workspace_rule and the global layout is dwindle anyway, so this
 -- was effectively dead. Re-add via the master layout API if needed.
 
+-- ── Looking Glass (win11 passthrough VM) ────────────────────────────────────
+-- Moved here from lua/options.lua + lua/rules.lua, where all three applied to
+-- every host: only this machine has the LG client (profiles/h4l9000-arch), and
+-- vfr=false is a real battery/heat cost elsewhere -- k3v1n was compositing
+-- every idle frame at 120Hz for a VM it cannot run. Hosts load last, so these
+-- override the shared defaults.
+hl.config({
+  general = {
+    -- Let the fullscreen LG client tear (present without waiting for vblank);
+    -- required for its `egl:vsync=no` to actually skip the compositor's frame
+    -- queue -- without it LG frames queue to vblank and the guest stutters.
+    allow_tearing = true,
+  },
+  debug = {
+    -- VFR throttles the render loop when the screen looks idle, which starves
+    -- LG's frame pacing -> guest video collapses to a few FPS while the mouse
+    -- is still. Cost: full-rate compositing when idle, on this host only.
+    -- (If that ever matters here too, the LG launch script can toggle it
+    -- per-session with `hyprctl -r eval 'hl.config({ debug = { vfr = … } })'`
+    -- -- runtime eval works; an older comment claiming otherwise is why this
+    -- sat in the global options for so long.)
+    vfr = false,
+  },
+})
+hl.window_rule({ match = { class = "^(looking-glass-client)$" }, immediate = true })
+
 -- ── Autostart ───────────────────────────────────────────────────────────────
 hl.on("hyprland.start", function()
   hl.exec_cmd("/usr/bin/rog-control-center")
 end)
 
 -- ── Host-specific binds ─────────────────────────────────────────────────────
+-- Workspaces 10-12: lua/binds.lua covers 1-9 for every host (k3v1n's count);
+-- this machine runs twelve, so the top three live here.
+for ws, key in pairs({ [10] = "F5", [11] = "F6", [12] = "F7" }) do
+  hl.bind("SUPER + " .. key,           hl.dsp.focus({ workspace = ws }))
+  hl.bind("SUPER + SHIFT + " .. key,   hl.dsp.window.move({ workspace = ws, follow = false }))
+end
+
 hl.bind("XF86MonBrightnessUp",   hl.dsp.exec_cmd(apps.rog_brightness_up),   { locked = true, repeating = true })
 hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd(apps.rog_brightness_down), { locked = true, repeating = true })
+
+-- Apps only this machine has (moved out of lua/binds.lua, where they were
+-- dead keys on the other two hosts).
+hl.bind("SUPER + SHIFT + D", hl.dsp.exec_cmd("discord --enable-features=UseOzonePlatform,WaylandWindowDecorations --ozone-platform=wayland")) -- Discord
+hl.bind("SUPER + SHIFT + A", hl.dsp.exec_cmd("/home/ali/Games/audiorelay-0.27.5/bin/AudioRelay")) -- AudioRelay
 -- No XF86KbdBrightnessUp/Down binds here on purpose. This laptop's keyboard
 -- backlight key never reaches the compositor: no input device declares
 -- KEY_KBDILLUMUP at all (the Asus WMI hotkeys device exposes volume, mic-mute

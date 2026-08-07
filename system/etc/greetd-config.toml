@@ -1,0 +1,28 @@
+# greetd — installed to /etc/greetd/config.toml by scripts/greeter.sh.
+#
+# This is the file that actually starts the desktop. Without it greetd runs its
+# bundled `agreety` text login and nothing ever launches Hyprland, which is an
+# easy thing to miss when reproducing the session on a new machine: every other
+# piece of the desktop is tracked in this repo, and this one lived only in /etc.
+#
+# `-r` / `--remember-session` is what makes tuigreet re-launch the last session
+# you picked. That matters for the GPU environment: the remembered entry runs
+# through uwsm, and ~/.config/uwsm/env is where the mode-aware GPU setup lives.
+
+[terminal]
+# The VT to run the greeter on. Can be "next", "current" or a number
+# designating the VT.
+vt = 1
+
+# The default session, also known as the greeter.
+[default_session]
+# uwsm-managed launch, matching the deployed file: bare `Hyprland` here would
+# skip ~/.config/uwsm/env (the mode-aware GPU setup the header describes) and
+# the systemd-managed session — and greeter.sh overwrites deployed-from-repo
+# on any diff, so this line regressing is a provision away.
+command = "tuigreet -r --remember-session --asterisks --cmd 'uwsm start -e -D Hyprland hyprland.desktop'"
+
+# The user to run the command as. The privileges this user must have depends
+# on the greeter. A graphical greeter may for example require the user to be
+# in the `video` group.
+user = "greeter"

@@ -3,11 +3,16 @@
 
 local M = {}
 
--- Wallpaper (used by hyprpaper.conf, not Hyprland itself).
-M.bg = os.getenv("HOME") .. "/.wallpaper/forest.jpg"
+-- (No wallpaper entry: hyprpaper reads its own conf from ~/.wallpapers/, and
+-- the old M.bg here pointed at a path that didn't exist, with no consumer.)
 
--- Terminals.
-M.term                 = "kitty"
+-- Terminals. Ghostty since 2026-08-07: kitty's Wayland backend has no
+-- wl_touch support at all, so a touchscreen did nothing in it (and there is
+-- no setting for that — see notes/k3v1n.md). Ghostty is GTK4 and gets touch
+-- from the compositor. `--class=` works the same as kitty's for the
+-- scratchpad shells (verified live), and the classes are unchanged, so the
+-- window rules and Toshy's terminal detection carry over untouched.
+M.term                 = "ghostty"
 M.term_float           = M.term .. " --class=com.ali.floating_shell"
 M.term_float_portrait  = M.term .. " --class=com.ali.floating_shell_portrait"
 

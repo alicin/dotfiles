@@ -36,21 +36,23 @@ Singleton {
     // Bookkeeping without the launch, for the paths that start an app some
     // other way (a desktop entry's own action — "New Private Window" — is
     // still that app being used).
+    // Launches recorded but not yet merged into the persisted store. A plain
+    // JS object on purpose: reading a JsonAdapter `var` property hands back a
+    // COPY across the C++ boundary, so the old "mutate usage.apps in place"
+    // pattern wrote into a temporary and the store stayed `{}` forever — the
+    // launcher looked alphabetical because every frecency was 0. Staging here
+    // and REASSIGNING at flush both persists and keeps the original design
+    // goal: no re-sort while the panel is still fading out.
+    property var pendingUsage: ({})
+
     function record(entry: DesktopEntry): void {
-        // In place, without notifying: reassigning `apps` re-sorts the
-        // empty-query list (and resets the selection) while the panel is
-        // still fading out — the launcher calls flushUsage() once hidden.
-        // Bookkeeping is skipped until the store has loaded; recording into
-        // the default empty map would overwrite the history on the next
-        // write.
-        if (!usageFile.ready)
+        if (!entry)
             return;
-        const apps = usage.apps;
-        const cur = apps[entry.id] ?? {
+        const cur = root.pendingUsage[entry.id] ?? usage.apps[entry.id] ?? {
             n: 0,
             last: 0
         };
-        apps[entry.id] = {
+        root.pendingUsage[entry.id] = {
             n: cur.n + 1,
             last: Date.now()
         };
@@ -70,8 +72,14 @@ Singleton {
     }
 
     // Re-sorts every consumer and persists (adapterUpdated → writeAdapter).
+    // The ready-gate lives HERE, not in record(): a launch made before the
+    // store loads now waits in pendingUsage instead of being dropped, and
+    // merging into the loaded map can never clobber history with defaults.
     function flushUsage(): void {
-        usage.appsChanged();
+        if (!usageFile.ready || Object.keys(root.pendingUsage).length === 0)
+            return;
+        usage.apps = Object.assign({}, usage.apps, root.pendingUsage);
+        root.pendingUsage = {};
     }
 
     FileView {
@@ -154,6 +162,11 @@ Singleton {
         }
 
         const name = argv0.slice(argv0.lastIndexOf("/") + 1);
+        // Bounded: this grew for the whole session, and a recycled pid then
+        // served the previous process's name for icon lookup. A wholesale
+        // reset is fine — it is a cache over /proc, one read rebuilds it.
+        if (Object.keys(root.exeByPid).length > 256)
+            root.exeByPid = {};
         root.exeByPid[pid] = name;
         return name;
     }

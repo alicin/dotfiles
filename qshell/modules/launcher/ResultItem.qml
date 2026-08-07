@@ -52,8 +52,16 @@ Item {
         // only calibrates, so the panel rising through a parked cursor can't
         // steal the selection either.
         function hoverSelect(): void {
+            // Touch has no hover: the synthesized events are a finger
+            // scrolling the list, and following them yanked the selection to
+            // whatever row the finger crossed. A tap still activates its own
+            // row via onClicked, and OSK Enter uses the keyboard selection —
+            // neither needs hover. The dragging/moving guard covers a finger
+            // scroll on a docked (pointer-mode) touchscreen the same way.
+            if (Appearance.touch)
+                return;
             const view = root.ListView.view;
-            if (!view)
+            if (!view || view.dragging || view.moving)
                 return;
             const p = mapToItem(null, mouseX, mouseY);
             const first = view.lastHoverPos.x < -1e8;
@@ -163,6 +171,12 @@ Item {
     // What Enter will do, for the rows where that isn't obvious ("Copy" on an
     // emoji, "⇧⏎ terminal" on a command line). Sized before the label so the
     // text elides against it instead of running underneath.
+    // Theme rows derive "Active" HERE, reactively, instead of carrying it in
+    // the row object: baked-in active-ness changed two rows' identity on
+    // every pick, and the model churn threw the selection to the bottom of
+    // the picker (see Search.themeRows).
+    readonly property string liveBadge: root.modelData.kind === "theme" && root.modelData.swatch === Settings.theme ? "Active" : (root.modelData.badge ?? "")
+
     StyledText {
         id: badge
 
@@ -170,7 +184,7 @@ Item {
         anchors.rightMargin: Appearance.s(14)
         anchors.verticalCenter: parent.verticalCenter
         visible: text !== ""
-        text: root.arming ? "Enter again" : (root.modelData.badge ?? "")
+        text: root.arming ? "Enter again" : root.liveBadge
         color: root.arming ? Theme.urgent : Theme.surfaceFgDim
         font.pixelSize: Appearance.font.size.small
         font.weight: root.arming ? Font.Bold : Font.Normal

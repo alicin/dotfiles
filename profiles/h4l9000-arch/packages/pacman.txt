@@ -114,7 +114,7 @@ iwd
 jolt
 jq
 kdeconnect
-kitty
+ghostty
 lazygit
 lhasa
 lib32-giflib

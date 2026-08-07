@@ -3,10 +3,11 @@
 -- any dispatch, so we no longer need duplicate `, submap, reset` lines.
 
 local apps = require("lua.apps")
-local mod  = "SUPER"
 
-hl.bind(mod .. " + SHIFT + E", hl.dsp.submap("power"),
-  { description = "Enter power submap: (l)ock (e)xit (r)eset (p)oweroff (s)uspend" })
+-- The entry bind (Super+Shift+E) lives in lua/binds.lua with a trailing
+-- label, so the Super+/ cheatsheet — which only parses that file — can see
+-- the one submap whose wrong guess is a reboot. Same move the control submap
+-- made; only the submap definition stays here.
 
 hl.define_submap("power", "reset", function()
   hl.bind("l", hl.dsp.exec_cmd(apps.locking))

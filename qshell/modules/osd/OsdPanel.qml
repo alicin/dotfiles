@@ -23,7 +23,14 @@ import qs.services
 Scope {
     id: root
 
-    readonly property bool shown: Osd.kind !== ""
+    // What the pill is drawing right now: a transient value wins for its
+    // 1.5s, then the sustained submap legend (if any) takes the spot back.
+    // Deriving this here — instead of stuffing "submap" into Osd.kind — is
+    // what stopped the volume/submap flicker: Pipewire bursts and submap
+    // events no longer overwrite each other's state.
+    readonly property string showing: Osd.kind !== "" ? Osd.kind : (Osd.submap !== "" ? "submap" : "")
+
+    readonly property bool shown: root.showing !== ""
 
     // Pinned per showing — the pill used to jump screens mid-fade when the
     // cursor crossed monitors. By NAME: a ShellScreen object dies with its
@@ -36,43 +43,43 @@ Scope {
     }
 
     readonly property string mode: {
-        if (Osd.kind === "kbd")
+        if (root.showing === "kbd")
             return "steps";
-        if (Osd.kind === "mic" || Osd.kind === "power" || Osd.kind === "countdown" || Osd.kind === "submap")
+        if (root.showing === "mic" || root.showing === "power" || root.showing === "countdown" || root.showing === "submap")
             return "label";
         return "bar";
     }
 
-    readonly property bool muted: (Osd.kind === "volume" && Audio.muted) || (Osd.kind === "mic" && Audio.micMuted)
+    readonly property bool muted: (root.showing === "volume" && Audio.muted) || (root.showing === "mic" && Audio.micMuted)
 
-    readonly property real value: Osd.kind === "brightness" ? Brightness.display : Audio.volume
+    readonly property real value: root.showing === "brightness" ? Brightness.display : Audio.volume
 
     // Which sink the volume is actually driving — with BT headphones and
     // speakers both present, a bare bar doesn't say what just changed.
-    readonly property string device: Osd.kind === "volume" ? (Audio.sink?.description ?? "") : ""
+    readonly property string device: root.showing === "volume" ? (Audio.sink?.description ?? "") : ""
 
     readonly property string label: {
-        if (Osd.kind === "mic")
+        if (root.showing === "mic")
             return Audio.micMuted ? "Microphone muted" : "Microphone on";
-        if (Osd.kind === "countdown")
+        if (root.showing === "countdown")
             return `Screenshot in ${Capture.countdown}…`;
-        if (Osd.kind === "submap")
+        if (root.showing === "submap")
             return Osd.submapLabel;
         return Power.label(Power.profile);
     }
 
     readonly property string glyph: {
-        if (Osd.kind === "brightness")
+        if (root.showing === "brightness")
             return Brightness.display < 0.4 ? "sun_min_fill" : "sun_max_fill";
-        if (Osd.kind === "kbd")
+        if (root.showing === "kbd")
             return "keyboard";
-        if (Osd.kind === "mic")
+        if (root.showing === "mic")
             return Audio.micMuted ? "mic_slash_fill" : "mic_fill";
-        if (Osd.kind === "power")
+        if (root.showing === "power")
             return Power.glyph(Power.profile);
-        if (Osd.kind === "countdown")
+        if (root.showing === "countdown")
             return "timer_fill";
-        if (Osd.kind === "submap")
+        if (root.showing === "submap")
             return "keyboard";
         if (Audio.muted)
             return "speaker_slash_fill";
@@ -97,6 +104,13 @@ Scope {
 
         anchors {
             bottom: true
+        }
+
+        // Above the on-screen keyboard rather than behind it: a volume pill
+        // drawn under the space bar is a pill nobody sees. Same reasoning as
+        // the launcher and the clipboard picker — see ClipboardHistory.qml.
+        margins {
+            bottom: Osk.active && Osk.reservedScreen === (win.screen?.name ?? "") ? Osk.reservedPx : 0
         }
 
         exclusionMode: ExclusionMode.Ignore

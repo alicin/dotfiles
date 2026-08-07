@@ -119,9 +119,34 @@ wl-clipboard
 cliphist
 grim
 slurp
+swappy
 wf-recorder
 brightnessctl
 ddcutil
+# ── Tablet mode ──
+# wtype drives zwp_virtual_keyboard_v1, so qshell's on-screen keyboard types
+# straight into the compositor. Deliberately not ydotool: that injects through
+# uinput, which lands *upstream* of Toshy (xwaykeyz) and would come back out
+# remapped -- the OSK would type macOS shortcuts at itself.
+wtype
+# Runtime screen rotation. `hyprctl keyword` is refused under the Lua config
+# parser ("keyword can't work with non-legacy parsers"), but Hyprland does
+# implement zwlr_output_management_v1, so this is the way to turn the panel.
+wlr-randr
+# Reads the hinge/dock switch and (on hardware that has one) the accelerometer.
+# k3v1n has SW_TABLET_MODE and an ambient light sensor but no accelerometer, so
+# this supplies the first and stays quiet about the second.
+iio-sensor-proxy
+# bin/osk-focus-watch binds as the seat's zwp_input_method_v2 to learn when a
+# text field is focused -- the only source for that fact, since Hyprland's IPC
+# has no IME event and Quickshell has no input-method API. The protocol XML is
+# vendored (system/wayland-protocols/), because no Arch package ships
+# input-method-unstable-v2.xml; this is what scans it into bindings.
+python-pywayland
+# scripts/theme-sync.sh flips GTK3 apps between adw-gtk3 and adw-gtk3-dark to
+# follow the qshell theme (GTK4/Chrome follow the portal color-scheme, GTK3
+# needs an actual theme swap).
+adw-gtk-theme
 # No dunst: qshell IS the notification daemon (see config/systemd/user/qshell.service).
 # dunst ships a D-Bus activation file (org.knopwob.dunst.service), so merely having
 # it installed let it get activated and claim org.freedesktop.Notifications before
@@ -190,7 +215,7 @@ gst-plugin-pipewire
 ffmpegthumbnailer
 
 # ── Terminal / shell ────────────────────────────────────────────────────────
-kitty
+ghostty
 zsh
 starship
 atuin

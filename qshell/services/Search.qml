@@ -256,6 +256,14 @@ Singleton {
                 const score = Math.max(byApp, Apps.scoreText(`${entry.name} ${a.name}`, q), Apps.scoreText(a.name, q));
                 if (score <= 0)
                     continue;
+                // Captured by VALUE for run(): the DesktopEntry and
+                // DesktopAction QObjects die whenever Quickshell rebuilds
+                // DesktopEntries (any package install/remove), and executing
+                // a dead capture was a silent no-op Enter — the exact bug the
+                // app rows' re-resolve-by-id fix was written for, applied
+                // here half a review later.
+                const id = entry.id;
+                const actName = a.name;
                 scored.push({
                     score,
                     row: root.cached(`x|${entry.id}|${a.name}`, () => ({
@@ -265,10 +273,14 @@ Singleton {
                             icon: (entry.icon && Quickshell.iconPath(entry.icon, true)) || "",
                             badge: "Action",
                             run: () => {
+                                const live = Apps.entryFor(id);
+                                const act = live?.actions?.find(x => x.name === actName) ?? null;
+                                if (!live || !act)
+                                    return;
                                 // Frecency is per app, and running one of its
                                 // actions is still using the app.
-                                Apps.record(entry);
-                                a.execute();
+                                Apps.record(live);
+                                act.execute();
                             }
                         }))
                 });
@@ -364,17 +376,20 @@ read _`])
     function themeRows(q: string): var {
         const rows = Theme.available.map(name => {
             const t = Theme.themes[name];
-            const on = name === Settings.theme;
-            // `on` is in the cache key: the badge moves when the theme does,
-            // and a row memoised without it would keep the stale "Active".
-            return root.cached(`t|${name}|${on}`, () => ({
+            // The active badge is NOT part of the row (ResultItem derives it
+            // from `swatch === Settings.theme` reactively). It used to be
+            // baked in with the active-ness in the cache key — so every pick
+            // replaced two row objects, ScriptModel (which diffs by identity)
+            // removed the very item the selection sat on, and the ListView
+            // dropped the selection to the bottom. Stable rows = a pick
+            // changes nothing in the model = the selection stays put.
+            return root.cached(`t|${name}`, () => ({
                     kind: "theme",
                     name: Theme.label(name),
                     // The raw key, so `#rose` and `#mocha` both find things —
                     // and so the value settings.json wants is on screen.
                     sub: `${t.light ? "Light" : "Dark"}  ·  ${name}`,
                     swatch: name,
-                    badge: on ? "Active" : "",
                     // The panel is the preview: it restyles the moment the
                     // setting lands, so the picker stays up to be compared
                     // against rather than closing on every try.

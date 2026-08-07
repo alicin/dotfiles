@@ -1,16 +1,9 @@
--- Default cross-host workspace assignments.
--- Per-host monitor + workspace overrides live in lua/hosts/<hostname>.lua.
-
-local desktop_monitor = "desc:XXX XYZTIUM 0x950114D8"
-local laptop_monitor  = "desc:Samsung Display Corp. ATNA60DL01-0"
-
-hl.workspace_rule({ workspace = "1", monitor = desktop_monitor, default = true, persistent = true })
-hl.workspace_rule({ workspace = "2", monitor = desktop_monitor, persistent = true })
-hl.workspace_rule({ workspace = "3", monitor = desktop_monitor, persistent = true })
-hl.workspace_rule({ workspace = "4", monitor = desktop_monitor, persistent = true })
-hl.workspace_rule({ workspace = "5", monitor = desktop_monitor, persistent = true })
-
-hl.workspace_rule({ workspace = "9",  monitor = laptop_monitor, persistent = true })
-hl.workspace_rule({ workspace = "10", monitor = laptop_monitor, persistent = true })
-hl.workspace_rule({ workspace = "11", monitor = laptop_monitor, persistent = true })
-hl.workspace_rule({ workspace = "12", monitor = laptop_monitor, persistent = true })
+-- Workspace assignments are per-host — see lua/hosts/<hostname>.lua.
+--
+-- This file used to carry "default" rules for two placeholder monitors; every
+-- real host overrode the ones it used, and the leftovers actively misbehaved:
+-- on k3v1n, workspaces 10-12 came out pinned to h4l9000's OLED panel (a
+-- monitor that machine will never see), so they were never persistent and the
+-- e±1 cycle and overview treated them inconsistently. A default that no host
+-- uses and one host is hurt by is not a default; each host declares its own
+-- full set now (k3v1n 1-9, mcu 1-10, h4l9000 1-12).

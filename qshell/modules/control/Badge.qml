@@ -50,6 +50,16 @@ Item {
     }
 
     StateLayer {
+        // Bleed the hit area out to the touch floor: the disc is s(34) =
+        // 39-49px, and a miss landed on the ROW's StateLayer underneath —
+        // which navigates to the detail page instead of toggling the radio.
+        // hitSlop covers top/bottom (StateLayer's own mechanism); the side
+        // margins cover left/right. 0 with a pointer.
+        readonly property real bleed: root.toggles ? Math.max(0, (Appearance.touchTarget - root.size) / 2) : 0
+
+        anchors.leftMargin: -bleed
+        anchors.rightMargin: -bleed
+        hitSlop: bleed
         radius: width / 2
         color: root.active ? Theme.accentFg : Theme.surfaceFg
         enabled: root.toggles

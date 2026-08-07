@@ -3,6 +3,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Hyprland
 
 // Monitors, for the Control Center's Display page. The layout presets and the
 // eDP toggle have been keybind-only (Super+Ctrl+M/E/L, and a bare
@@ -16,11 +17,20 @@ import Quickshell.Io
 Singleton {
     id: root
 
-    // [{ name, description, width, height, refresh, scale, x, y, focused, disabled }]
+    // [{ name, description, width, height, refresh, scale, x, y, transform, focused, disabled }]
     property var monitors: []
     property bool polling: false
 
     readonly property var active: root.monitors.filter(m => !m.disabled)
+
+    // The monitor the tablet's rotation controls act on: the focused one, or
+    // the built-in panel, or whatever is left. Rotating an external desk
+    // monitor because it happened to be focused is never what the button on a
+    // tablet's bar means.
+    readonly property var rotatable: {
+        const act = root.active;
+        return act.find(m => /^eDP/i.test(m.name)) ?? act.find(m => m.focused) ?? act[0] ?? null;
+    }
 
     readonly property string summary: {
         const n = root.active.length;
@@ -37,10 +47,13 @@ Singleton {
         lister.running = true;
     }
 
-    // The three layouts the Super+Ctrl binds have always applied, by their own
-    // names, so the page and the keybinds can't drift apart.
-    function applyLayout(which: string): void {
-        Quickshell.execDetached(["sh", "-c", `'${root.binDir}/hypr-monitor-manager.sh' "$1"`, "qshell-displays", which]);
+    // Workspace-to-monitor layout is declarative now: per-host workspace
+    // rules recompute from what's connected on every config reload, and the
+    // host files' monitor.added/removed hooks reload automatically. This is
+    // the manual nudge (Display page button, Super+Ctrl+M) for a missed
+    // hotplug event — hypr-monitor-manager.sh is gone.
+    function applyLayout(): void {
+        Quickshell.execDetached(["hyprctl", "reload"]);
         settle.restart();
     }
 
@@ -54,18 +67,89 @@ Singleton {
     // config/hypr/lua/hosts/*.lua (this laptop's panel is 2560x1600@240 at
     // 1.33, and a portrait external would come back landscape). A reload drops
     // the runtime disable rule *and* re-applies the canonical layout.
+    //
+    // Switching off used to be `hyprctl keyword monitor <name>,disable`, which
+    // has never worked on this setup and failed silently: the config is the Lua
+    // parser (config/hypr/hyprland.lua), and `hyprctl keyword` answers
+    // "keyword can't work with non-legacy parsers. Use eval." to everything.
+    // wlr-randr goes through zwlr_output_management_v1, which Hyprland does
+    // implement, and works regardless of which parser built the config.
     function setEnabled(m: var, on: bool): void {
         if (!on && root.active.length <= 1)
             return;
         if (on)
             Quickshell.execDetached(["hyprctl", "reload"]);
         else
-            Quickshell.execDetached(["hyprctl", "keyword", "monitor", `${m.name},disable`]);
+            Quickshell.execDetached(["wlr-randr", "--output", m.name, "--off"]);
         settle.restart();
     }
 
+    // ── Rotation ────────────────────────────────────────────────────────────
+    // wl_output transform values, in the order the enum defines them, spelled
+    // the way wlr-randr wants them on the command line. Hyprland reports the
+    // same enum as an integer in `hyprctl -j monitors`, so the index into this
+    // list *is* the monitor's current transform.
+    readonly property list<string> transformNames: ["normal", "90", "180", "270", "flipped", "flipped-90", "flipped-180", "flipped-270"]
+
+    readonly property list<string> rotationLabels: ["Landscape", "Portrait", "Landscape ↓", "Portrait ↓"]
+
+    function setTransform(name: string, t: int): void {
+        const arg = root.transformNames[t] ?? "normal";
+        Quickshell.execDetached(["wlr-randr", "--output", name, "--transform", arg]);
+        // Rotate touch + stylus with the picture (see the note above
+        // resetRotation — the compositor does NOT do this on its own). Two
+        // gates: the built-in panel only (the digitiser is bound to eDP-1 via
+        // input:touchdevice:output, and rotating an external must not skew
+        // it), and a touchscreen must actually exist — h4l9000's panel is
+        // ALSO eDP-1, and writing global touch/tablet matrices there would
+        // sit in ambush for any drawing tablet ever plugged in. transform 7
+        // (flipped-270) is outside the option's 0-6 range; the rotate button
+        // never produces it.
+        if (/^eDP/i.test(name) && Tablet.hasTouchscreen && t <= 6)
+            Quickshell.execDetached(["hyprctl", "-r", "eval", `hl.config({ input = { touchdevice = { transform = ${t} }, tablet = { transform = ${t} } } })`]);
+        // Optimistically write the new transform into the cached list. A
+        // transform change emits no Hyprland event, so the cache is otherwise
+        // stale until the settle re-read ~900ms out — and rotate() derives the
+        // *next* quarter-turn from this cache, which made two quick taps (the
+        // natural gesture for a 180° flip) compute the same target and land at
+        // 90°. The settle pass reconciles if wlr-randr failed.
+        root.monitors = root.monitors.map(m => m.name === name ? Object.assign({}, m, {
+                    transform: t
+                }) : m);
+        settle.restart();
+    }
+
+    // Quarter turn. Only ever cycles the four unflipped transforms: the
+    // flipped ones mirror the image, which is a fix for a mispackaged panel and
+    // not something a rotate button should ever hand you by accident.
+    function rotate(step: int): void {
+        const m = root.rotatable;
+        if (!m)
+            return;
+        root.setTransform(m.name, (((m.transform % 4) + step) % 4 + 4) % 4);
+    }
+
+    // Touch does NOT follow the output transform on its own — an earlier
+    // comment here claimed it did, and it was wrong. Hyprland 0.56 maps
+    // normalized touch coords linearly onto the bound output's logical box
+    // (src/managers/input/Touch.cpp); `input:touchdevice:output` picks WHICH
+    // box, never rotates. The only rotation hook is the libinput calibration
+    // matrix from input:touchdevice:transform / input:tablet:transform, so
+    // setTransform() writes those alongside wlr-randr via `hyprctl -r eval`
+    // (a runtime hl.config write trips REFRESH_INPUT_DEVICES, re-applying the
+    // matrices live — verified in the 0.56.2 source; plain `hyprctl keyword`
+    // is refused under the Lua parser). That covers taps (the
+    // qshell-touch-screen clone is a touch device) and the stylus. The
+    // 3/4-finger gesture pads are POINTER devices with no calibration path —
+    // bin/touch-gestures counter-rotates those itself by watching wl_output.
+    function resetRotation(): void {
+        const m = root.rotatable;
+        if (m)
+            root.setTransform(m.name, 0);
+    }
+
     function toggleEdp(): void {
-        Quickshell.execDetached(["sh", "-c", `'${root.binDir}/toggle-edp.sh'`]);
+        Quickshell.execDetached([`${root.binDir}/toggle-edp.sh`]);
         settle.restart();
     }
 
@@ -91,7 +175,7 @@ Singleton {
     }
 
     // Only while the page is open: this shells out, and nothing else in the
-    // shell needs a live monitor list.
+    // shell needs a live monitor list *continuously*.
     Timer {
         running: root.polling
         interval: 3000
@@ -100,12 +184,87 @@ Singleton {
         onTriggered: root.refresh()
     }
 
+    // …but the list can no longer be empty until someone opens the page: the
+    // tablet's rotate button reads the current transform out of it to work out
+    // which quarter turn is next, and a bar button that does nothing until you
+    // have visited a settings page is a broken bar button. One read at startup
+    // plus one per compositor-level change keeps it current for free.
+    Component.onCompleted: root.refresh()
+
+    Connections {
+        target: Hyprland
+
+        function onRawEvent(event: HyprlandEvent): void {
+            if (["monitoradded", "monitorremoved", "configreloaded"].includes(event.name))
+                root.refresh();
+        }
+    }
+
+    // A transform change emits NO Hyprland event, so a rotation performed
+    // outside qshell (bare wlr-randr, a script) left the cache stale: the
+    // rotate button's first tap computed from the old transform and no-op'd.
+    // A quarter-turn does change the logical geometry, which the Wayland-side
+    // screen objects report — watch that. Residual: 180°/flipped transforms
+    // change no geometry and stay invisible; settle self-heals those after
+    // one tap.
+    Instantiator {
+        model: Quickshell.screens
+
+        Connections {
+            required property var modelData
+
+            target: modelData
+
+            function onWidthChanged(): void {
+                root.refresh();
+            }
+
+            function onHeightChanged(): void {
+                root.refresh();
+            }
+        }
+    }
+
+    // `qs -c qshell ipc call display rotate` — the tablet's rotation keybind.
+    // Worth having as a key as well as a bar button: the bar button is a 26px
+    // target that has just moved to a different edge of a screen you are
+    // holding sideways, and if a rotation goes wrong that is the control you
+    // most need to hit.
+    IpcHandler {
+        target: "display"
+
+        function rotate(): string {
+            root.rotate(1);
+            return root.rotatable?.name ?? "no output";
+        }
+
+        function reset(): string {
+            root.resetRotation();
+            return root.rotatable?.name ?? "no output";
+        }
+
+        function transform(t: string): string {
+            const n = parseInt(t, 10);
+            const m = root.rotatable;
+            if (!m || isNaN(n) || n < 0 || n > 7)
+                return "usage: transform 0-7";
+            root.setTransform(m.name, n);
+            return `${m.name} → ${root.transformNames[n]}`;
+        }
+
+        function layout(): string {
+            root.applyLayout();
+            return "reload";
+        }
+    }
+
     Process {
         id: lister
 
         // `monitors all` includes outputs that exist but are disabled — the
-        // plain form hides exactly the ones this page is for.
-        command: ["sh", "-c", "hyprctl -j monitors all"]
+        // plain form hides exactly the ones this page is for. Plain argv:
+        // there is nothing here for a shell to expand.
+        command: ["hyprctl", "-j", "monitors", "all"]
 
         stdout: StdioCollector {
             onStreamFinished: {
@@ -124,6 +283,7 @@ Singleton {
                             scale: m.scale ?? 1,
                             x: m.x ?? 0,
                             y: m.y ?? 0,
+                            transform: m.transform ?? 0,
                             focused: m.focused ?? false,
                             disabled: m.disabled ?? false
                         }));

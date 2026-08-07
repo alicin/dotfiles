@@ -46,6 +46,11 @@ Item {
 
     MouseArea {
         anchors.fill: parent
+        // The visual is 38x21 base units — a ~30px strip in touch mode, well
+        // under the 48px tap floor, on toggles that matter most while the
+        // machine IS a tablet (edge swipes, rotation lock, output power).
+        // Bleed the hit area out to the floor; the visuals stay put.
+        anchors.margins: -Math.max(0, (Appearance.touchTarget - Math.min(root.width, root.height)) / 2)
         cursorShape: Qt.PointingHandCursor
         onClicked: root.toggled(!root.checked)
     }

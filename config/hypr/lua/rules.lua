@@ -13,7 +13,6 @@ local float_classes = {
   "^(com.usebottles.bottles)$",
   "^(com-azefsw-audioconnect-desktop-app-MainKt)$",
   "^(steam)$",
-  "^(eww)$",
   "^(pavucontrol)$",
   "^(nm-connection-editor)$",
   "^(blueberry.py)$",
@@ -24,15 +23,12 @@ local float_classes = {
   "^(xdg-desktop-portal)$",
   "^(xdg-desktop-portal-gnome)$",
   "^(transmission-gtk)$",
-  "^(ags)$",
-  "^(CurseForge)$",
   "^(VirtualBox Manager)$",
   "^(org.corectrl.corectrl)$",
   "^(blueman-manager)$",
   "^(hyprland-share-picker)$",
   "^(mpv)$",
   "^(ascension launcher.exe)$",
-  "^(net.lutris.Lutris)$",
   "^(xdg-desktop-portal-gtk)$",
 }
 for _, cls in ipairs(float_classes) do
@@ -109,10 +105,8 @@ hl.window_rule({
 -- No shadow on any floating window (cuts shadow render cost).
 hl.window_rule({ match = { float = true }, no_shadow = true })
 
--- Looking Glass: let the client tear so its `egl:vsync=no` isn't negated by the
--- compositor's frame queue (lowest video latency for the passthrough VM).
--- Requires `general { allow_tearing = true }` in lua/options.lua.
-hl.window_rule({ match = { class = "^(looking-glass-client)$" }, immediate = true })
+-- Looking Glass moved to hosts/h4l9000.lua (the immediate rule, allow_tearing
+-- and debug.vfr travel together, and only that host runs the LG client).
 
 -- ── Layer rules ──────────────────────────────────────────────────────────────
 -- wofi: plain fade in/out, no scale/slide. The fade speed is set by the `fade`
@@ -141,7 +135,7 @@ local tiled_classes = {
   -- Code editors / IDEs.
   "^(code|code-oss|VSCodium|vscodium|cursor|Cursor)$",
   -- Terminals.
-  "^(kitty|Alacritty|alacritty|foot|foot-direct|footclient)$",
+  "^(com.mitchellh.ghostty|ghostty|kitty|Alacritty|alacritty|foot|foot-direct|footclient)$",
   "^(wezterm|org.wezfurlong.wezterm|WezTerm)$",
   "^(gnome-terminal|konsole|xterm|xterm-256color|tilix|Tilix)$",
 }

@@ -119,6 +119,17 @@ Scope {
         }
     }
 
+    // Swipe up from the bottom edge — the "home" gesture. A toggle, not an
+    // open: the same flick has to put it away again, because on a tablet it is
+    // also the only way out that doesn't involve finding Escape.
+    Connections {
+        target: Gestures
+
+        function onLauncherRequested(): void {
+            root.open = !root.open;
+        }
+    }
+
     IpcHandler {
         target: "launcher"
 
@@ -155,16 +166,39 @@ Scope {
 
         screen: Quickshell.screens.find(s => s.name === (root.pinned || Hyprland.focusedMonitor?.name)) ?? Quickshell.screens[0] ?? null
         color: "transparent"
-        implicitWidth: Appearance.sizes.launcherWidth + Appearance.s(40)
+        // The strip the on-screen keyboard reserves on this screen, if any.
+        // Shared by the bottom margin below and the height cap: the margin
+        // lifts the surface clear of the keyboard, and without the cap that
+        // lift pushed the surface's top past the screen edge — measured at
+        // y=-14 with the keyboard up, the first result row clipped away.
+        readonly property int oskLift: Osk.active && Osk.reservedScreen === (win.screen?.name ?? "") ? Osk.reservedPx : 0
+
+        // Clamped to the screen the way every height already is: portrait +
+        // touchScale ≥ ~1.3 made the panel wider than a 960-logical output,
+        // and a bottom-anchored layer surface wider than its output gets
+        // centred with BOTH edges cut. OsdPanel.maxWidth is the precedent.
+        readonly property int panelW: Math.min(Appearance.sizes.launcherWidth, (win.screen?.width ?? 1920) - Appearance.s(24))
+
+        implicitWidth: win.panelW + Appearance.s(40)
         // Derived from launcherMaxShown rather than a constant 700: the panel
         // is bottom-anchored inside this surface, so a taller list than the
         // surface allows gets its *top* clipped away — raising that documented
         // setting past 10 silently cut the first rows off. Still constant for
-        // any given setting, so the surface itself never resizes mid-use.
-        implicitHeight: Appearance.s(100) + Settings.launcherMaxShown * (Appearance.sizes.launcherItemHeight + Appearance.s(4))
+        // any given setting, so the surface itself never resizes mid-use —
+        // except when the keyboard appears, which is a resize you can see
+        // coming.
+        implicitHeight: Math.min(Appearance.s(100) + Settings.launcherMaxShown * (Appearance.sizes.launcherItemHeight + Appearance.s(4)), (win.screen?.height ?? 1080) - Appearance.sizes.barHeight - win.oskLift - Appearance.s(16))
 
         anchors {
             bottom: true
+        }
+
+        // Above the on-screen keyboard, which is the whole point of having one:
+        // the launcher is the panel you most need to type into on a tablet, and
+        // it springs up from the same bottom edge. See ClipboardHistory.qml for
+        // why the compositor doesn't do this for us.
+        margins {
+            bottom: win.oskLift
         }
 
         exclusionMode: ExclusionMode.Ignore
@@ -182,7 +216,10 @@ Scope {
 
         HyprlandFocusGrab {
             active: root.open
-            windows: [win]
+            // The OSK is in the whitelist because a grab treats any tap
+            // outside it as "dismiss" — without this, the first key typed on
+            // the on-screen keyboard closed the launcher it was typing into.
+            windows: Osk.panelWindow ? [win, Osk.panelWindow] : [win]
             onCleared: root.open = false
         }
 
@@ -213,7 +250,7 @@ Scope {
             y: win.height - (height + Appearance.s(14)) * (1 - offsetScale)
             anchors.horizontalCenter: parent.horizontalCenter
 
-            width: Appearance.sizes.launcherWidth
+            width: win.panelW
             height: pad + listArea.height + Appearance.s(8) + searchBg.height + pad
             radius: Appearance.sizes.launcherRadius
             color: Theme.surfaceBg
@@ -463,7 +500,9 @@ Scope {
                     anchors.right: parent.right
                     anchors.rightMargin: Appearance.s(8)
                     anchors.verticalCenter: parent.verticalCenter
-                    width: Appearance.s(30)
+                    // Touch floor: at s(30) this was a 35-43px target on the
+                    // panel a finger uses most. 0 outside touch mode.
+                    width: Math.max(Appearance.s(30), Appearance.touchTarget)
                     height: width
 
                     StateLayer {

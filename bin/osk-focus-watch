@@ -1,0 +1,253 @@
+#!/usr/bin/env python3
+"""Report text-input focus on stdout, one JSON object per line.
+
+    {"available": true, "focus": true, "purpose": "terminal"}
+
+This is what lets the on-screen keyboard behave like a tablet's: down until you
+tap into something you can type in, then up. qshell's services/Osk.qml runs it
+and reads it with a SplitParser, the same shape as bin/tablet-sensors.
+
+── Why this has to be a separate process ──
+There is no other way to learn it. Hyprland's IPC has no event for text-input
+focus (checked: activewindow, windowtitle, submap, … and nothing IME-shaped),
+and Quickshell exposes no input-method API. The only source is the Wayland
+protocol itself: applications talk zwp_text_input_v3, the compositor relays to
+whoever holds zwp_input_method_v2, and holding that is a Wayland client
+connection -- which a QML shell cannot open on the side.
+
+So this binds as the seat's input method and listens. It deliberately does
+*not*:
+
+  • grab the keyboard (zwp_input_method_keyboard_grab_v2) -- that would route
+    physical keystrokes through here and out again, which is exactly the
+    remapping mess that keeping the OSK on wtype avoids;
+  • commit any text, preedit or otherwise. It is a listener wearing an input
+    method's hat, and every text-changing request stays unsent.
+
+── Consequence to know about ──
+A seat has room for one input method. While this runs, a real IME (fcitx5,
+ibus) cannot bind, and if one is already bound we get `unavailable` instead --
+in which case this reports that and exits rather than fighting over it. qshell
+falls back to raising the keyboard for the whole undocked session.
+
+The protocol is not shipped by any Arch package, so the XML is vendored at
+system/wayland-protocols/input-method-unstable-v2.xml and scanned into Python
+bindings on first run (cached; regenerated when the XML changes).
+"""
+
+import json
+import os
+import select
+import sys
+import time
+import xml.etree.ElementTree as ET
+
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+XML = os.path.join(REPO, "system", "wayland-protocols", "input-method-unstable-v2.xml")
+
+CACHE = os.path.join(
+    os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"),
+    "qshell",
+    "pywl",
+)
+
+# zwp_text_input_v3.content_purpose. Only reported, not yet acted on -- but it
+# is the difference between a keyboard that opens on letters and one that opens
+# on digits for a PIN field, and it costs nothing to carry.
+PURPOSES = [
+    "normal", "alpha", "digits", "number", "phone", "url", "email",
+    "name", "password", "pin", "date", "time", "datetime", "terminal",
+]
+
+
+def ensure_bindings():
+    """Scan the vendored XML into importable modules, if that hasn't been done.
+
+    The generated code does `from ..wayland import WlSeat`, so it has to live
+    inside a package that has a `wayland` sibling. That sibling is a re-export
+    rather than a second copy: importing pywayland's classes again under a new
+    name would hand the registry two distinct objects for one interface.
+    """
+    stamp = os.path.join(CACHE, ".stamp")
+    try:
+        if os.path.getmtime(stamp) >= os.path.getmtime(XML):
+            return
+    except OSError:
+        pass
+
+    from pywayland.scanner import Protocol
+
+    root = ET.parse(XML).getroot()
+    name = root.get("name")
+    imports = {i.get("name"): name for i in root.findall("interface")}
+    imports.update({"wl_seat": "wayland", "wl_surface": "wayland", "wl_keyboard": "wayland"})
+
+    os.makedirs(CACHE, exist_ok=True)
+    Protocol.parse_file(XML).output(CACHE, imports)
+    with open(os.path.join(CACHE, "__init__.py"), "w"):
+        pass
+    with open(os.path.join(CACHE, "wayland.py"), "w") as fh:
+        fh.write("from pywayland.protocol.wayland import *  # noqa: F401,F403\n")
+    with open(stamp, "w") as fh:
+        fh.write(name or "")
+
+
+class Watcher:
+    """Double-buffered focus state.
+
+    activate/deactivate and content_type are pending changes; `done` is what
+    applies them. Reading activate directly would report focus that the
+    compositor has not committed yet -- and in practice a single focus change
+    produces several of these in a row, so acting on each one would raise and
+    drop the keyboard two or three times per tap.
+    """
+
+    def __init__(self, emit):
+        self.emit = emit
+        self.pending_focus = False
+        self.pending_purpose = 0
+        self.focus = None
+        self.purpose = None
+
+    def activate(self, _obj):
+        self.pending_focus = True
+        # The protocol says activate "resets all state associated with
+        # previous surrounding_text, text_change_cause, and content_type
+        # events", and content_type is only re-sent by clients that support
+        # it. Without this reset, a field that never sends one inherited the
+        # previous field's purpose — tab out of a password box into a plain
+        # entry and the keyboard would still believe it was typing a password.
+        self.pending_purpose = 0
+
+    def deactivate(self, _obj):
+        self.pending_focus = False
+
+    def content_type(self, _obj, _hint, purpose):
+        self.pending_purpose = purpose
+
+    def done(self, _obj):
+        purpose = PURPOSES[self.pending_purpose] if 0 <= self.pending_purpose < len(PURPOSES) else "normal"
+        if self.pending_focus == self.focus and purpose == self.purpose:
+            return
+        self.focus = self.pending_focus
+        self.purpose = purpose
+        self.emit({"available": True, "focus": self.focus, "purpose": purpose})
+
+
+def emit(payload):
+    sys.stdout.write(json.dumps(payload) + "\n")
+    sys.stdout.flush()
+
+
+def run_once():
+    """One connection. Returns True if it is worth reconnecting."""
+    from pywayland.client import Display
+    from pywayland.protocol.wayland import WlSeat
+
+    sys.path.insert(0, os.path.dirname(CACHE))
+    from pywl.input_method_unstable_v2 import ZwpInputMethodManagerV2  # noqa: E402
+
+    found = {"manager": None, "seat": None}
+
+    def on_global(registry, id_, interface, version):
+        if interface == "zwp_input_method_manager_v2":
+            found["manager"] = registry.bind(id_, ZwpInputMethodManagerV2, 1)
+        elif interface == "wl_seat" and found["seat"] is None:
+            found["seat"] = registry.bind(id_, WlSeat, min(version, 7))
+
+    display = Display()
+    display.connect()
+    registry = display.get_registry()
+    registry.dispatcher["global"] = on_global
+    display.roundtrip()
+    display.roundtrip()
+
+    if found["manager"] is None or found["seat"] is None:
+        # `terminal` marks the give-ups worth latching on: the shell must not
+        # treat a retryable hiccup (which also emits available:false) as "an
+        # input method owns the seat forever".
+        emit({"available": False, "terminal": True, "reason": "compositor does not offer input-method-v2"})
+        display.disconnect()
+        return False
+
+    method = found["manager"].get_input_method(found["seat"])
+    watcher = Watcher(emit)
+    method.dispatcher["activate"] = watcher.activate
+    method.dispatcher["deactivate"] = watcher.deactivate
+    method.dispatcher["content_type"] = watcher.content_type
+    method.dispatcher["done"] = watcher.done
+
+    gone = {"flag": False}
+
+    def unavailable(_obj):
+        # Another input method owns the seat. Not an error and not something to
+        # retry into a loop -- say so once and let the shell fall back.
+        emit({"available": False, "terminal": True, "reason": "another input method holds the seat"})
+        gone["flag"] = True
+
+    method.dispatcher["unavailable"] = unavailable
+
+    display.roundtrip()
+    # One line up front so the reader starts from a known state rather than an
+    # assumption. The watcher is seeded to match it, or its first `done` would
+    # repeat this same line as though something had changed. Skipped when the
+    # roundtrip above already delivered REAL focus: a text-input-v1 client
+    # focused at bind time gets activate+done inside that roundtrip, and the
+    # unconditional seed used to clobber it — the OSK stayed down although the
+    # cursor sat in a field. (v3 fields have the opposite residual: Hyprland
+    # 0.56 never replays activate to a newly-bound IME for an already-focused
+    # field, so after a watcher restart it takes a tap out and back in.
+    # Unfixable from here.)
+    if watcher.focus is None:
+        emit({"available": True, "focus": False, "purpose": "normal"})
+        watcher.focus = False
+        watcher.purpose = "normal"
+
+    fd = display.get_fd()
+    while not gone["flag"]:
+        display.flush()
+        # select() first, then a *blocking* dispatch. This is the whole trick:
+        # Display.dispatch(block=False) only drains events already queued in
+        # memory -- it never reads the socket -- so a non-blocking loop sees
+        # perfect silence forever, including the events it is waiting for.
+        try:
+            ready, _, _ = select.select([fd], [], [], 0.5)
+        except (OSError, ValueError):
+            break
+        if not ready:
+            continue
+        try:
+            display.dispatch(block=True)
+        except Exception:
+            break
+
+    try:
+        display.disconnect()
+    except Exception:
+        pass
+    return not gone["flag"]
+
+
+def main():
+    try:
+        ensure_bindings()
+    except Exception as exc:
+        emit({"available": False, "terminal": True, "reason": f"cannot build protocol bindings: {exc}"})
+        return 1
+
+    # Reconnect if the compositor goes away (a Hyprland restart), but give up
+    # once an input method is known to be unavailable: retrying then would be a
+    # loop fighting fcitx5 for a slot it is not going to win.
+    while True:
+        try:
+            retry = run_once()
+        except Exception as exc:
+            emit({"available": False, "reason": str(exc)})
+            retry = True
+        if not retry:
+            return 0
+        time.sleep(2)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -80,8 +80,8 @@ def parse(path):
             continue
         if s.startswith("for ws, key in pairs(ws_keys)"):
             if cur is not None:
-                cur[1].append(("Super + 1…5 / F1…F7", "switch workspace 1–12"))
-                cur[1].append(("Super + Shift + 1…5 / F1…F7", "move window to workspace"))
+                cur[1].append(("Super + 1…5 / F1…F4", "switch workspace 1–9"))
+                cur[1].append(("Super + Shift + 1…5 / F1…F4", "move window to workspace"))
             while i < len(lines) and lines[i].strip() != "end":
                 i += 1
             i += 1

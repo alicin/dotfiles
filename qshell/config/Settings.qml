@@ -24,11 +24,28 @@ Singleton {
     // except during a drag and for one interval afterwards.
     property var staged: ({})
 
+    // True once settings.json has actually been read (or found missing and
+    // seeded). Consumers that must not act on the adapter DEFAULTS — like
+    // ThemeSync, which treats default→saved as a real theme change and
+    // re-themed four programs on every login — gate on this.
+    property bool ready: false
+
+    // One settings.json is shared by three machines whose compositors define
+    // different workspace counts (k3v1n 9, mcu 10, h4l9000 12), so a single
+    // `workspaces` number cannot be right everywhere. `workspacesByHost` pins
+    // each known host; plain `workspaces` is the fallback for anything else.
+    readonly property string hostname: (hostFile.text() || "").trim()
+
     readonly property string theme: adapter.theme
-    readonly property int workspaces: root.staged.workspaces ?? adapter.workspaces
-    readonly property int launcherMaxShown: root.staged.launcherMaxShown ?? adapter.launcherMaxShown
+    // Clamped on the read path like scrollFactor below, not just in the
+    // setters: settings.json is a documented live-edit surface, and a reload
+    // feeds the adapter straight into these properties without any setter
+    // running. `overviewColumns: 0` from a hand-edit reached Overview's
+    // ceil(workspaces / columns) as a division by zero.
+    readonly property int workspaces: Math.max(1, Math.min(20, root.staged.workspaces ?? adapter.workspacesByHost[root.hostname] ?? adapter.workspaces))
+    readonly property int launcherMaxShown: Math.max(1, Math.min(20, root.staged.launcherMaxShown ?? adapter.launcherMaxShown))
     readonly property real scale: root.staged.scale ?? adapter.scale
-    readonly property int overviewColumns: root.staged.overviewColumns ?? adapter.overviewColumns
+    readonly property int overviewColumns: Math.max(1, Math.min(12, root.staged.overviewColumns ?? adapter.overviewColumns))
     // Multiplies trackpad scrolling inside the shell's lists only.
     // Clamped so a bad edit can't make lists unscrollable or uncontrollable.
     readonly property real scrollFactor: Math.max(0.25, Math.min(10, root.staged.scrollFactor ?? adapter.scrollFactor))
@@ -61,6 +78,56 @@ Singleton {
     // is one settings edit, not a code change.
     readonly property string clipboardPasteTerminals: adapter.clipboardPasteTerminals
 
+    // ── Touch / tablet ──
+    // "auto" resolves from hardware (services/Tablet.qml): a detached keyboard
+    // or a hinge folded past the tablet-mode switch. "tablet"/"desktop" pin it,
+    // which is what you want on a machine with neither signal — every other
+    // host in this repo answers "desktop" to both questions forever.
+    //
+    // Normalised on the READ path, like the numeric clamps above: the setters
+    // already sanitise, but a hand-edit of settings.json ("On", "of") reaches
+    // these straight from the reload — and Osk.wanted tests exact strings, so
+    // an unrecognised mode was a keyboard that never rose while the helper
+    // kept holding the seat's one input-method slot.
+    readonly property string tabletMode: ["auto", "tablet", "desktop"].includes(adapter.tabletMode) ? adapter.tabletMode : "auto"
+
+    // Written by services/Tablet.qml, never persisted: it is the *resolved*
+    // answer to the above, and a stale one restored from disk at boot would
+    // put the shell in touch mode on a docked machine until the helper's first
+    // line arrived. Lives here rather than on Appearance because qs.config must
+    // not import qs.services — every service already imports qs.config, and a
+    // QML singleton import cycle fails in ways that are miserable to debug.
+    property bool touchActive: false
+
+    // Multiplied into Appearance.scale while touch mode is on, so every s()
+    // call site in the shell grows without a single edit. 1.25 is roughly the
+    // step from "pointer" to "fingertip" — a 34px bar pill becomes 43px, which
+    // clears the ~9mm target a thumb actually needs at this panel's DPI.
+    readonly property real touchScale: Math.max(1, Math.min(2, root.staged.touchScale ?? adapter.touchScale))
+
+    // On-screen keyboard. "auto" = only when no physical keyboard is attached,
+    // which is the whole point: this is a convertible, and a keyboard that
+    // appears over a docked session is the exact thing squeekboard was removed
+    // for (see config/hypr/lua/hosts/k3v1n.lua). Read-path normalised — see
+    // tabletMode above.
+    readonly property string osk: ["auto", "on", "off"].includes(adapter.osk) ? adapter.osk : "auto"
+
+    // Fraction of the screen height the keyboard claims. It becomes the layer
+    // surface's exclusive zone, so it is also how much the tiled layout gives
+    // up — bounded well short of half the screen for that reason.
+    readonly property real oskHeight: Math.max(0.2, Math.min(0.5, root.staged.oskHeight ?? adapter.oskHeight))
+
+    // Rotation lock. Inert on k3v1n (its AMD sensor hub exposes an ambient
+    // light sensor and no accelerometer at all, so nothing ever rotates it),
+    // but it is the gate the orientation listener checks, so autorotate starts
+    // behaving correctly the day a sensor exists rather than needing new code.
+    readonly property bool rotationLock: adapter.rotationLock
+
+    // Touchscreen edge swipes (bottom → launcher/keyboard, left → overview,
+    // right → Control Center). Off on a desktop, where the "edges" are just
+    // pixels a mouse crosses on its way somewhere else.
+    readonly property bool edgeSwipes: adapter.edgeSwipes
+
     // ── Setters ──
     // Every numeric one clamps rather than trusting its caller. The Settings
     // page's controls are already bounded, but these are also the surface an
@@ -91,8 +158,17 @@ Singleton {
     // 20 is not a Hyprland limit — it is where the bar stops being a bar. Each
     // workspace is a ~22px slot (Appearance.sizes.slotEmpty), so twenty of
     // them already claim half the width of this laptop's 2560px panel.
+    //
+    // Writes the per-host entry when this host has one (see workspacesByHost)
+    // — staging into the shared `workspaces` would look like a dead stepper
+    // here, since the per-host value wins on the read path. Direct write, no
+    // staging: a stepper is discrete taps, not a slider drag.
     function setWorkspaces(n: int): void {
-        root.stage("workspaces", Math.max(1, Math.min(20, n)));
+        const v = Math.max(1, Math.min(20, n));
+        if (adapter.workspacesByHost[root.hostname] !== undefined)
+            adapter.workspacesByHost[root.hostname] = v;
+        else
+            root.stage("workspaces", v);
     }
 
     // The launcher sizes its window to this count (Launcher.qml computes
@@ -143,6 +219,34 @@ Singleton {
         adapter.clipboardPasteTerminals = re;
     }
 
+    // Anything unrecognised means "auto" rather than nothing: these two are
+    // driven by a cycling bar button and a settings row, and a typo that left
+    // the shell in no mode at all would be a blank keyboard and a bar with a
+    // dead toggle on it.
+    function setTabletMode(mode: string): void {
+        adapter.tabletMode = ["auto", "tablet", "desktop"].includes(mode) ? mode : "auto";
+    }
+
+    function setOsk(mode: string): void {
+        adapter.osk = ["auto", "on", "off"].includes(mode) ? mode : "auto";
+    }
+
+    function setTouchScale(v: real): void {
+        root.stage("touchScale", Math.max(1, Math.min(2, v)));
+    }
+
+    function setOskHeight(v: real): void {
+        root.stage("oskHeight", Math.max(0.2, Math.min(0.5, v)));
+    }
+
+    function setRotationLock(on: bool): void {
+        adapter.rotationLock = on;
+    }
+
+    function setEdgeSwipes(on: bool): void {
+        adapter.edgeSwipes = on;
+    }
+
     function stage(key: string, value: real): void {
         // Reassigned wholesale instead of mutated: writing into the existing
         // object changes no QML property, so nothing bound to `staged`
@@ -176,18 +280,42 @@ Singleton {
         }
     }
 
+    // The machine's name, for workspacesByHost. blockLoading: it is a
+    // ten-byte file, and every binding above would otherwise race the load.
+    FileView {
+        id: hostFile
+
+        path: "/etc/hostname"
+        blockLoading: true
+    }
+
     FileView {
         path: Quickshell.shellPath("settings.json")
         watchChanges: true
         onFileChanged: reload()
         onAdapterUpdated: writeAdapter()
-        onLoadFailed: writeAdapter()
+        onLoaded: root.ready = true
+        // Seed a missing file, but never clobber one that failed to read for
+        // any other reason (permissions, a mid-edit swap-file dance): the
+        // watcher exists to support hand-edits, and "transient read error →
+        // shell rewrites the file with its in-memory state" silently reverts
+        // the very edit being made. Same guard Apps.qml uses.
+        onLoadFailed: error => {
+            root.ready = true;
+            if (error === FileViewError.FileNotFound)
+                writeAdapter();
+        }
 
         adapter: JsonAdapter {
             id: adapter
 
             property string theme: "catppuccin-latte"
             property int workspaces: 12
+            property JsonObject workspacesByHost: JsonObject {
+                property int k3v1n: 9
+                property int h4l9000: 12
+                property int mcu: 10
+            }
             property int launcherMaxShown: 8
             property real scale: 1.15
             property int overviewColumns: 6
@@ -196,9 +324,15 @@ Singleton {
             property bool weather: true
             property string weatherPlace: ""
             property bool batteryCriticalSuspend: true
-            property string terminal: "kitty"
+            property string terminal: "ghostty"
             property bool clipboardPaste: false
-            property string clipboardPasteTerminals: "kitty|foot|alacritty|wezterm|ghostty|konsole|terminator|xterm|st"
+            property string clipboardPasteTerminals: "ghostty|floating_shell|kitty|foot|alacritty|wezterm|konsole|terminator|xterm|st"
+            property string tabletMode: "auto"
+            property real touchScale: 1.25
+            property string osk: "auto"
+            property real oskHeight: 0.32
+            property bool rotationLock: false
+            property bool edgeSwipes: true
         }
     }
 }

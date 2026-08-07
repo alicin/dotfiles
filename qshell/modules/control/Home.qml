@@ -140,8 +140,12 @@ Column {
 
         signal tapped
 
-        width: Appearance.s(26)
-        height: Appearance.s(30)
+        // Floored in touch mode: this chevron is the ONLY route into its page
+        // (the audio device picker has no other door), and a sub-floor target
+        // wedged between a slider and the panel edge is the worst place to
+        // demand precision. touchTarget is 0 with a pointer.
+        width: Math.max(Appearance.s(26), Appearance.touchTarget)
+        height: Math.max(Appearance.s(30), Appearance.touchTarget)
 
         StateLayer {
             radius: Appearance.s(8)
@@ -344,19 +348,21 @@ Column {
     Card {
         Item {
             width: parent.width
-            height: Appearance.s(32)
+            height: Math.max(Appearance.s(32), Appearance.touchTarget)
 
             // Split down the middle, minus the chevron the right half has to
             // make room for. Both halves get the same slider length that way,
             // which is what makes them read as a pair rather than as a wide
             // control and a narrow one.
-            readonly property real half: (width - Appearance.s(34)) / 2
+            readonly property real half: (width - Math.max(Appearance.s(34), Appearance.touchTarget + Appearance.s(4))) / 2
 
             Item {
                 id: muteBtn
 
                 x: Appearance.s(6)
-                width: Appearance.s(28)
+                // Beside a slider whose press-anywhere jumps the volume, a
+                // missed mute is not a dead tap — it is volume 0. Floor it.
+                width: Math.max(Appearance.s(28), Appearance.touchTarget * 0.9)
                 height: parent.height
 
                 StateLayer {
@@ -392,7 +398,9 @@ Column {
 
                 anchors.left: volSlider.right
                 anchors.leftMargin: Appearance.s(10)
-                width: Appearance.s(28)
+                // Same floor as muteBtn, same reason: its neighbours are
+                // sliders that jump to wherever a missed tap lands.
+                width: Math.max(Appearance.s(28), Appearance.touchTarget * 0.9)
                 height: parent.height
 
                 StateLayer {
@@ -695,18 +703,21 @@ Column {
                         id: ctl
 
                         property string glyph: ""
-                        property bool enabled: true
+                        // NOT `enabled`: Item already owns that, and shadowing
+                        // it half-works until someone renames or binds it —
+                        // the RotateStatus `transform` crash was this trap.
+                        property bool armed: true
 
                         signal tapped
 
-                        width: Appearance.s(30)
-                        height: Appearance.s(30)
-                        opacity: enabled ? 1 : 0.35
+                        width: Math.max(Appearance.s(30), Appearance.touchTarget * 0.9)
+                        height: Math.max(Appearance.s(30), Appearance.touchTarget * 0.9)
+                        opacity: armed ? 1 : 0.35
 
                         StateLayer {
                             radius: width / 2
                             color: Theme.surfaceFg
-                            enabled: ctl.enabled
+                            enabled: ctl.armed
                             onClicked: ctl.tapped()
                         }
 
@@ -720,19 +731,19 @@ Column {
 
                     CtlButton {
                         glyph: "backward_fill"
-                        enabled: page.player?.canGoPrevious ?? false
+                        armed: page.player?.canGoPrevious ?? false
                         onTapped: page.player?.previous()
                     }
 
                     CtlButton {
                         glyph: (page.player?.isPlaying ?? false) ? "pause_fill" : "play_fill"
-                        enabled: page.player?.canTogglePlaying ?? false
+                        armed: page.player?.canTogglePlaying ?? false
                         onTapped: page.player?.togglePlaying()
                     }
 
                     CtlButton {
                         glyph: "forward_fill"
-                        enabled: page.player?.canGoNext ?? false
+                        armed: page.player?.canGoNext ?? false
                         onTapped: page.player?.next()
                     }
                 }
@@ -1053,7 +1064,10 @@ Column {
         NavRow {
             fIcon: "gear_alt_fill"
             title: "Settings"
-            onTapped: root.navigate("settings")
+            // Its own window, not a drill-down page (macOS System Settings
+            // shaped — SettingsWindow.qml). The popout closes itself: the new
+            // window takes focus, which clears the popout's focus grab.
+            onTapped: SettingsUi.show("")
         }
     }
 

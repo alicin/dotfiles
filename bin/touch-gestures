@@ -1,0 +1,990 @@
+#!/usr/bin/env python3
+"""Touchscreen gestures for Hyprland, done by feeding the compositor itself.
+
+Hyprland 0.56 has no MULTI-FINGER touchscreen gesture system: `hl.gesture(...)`
+is trackpad-only (a `mode = "touch"` field parses but is inert — verified by
+injection), and touch never reaches mousebinds. (workspace_swipe_touch is not
+dead, as an earlier version of this header claimed — it is a native 1-finger
+swipe that must start within ~16px of a screen edge; it neither overlaps nor
+substitutes for the 3/4-finger gestures here.) An
+earlier version of this daemon therefore *interpreted* 3/4-finger gestures
+itself and issued discrete dispatches — which felt like exactly that: jump
+cuts instead of the trackpad's 1:1 follow.
+
+So this version stops interpreting and starts *routing*. It grabs the
+digitiser (EVIOCGRAB — the compositor receives nothing from it directly) and
+splits the stream between three virtual devices it creates:
+
+    qshell-touch-screen   a touchscreen clone. 1-2 finger input is re-emitted
+                          here, so apps, the OSK and the edge strips see
+                          exactly what they always saw. Rotation is the
+                          compositor's job on this leg: when qshell rotates
+                          the panel it also writes input:touchdevice:transform
+                          (and :tablet: for the stylus) via `hyprctl -r eval`,
+                          and the clone — a touch device — gets the same
+                          libinput calibration matrix the raw digitiser would.
+    qshell-touch-pad      a TOUCHPAD. 3-finger contact sets are replayed onto
+                          it, libinput turns them into real swipe gestures,
+                          and Hyprland runs the very same CWorkspaceSwipeGesture
+                          / Lua-callback machinery the physical trackpad uses.
+    qshell-touch-move     a second touchpad, for 4-finger sets. Split from the
+                          3-finger pad because the two gestures need different
+                          calibrations: the workspace swipe renders
+                          delta*width/swipe_distance while the interactive
+                          move renders delta*1px — a ~5x gap no single
+                          sensitivity can bridge. Each pad gets its own
+                          hl.device rule in config/hypr/lua/devices.lua.
+
+Speed lives in config, not here. libinput gesture deltas are raw device units
+multiplied by the device's pointer-accel factor — the advertised resolution
+never rescales them (verified in libinput 1.31.3 source: the normalizing
+coefficients are computed but unused on the gesture path). A PAD_RES constant
+here once claimed to set "how much touchpad travel a screen drag reads as";
+it never did, which is why tuning it changed nothing. The real knobs are the
+`hl.device { sensitivity, accel_profile }` rules in lua/devices.lua. Per-axis
+resolutions ARE advertised faithfully, but they only feed libinput's mm-based
+classification heuristics (thumb/palm/pinch) — worth having right, not a
+speed control.
+
+Pad coordinates go through two maps before emission (PadSpace):
+
+  isotropy   the digitiser is anisotropic (here 54 units/mm X, 86 Y). Raw
+             replay onto a single-resolution pad made vertical gestures 1.59x
+             hotter than horizontal and biased diagonal 3-finger swipes toward
+             the vertical (overview) gesture — Hyprland picks the axis by
+             |x| vs |y| of the accumulated delta. Y is rescaled into X-units
+             and the pads advertise exactly that, one resolution, truthfully.
+  rotation   swipe direction on a pointer device comes from raw axes; no
+             compositor config can rotate it (calibration matrices apply to
+             absolute devices only). The panel's current wl_output transform
+             is learned event-driven over a Wayland connection — covering the
+             shell's rotate button, bare wlr-randr, and any future autorotate
+             alike — and pad coordinates are counter-rotated with the same
+             MATRICES[T] mapping Hyprland applies to touch devices. If the
+             Wayland connection cannot be made, transform stays 0 and the
+             bridge behaves exactly as it did before rotation support.
+
+Costs, honestly: new contacts are held back ~35ms while the finger count
+settles (so the first two fingers of a 3-finger swipe don't fire a stray tap
+into the app underneath) — imperceptible against typical 80ms+ tap durations,
+and the select() timeout counts down the actual remainder, so a motionless
+press is not held to the next poll tick. If this process dies mid-grab the
+kernel drops the grab with the fd and the supervise loop reopens everything,
+so the touchscreen cannot stay dead.
+
+Env: TOUCH_GESTURES_DEVICE pins the digitiser node (tests use a virtual one).
+     TOUCH_GESTURES_OUTPUT names the wl_output to follow (default eDP-1).
+"""
+
+import fcntl
+import json
+import os
+import select
+import struct
+import subprocess
+import sys
+import time
+
+# ── evdev constants ──────────────────────────────────────────────────────────
+EV_SYN, EV_KEY, EV_ABS = 0x00, 0x01, 0x03
+SYN_REPORT = 0x00
+ABS_X, ABS_Y = 0x00, 0x01
+ABS_MT_SLOT = 0x2F
+ABS_MT_POSITION_X = 0x35
+ABS_MT_POSITION_Y = 0x36
+ABS_MT_TRACKING_ID = 0x39
+BTN_TOUCH = 0x14A
+BTN_TOOL_FINGER = 0x145
+BTN_TOOL_DOUBLETAP = 0x14D
+BTN_TOOL_TRIPLETAP = 0x14E
+BTN_TOOL_QUADTAP = 0x14F
+INPUT_PROP_POINTER = 0
+INPUT_PROP_DIRECT = 1
+EVENT_SIZE = struct.calcsize("llHHi")
+
+HOLDBACK_S = 0.035     # contact settle window before releasing to the clone
+
+# ── inertia (3-finger workspace swipe only) ──────────────────────────────────
+# Hyprland commits a workspace swipe on distance (cancel_ratio 0.5 x
+# swipe_distance 300 = 150 delta units) OR on m_avgSpeed >= min_speed_to_force
+# — but avgSpeed is the mean per-EVENT delta over the whole gesture, tuned to
+# trackpad-scale deltas; at the touchscreen pad's calibration it is
+# unreachable, so a short thrown flick used to snap back. Instead of lowering
+# the global threshold (it would make the real trackpad force-commit on any
+# brisk swipe), the bridge does the physics itself: release velocity is
+# measured over the last ~100ms of contact, and the virtual fingers GLIDE on
+# after the real ones lift — decelerating steps the compositor animates like
+# any other swipe, so a throw both looks and lands like a throw. A slow
+# release glides negligibly and still snaps back; workspace_swipe_forever=off
+# clamps any throw at one workspace.
+GLIDE_S = 0.22          # seconds of travel a throw carries after release
+FLICK_MIN_MM_S = 50     # release speeds below this get no glide
+GLIDE_STEPS = 12        # emitted over ~96ms, geometrically decelerating
+GLIDE_STEP_S = 0.008
+GLIDE_DECAY = 0.8
+GLIDE_CAP = 0.45        # max glide distance, as a fraction of the pad side
+
+
+def _ioc(direction, typ, nr, size):
+    return (direction << 30) | (size << 16) | (ord(typ) << 8) | nr
+
+
+EVIOCGRAB = _ioc(1, "E", 0x90, 4)
+
+
+def EVIOCGABS(axis):
+    return _ioc(2, "E", 0x40 + axis, 24)
+
+
+# ── device scan ──────────────────────────────────────────────────────────────
+def bitmap_to_int(words):
+    value = 0
+    for i, word in enumerate(reversed(words.split())):
+        try:
+            value |= int(word, 16) << (64 * i)
+        except ValueError:
+            return 0
+    return value
+
+
+def find_touchscreen():
+    pinned = os.environ.get("TOUCH_GESTURES_DEVICE")
+    if pinned:
+        return pinned
+    try:
+        blob = open("/proc/bus/input/devices").read()
+    except OSError:
+        return None
+    for block in blob.split("\n\n"):
+        name = node = ""
+        abs_bits = props = 0
+        for line in block.splitlines():
+            if line.startswith("N: Name="):
+                name = line[8:].strip().strip('"')
+            elif line.startswith("H: Handlers="):
+                for h in line[12:].split():
+                    if h.startswith("event"):
+                        node = "/dev/input/" + h
+            elif line.startswith("B: ABS="):
+                abs_bits = bitmap_to_int(line[7:])
+            elif line.startswith("B: PROP="):
+                props = bitmap_to_int(line[8:])
+        if not node or name.startswith("qshell-touch"):
+            continue  # never loop back onto our own virtual devices
+        if not props >> INPUT_PROP_DIRECT & 1:
+            continue
+        if abs_bits >> ABS_MT_SLOT & 1 and abs_bits >> ABS_MT_TRACKING_ID & 1:
+            return node
+    return None
+
+
+def axis_info(fd, axis):
+    """(min, max, resolution) of an ABS axis, or None. resolution may be 0."""
+    buf = bytearray(24)
+    try:
+        fcntl.ioctl(fd, EVIOCGABS(axis), buf)
+    except OSError:
+        return None
+    _v, mn, mx, _fuzz, _flat, res = struct.unpack("6i", bytes(buf))
+    return (mn, mx, res) if mx > mn else None
+
+
+# ── output transform ─────────────────────────────────────────────────────────
+class OutputWatcher:
+    """The panel's current wl_output transform (0-7), event-driven.
+
+    Wayland is the one place the fact exists for every rotation source at
+    once: the shell's rotate button, a bare wlr-randr, autorotate — all end in
+    a wl_output.geometry event. Hyprland emits no IPC event for a transform
+    change, so polling hyprctl was the only alternative, and it isn't a good
+    one.
+    """
+
+    def __init__(self, prefer):
+        self.prefer = prefer
+        self.transform = 0
+        self.display = None
+        self.fd = None
+        self._outputs = []   # [{"name": str|None, "transform": int}] in bind order
+
+    def connect(self):
+        try:
+            from pywayland.client import Display
+            from pywayland.protocol.wayland import WlOutput
+        except Exception as exc:
+            print(f"touch-gestures: pywayland unavailable ({exc}); rotation follow off", file=sys.stderr)
+            return False
+
+        outputs = self._outputs
+        outputs.clear()
+
+        def on_global(registry, id_, interface, version):
+            if interface != "wl_output":
+                return
+            # v4 carries the `name` event ("eDP-1"); older still gives geometry.
+            proxy = registry.bind(id_, WlOutput, min(version, 4))
+            state = {"name": None, "transform": 0}
+            outputs.append(state)
+
+            def geometry(_o, _x, _y, _pw, _ph, _sub, _make, _model, transform):
+                state["transform"] = transform
+
+            def name(_o, value):
+                state["name"] = value
+
+            proxy.dispatcher["geometry"] = geometry
+            proxy.dispatcher["name"] = name
+
+        try:
+            display = Display()
+            display.connect()
+            registry = display.get_registry()
+            registry.dispatcher["global"] = on_global
+            display.roundtrip()   # learn the globals
+            display.roundtrip()   # learn each output's geometry + name
+        except Exception as exc:
+            print(f"touch-gestures: wayland connect failed ({exc}); rotation follow off", file=sys.stderr)
+            return False
+
+        self.display = display
+        self.fd = display.get_fd()
+        self._recompute()
+        return True
+
+    def _recompute(self):
+        chosen = None
+        for state in self._outputs:
+            if state["name"] == self.prefer:
+                chosen = state
+                break
+        if chosen is None and self._outputs:
+            chosen = self._outputs[0]
+        self.transform = (chosen["transform"] if chosen else 0) & 7
+
+    def pump(self):
+        """Drain pending events. True if the transform changed."""
+        if self.display is None:
+            return False
+        try:
+            # dispatch(block=True) after select: the non-blocking form only
+            # drains already-queued events and never reads the socket.
+            self.display.dispatch(block=True)
+        except Exception:
+            self.close()
+            return False
+        before = self.transform
+        self._recompute()
+        return self.transform != before
+
+    def flush(self):
+        if self.display is None:
+            return
+        try:
+            self.display.flush()
+        except Exception:
+            self.close()
+
+    def close(self):
+        if self.display is not None:
+            try:
+                self.display.disconnect()
+            except Exception:
+                pass
+        self.display = None
+        self.fd = None
+
+
+# ── focus-under-fingers ──────────────────────────────────────────────────────
+def focus_window_at(nx, ny, output):
+    """Focus the window under a normalized point on `output`, if it isn't
+    focused already.
+
+    Hyprland's 4-finger move drags the FOCUSED window — trackpad semantics,
+    where the fingers have no position. On a touchscreen they very much do:
+    planting four fingers on window B while A is focused used to drag A.
+    Called at 4-finger gesture start, BEFORE the first pad push, and blocking
+    (~20-50ms): libinput then needs several more frames to classify the swipe,
+    so the focus always lands before the compositor's move-begin — no race.
+
+    hl.dsp.focus({ window = "address:…" }) is the same form Overview.qml uses.
+    Topmost-window heuristic: floating beats tiled, then most recently focused
+    (lowest focusHistoryID) — hyprctl exposes no true z-order.
+    """
+    try:
+        mons = json.loads(subprocess.run(
+            ["hyprctl", "-j", "monitors"], capture_output=True, timeout=0.25).stdout)
+        mon = next((m for m in mons if m.get("name") == output), None) \
+            or next((m for m in mons if m.get("focused")), None)
+        if not mon:
+            return
+        # IPC width/height are the untransformed mode size; swap on rotation.
+        swap = (mon.get("transform", 0) % 2) == 1
+        scale = mon.get("scale") or 1
+        w = (mon["height"] if swap else mon["width"]) / scale
+        h = (mon["width"] if swap else mon["height"]) / scale
+        px = mon.get("x", 0) + nx * w
+        py = mon.get("y", 0) + ny * h
+        ws = (mon.get("activeWorkspace") or {}).get("id")
+
+        clients = json.loads(subprocess.run(
+            ["hyprctl", "-j", "clients"], capture_output=True, timeout=0.25).stdout)
+        best = None
+        for c in clients:
+            if c.get("hidden") or c.get("mapped") is False:
+                continue
+            if (c.get("workspace") or {}).get("id") != ws:
+                continue
+            at, size = c.get("at") or [0, 0], c.get("size") or [0, 0]
+            if not (at[0] <= px < at[0] + size[0] and at[1] <= py < at[1] + size[1]):
+                continue
+            key = (0 if c.get("floating") else 1, c.get("focusHistoryID", 999))
+            if best is None or key < best[0]:
+                best = (key, c)
+        if best is None or best[1].get("focusHistoryID") == 0:
+            return  # nothing there, or already focused
+        subprocess.run(
+            ["hyprctl", "dispatch",
+             f"hl.dsp.focus({{ window = 'address:{best[1]['address']}' }})"],
+            capture_output=True, timeout=0.25)
+    except Exception:
+        pass  # focus is best-effort; the gesture must go on regardless
+
+
+# ── pad coordinate space ─────────────────────────────────────────────────────
+class PadSpace:
+    """Raw digitiser coordinates -> the gesture pads' unit space.
+
+    Isotropy: Y is rescaled by res_x/res_y so both axes carry res_x units per
+    mm; any axis swap then preserves physical distance for free. Rotation:
+    MATRICES[T] — the same mapping Hyprland applies to touch devices for
+    input:touchdevice:transform = T — on a SQUARE range, which is what keeps a
+    rotated coordinate always inside the advertised axis. The pads therefore
+    claim a square ~303x303mm surface; only libinput's mm heuristics look at
+    that, and they were fed a fictional size before this too (273x273).
+    """
+
+    def __init__(self, span_x, span_y, res_x, res_y):
+        self.x0 = span_x[0]
+        self.y0 = span_y[0]
+        self.sx = span_x[1] - span_x[0]
+        self.sy = span_y[1] - span_y[0]
+        self.res = res_x or 54          # pad units per mm, both axes
+        self.ratio = res_x / res_y if res_y else 1.0
+        self.side = max(self.sx, int(self.sy * self.ratio))
+        self.transform = 0
+
+    def norm(self, pt):
+        """Normalized [0,1] position in the USER frame (post-transform) —
+        what a screen-coordinate consumer (focus-under-fingers) wants."""
+        nx = (pt[0] - self.x0) / self.sx if self.sx else 0.0
+        ny = (pt[1] - self.y0) / self.sy if self.sy else 0.0
+        t = self.transform
+        if t == 0:
+            return (nx, ny)
+        if t == 1:
+            return (1 - ny, nx)
+        if t == 2:
+            return (1 - nx, 1 - ny)
+        if t == 3:
+            return (ny, 1 - nx)
+        if t == 4:
+            return (1 - nx, ny)
+        if t == 5:
+            return (ny, nx)
+        if t == 6:
+            return (nx, 1 - ny)
+        return (1 - ny, 1 - nx)
+
+    def map(self, pt):
+        ux = pt[0] - self.x0
+        uy = (pt[1] - self.y0) * self.ratio
+        m = self.side
+        t = self.transform
+        if t == 0:
+            return (ux, uy)
+        if t == 1:
+            return (m - uy, ux)
+        if t == 2:
+            return (m - ux, m - uy)
+        if t == 3:
+            return (uy, m - ux)
+        if t == 4:
+            return (m - ux, uy)
+        if t == 5:
+            return (uy, ux)
+        if t == 6:
+            return (ux, m - uy)
+        return (m - uy, m - ux)
+
+
+# ── uinput ───────────────────────────────────────────────────────────────────
+class UInput:
+    """A virtual input device. fd close destroys it (crash-safe)."""
+
+    UI_SET_EVBIT = _ioc(1, "U", 100, 4)
+    UI_SET_KEYBIT = _ioc(1, "U", 101, 4)
+    UI_SET_ABSBIT = _ioc(1, "U", 103, 4)
+    UI_SET_PROPBIT = _ioc(1, "U", 110, 4)
+    UI_DEV_SETUP = _ioc(1, "U", 3, 92)
+    UI_ABS_SETUP = _ioc(1, "U", 4, 28)
+    UI_DEV_CREATE = ord("U") << 8 | 1
+
+    def __init__(self, name, prop, keys, abs_axes):
+        """abs_axes: {code: (min, max, resolution)}"""
+        self.fd = os.open("/dev/uinput", os.O_WRONLY | os.O_NONBLOCK)
+        for ev in (EV_SYN, EV_KEY, EV_ABS):
+            fcntl.ioctl(self.fd, self.UI_SET_EVBIT, ev)
+        for key in keys:
+            fcntl.ioctl(self.fd, self.UI_SET_KEYBIT, key)
+        for code in abs_axes:
+            fcntl.ioctl(self.fd, self.UI_SET_ABSBIT, code)
+        fcntl.ioctl(self.fd, self.UI_SET_PROPBIT, prop)
+        for code, (mn, mx, res) in abs_axes.items():
+            fcntl.ioctl(self.fd, self.UI_ABS_SETUP,
+                        struct.pack("<H2x6i", code, 0, mn, mx, 0, 0, res))
+        fcntl.ioctl(self.fd, self.UI_DEV_SETUP,
+                    struct.pack("<HHHH80sI", 0x03, 0x0A11, 0x0001, 1, name.encode(), 0))
+        fcntl.ioctl(self.fd, self.UI_DEV_CREATE)
+
+    def emit(self, etype, code, value):
+        try:
+            os.write(self.fd, struct.pack("llHHi", 0, 0, etype, code, value))
+        except OSError:
+            pass
+
+    def syn(self):
+        self.emit(EV_SYN, SYN_REPORT, 0)
+
+    def close(self):
+        try:
+            os.close(self.fd)
+        except OSError:
+            pass
+
+
+class MtSink:
+    """Type-B multitouch emission onto a UInput, by state diff.
+
+    push(contacts) is given the authoritative {slot: (x, y)} and emits
+    whatever downs/moves/ups turn the device's last-known state into it.
+    Diffing beats raw passthrough: entering a stream mid-gesture needs
+    synthetic downs, leaving needs synthetic ups, and a diff produces both
+    for free.
+    """
+
+    TOOLS = {1: BTN_TOOL_FINGER, 2: BTN_TOOL_DOUBLETAP, 3: BTN_TOOL_TRIPLETAP, 4: BTN_TOOL_QUADTAP}
+
+    def __init__(self, dev):
+        self.dev = dev
+        self.state = {}
+        self.tool = 0
+        self.tid = 1
+
+    def push(self, contacts):
+        dev = self.dev
+        dirty = False
+        for slot in sorted(set(self.state) | set(contacts)):
+            now = contacts.get(slot)
+            was = self.state.get(slot)
+            if now is None:
+                dev.emit(EV_ABS, ABS_MT_SLOT, slot)
+                dev.emit(EV_ABS, ABS_MT_TRACKING_ID, -1)
+                dirty = True
+            elif was is None:
+                dev.emit(EV_ABS, ABS_MT_SLOT, slot)
+                dev.emit(EV_ABS, ABS_MT_TRACKING_ID, self.tid)
+                self.tid = self.tid % 65000 + 1
+                dev.emit(EV_ABS, ABS_MT_POSITION_X, int(now[0]))
+                dev.emit(EV_ABS, ABS_MT_POSITION_Y, int(now[1]))
+                dirty = True
+            elif now != was:
+                dev.emit(EV_ABS, ABS_MT_SLOT, slot)
+                if now[0] != was[0]:
+                    dev.emit(EV_ABS, ABS_MT_POSITION_X, int(now[0]))
+                if now[1] != was[1]:
+                    dev.emit(EV_ABS, ABS_MT_POSITION_Y, int(now[1]))
+                dirty = True
+
+        count = len(contacts)
+        old_count = len(self.state)
+        if count != old_count:
+            if (count > 0) != (old_count > 0):
+                dev.emit(EV_KEY, BTN_TOUCH, 1 if count else 0)
+            new_tool = self.TOOLS.get(count, BTN_TOOL_QUADTAP if count > 4 else 0)
+            if new_tool != self.tool:
+                if self.tool:
+                    dev.emit(EV_KEY, self.tool, 0)
+                if new_tool:
+                    dev.emit(EV_KEY, new_tool, 1)
+                self.tool = new_tool
+            dirty = True
+
+        if contacts:
+            first = contacts[min(contacts)]
+            dev.emit(EV_ABS, ABS_X, int(first[0]))
+            dev.emit(EV_ABS, ABS_Y, int(first[1]))
+
+        self.state = {s: tuple(p) for s, p in contacts.items()}
+        if dirty or contacts:
+            dev.syn()
+
+    def clear(self):
+        self.push({})
+
+
+# ── the router ───────────────────────────────────────────────────────────────
+class Router:
+    """Slot tracking on the real device, plus the small state machine that
+    decides where a contact set goes.
+
+        idle     no fingers
+        pending  1-2 fingers, younger than the holdback — could still become
+                 a 3/4-finger gesture, so nothing has been forwarded yet
+        clone    ordinary input, streaming to the touchscreen clone
+        pad      3/4 fingers, streaming to one of the virtual touchpads
+                 (3 -> qshell-touch-pad, 4+ -> qshell-touch-move)
+        glide    a 3-finger set was RELEASED at speed: the virtual fingers
+                 carry on decelerating (inertia, see the GLIDE_* constants)
+                 while real input is swallowed like drain. Re-planting 3+
+                 fingers aborts the glide and starts the next gesture.
+        drain    a pad gesture ended but stragglers are still lifting off —
+                 swallowed, so they can't become pad scrolls or clone taps.
+                 Re-planting 3+ fingers over a straggler re-enters `pad`:
+                 chained swipes used to die here, every second fast workspace
+                 swipe going nowhere.
+    """
+
+    def __init__(self, clone, pad3, pad4, panel, focus_at=None):
+        self.clone = MtSink(clone)
+        self.pad3 = MtSink(pad3)
+        self.pad4 = MtSink(pad4)
+        self.pad_active = self.pad3
+        self.panel = panel
+        self.focus_at = focus_at   # (nx, ny) -> focus the window there
+        # Slot COORDINATES persist across contacts, exactly like the kernel's
+        # own slot state. This is load-bearing: evdev deduplicates ABS values,
+        # so a finger landing where the previous contact ended produces NO
+        # position event for that axis — the reader is expected to still know
+        # it. Wiping coords on lift-off made every such re-touch an eternally
+        # incomplete contact, and the whole router went silent after the
+        # first gesture (found when an injected gesture reused a Y).
+        self.pos = {}
+        self.active = set()
+        self.slot = 0
+        self.state = "idle"
+        self.pending_since = 0.0
+        self.snapshot = None
+        self.trail = []      # [(t, avg_x, avg_y)] of recent pad3 pushes
+        self.glide = None    # {"steps": [(dx, dy)], "i", "due", "acc", "base"}
+
+    def absolute(self, code, value):
+        if code == ABS_MT_SLOT:
+            self.slot = value
+        elif code == ABS_MT_TRACKING_ID:
+            if value == -1:
+                self.active.discard(self.slot)
+            else:
+                self.active.add(self.slot)
+        elif code == ABS_MT_POSITION_X:
+            self.pos.setdefault(self.slot, [None, None])[0] = value
+        elif code == ABS_MT_POSITION_Y:
+            self.pos.setdefault(self.slot, [None, None])[1] = value
+
+    def contacts(self):
+        return {s: tuple(self.pos[s]) for s in self.active
+                if s in self.pos and self.pos[s][0] is not None and self.pos[s][1] is not None}
+
+    def _pad_push(self, live):
+        mapped = {s: self.panel.map(p) for s, p in live.items()}
+        self.pad_active.push(mapped)
+        if self.pad_active is self.pad3 and mapped:
+            n = len(mapped)
+            self.trail.append((time.monotonic(),
+                               sum(p[0] for p in mapped.values()) / n,
+                               sum(p[1] for p in mapped.values()) / n))
+            del self.trail[:-16]
+
+    def _focus_under(self, live):
+        # 4-finger move drags the FOCUSED window; make that the window under
+        # the fingers first. Blocking on purpose — see focus_window_at.
+        if self.focus_at is None or not live:
+            return
+        n = len(live)
+        centroid = (sum(p[0] for p in live.values()) / n,
+                    sum(p[1] for p in live.values()) / n)
+        self.focus_at(*self.panel.norm(centroid))
+
+    def _pad_begin(self, live, count):
+        if self.glide is not None:
+            self._glide_abort()
+        self.state = "pad"
+        self.pad_active = self.pad3 if count == 3 else self.pad4
+        if self.pad_active is self.pad4:
+            self._focus_under(live)
+        self.trail = []
+        self._pad_push(live)
+
+    # ── inertia ──────────────────────────────────────────────────────────────
+    def _release_velocity(self):
+        """Pad-units/s at release, or None when the finger had stopped."""
+        if len(self.trail) < 2:
+            return None
+        now = time.monotonic()
+        newest = self.trail[-1]
+        if now - newest[0] > 0.08:
+            return None          # paused before lifting: a placement, not a throw
+        oldest = newest
+        for sample in self.trail:
+            if newest[0] - sample[0] <= 0.12:
+                oldest = sample
+                break
+        dt = newest[0] - oldest[0]
+        if dt < 0.015:
+            return None
+        v = ((newest[1] - oldest[1]) / dt, (newest[2] - oldest[2]) / dt)
+        if (v[0] ** 2 + v[1] ** 2) ** 0.5 < FLICK_MIN_MM_S * self.panel.res:
+            return None
+        return v
+
+    def _pad_release(self, count):
+        """A pad gesture's fingers dropped below 3: glide if thrown."""
+        v = self._release_velocity() if self.pad_active is self.pad3 else None
+        if v is None:
+            self.pad_active.clear()
+            self.state = "drain" if count else "idle"
+            return
+        dx, dy = v[0] * GLIDE_S, v[1] * GLIDE_S
+        mag = (dx ** 2 + dy ** 2) ** 0.5
+        cap = GLIDE_CAP * self.panel.side
+        if mag > cap:
+            dx, dy = dx * cap / mag, dy * cap / mag
+        norm = (1 - GLIDE_DECAY) / (1 - GLIDE_DECAY ** GLIDE_STEPS)
+        weights = [norm * GLIDE_DECAY ** k for k in range(GLIDE_STEPS)]
+        self.glide = {
+            "base": dict(self.pad3.state),
+            "steps": [(dx * w, dy * w) for w in weights],
+            "i": 0,
+            "acc": (0.0, 0.0),
+            "due": time.monotonic() + GLIDE_STEP_S,
+        }
+        self.state = "glide"
+
+    def glide_due(self):
+        return self.glide["due"] if self.glide is not None else None
+
+    def glide_step(self, now):
+        g = self.glide
+        if g is None or now < g["due"]:
+            return
+        step = g["steps"][g["i"]]
+        ax = g["acc"][0] + step[0]
+        ay = g["acc"][1] + step[1]
+        g["acc"] = (ax, ay)
+        side = self.panel.side
+        self.pad3.push({s: (min(max(p[0] + ax, 0), side), min(max(p[1] + ay, 0), side))
+                        for s, p in g["base"].items()})
+        g["i"] += 1
+        g["due"] = now + GLIDE_STEP_S
+        if g["i"] >= len(g["steps"]):
+            self.pad3.clear()
+            self.glide = None
+            self.state = "drain" if self.contacts() else "idle"
+
+    def _glide_abort(self):
+        self.pad3.clear()
+        self.glide = None
+
+    def transform_changed(self):
+        # Mid-gesture rotation: end the gesture rather than let its axes flip
+        # underneath; stragglers drain as usual. Clone contacts are untouched —
+        # the compositor-side calibration matrix owns that leg.
+        if self.state == "pad":
+            self.pad_active.clear()
+            self.state = "drain"
+        elif self.state == "glide":
+            self._glide_abort()
+            self.state = "drain"
+
+    def sync(self):
+        live = self.contacts()
+        count = len(live)
+        st = self.state
+
+        if st == "idle":
+            if count == 0:
+                return
+            if count >= 3:
+                self._pad_begin(live, count)
+            else:
+                self.state = "pending"
+                self.pending_since = time.monotonic()
+                self.snapshot = dict(live)
+            return
+
+        if st == "pending":
+            # self.snapshot is the FIRST contact set of the pending window —
+            # the anchor. It is deliberately never overwritten: forwarding
+            # only the LATEST positions displaced a fast flick's touch-down
+            # by 50-180px (the finger travels 10-35mm inside the holdback),
+            # so scroll-flicks that started on a link mis-tapped, and a quick
+            # two-finger tap whose fingers lifted unevenly (2->1->0) degraded
+            # to a one-finger tap. Anchor first, then stream live — the app
+            # sees the true landing point and one catch-up move. (No full
+            # replay of the buffered window: near-identical timestamps spike
+            # kinetic-scroll velocity estimators.) Fingers that LAND during
+            # the holdback still join the anchor, at their landing positions.
+            if count == 0:
+                # A tap faster than the holdback: deliver it whole, slightly
+                # late, rather than not at all — at its landing position.
+                if self.snapshot:
+                    self.clone.push(self.snapshot)
+                    self.clone.clear()
+                self.state = "idle"
+            elif count >= 3:
+                self._pad_begin(live, count)
+            elif time.monotonic() - self.pending_since >= HOLDBACK_S:
+                self.state = "clone"
+                if self.snapshot:
+                    self.clone.push(self.snapshot)
+                self.clone.push(live)
+            elif count > len(self.snapshot or {}):
+                merged = dict(self.snapshot or {})
+                for slot, p in live.items():
+                    merged.setdefault(slot, p)
+                self.snapshot = merged
+            return
+
+        if st == "clone":
+            if count >= 3:
+                # Fingers added mid-stream: lift them off the clone cleanly,
+                # then hand the whole set to the pad.
+                self.clone.clear()
+                self._pad_begin(live, count)
+            elif count == 0:
+                self.clone.clear()
+                self.state = "idle"
+            else:
+                self.clone.push(live)
+            return
+
+        if st == "pad":
+            if count < 3:
+                # Gesture over; a thrown 3-finger set glides on, anything else
+                # just drains its trailing lift-off.
+                self._pad_release(count)
+            else:
+                target = self.pad3 if count == 3 else self.pad4
+                if target is not self.pad_active:
+                    # 3<->4 mid-air: end one gesture cleanly, start the other.
+                    self.pad_active.clear()
+                    self.pad_active = target
+                    if target is self.pad4:
+                        self._focus_under(live)
+                self._pad_push(live)
+            return
+
+        if st == "glide":
+            # Real input is swallowed while the virtual fingers coast; a fresh
+            # 3+ plant cuts the glide and starts the next gesture immediately.
+            if count >= 3:
+                self._pad_begin(live, count)
+            return
+
+        if st == "drain":
+            if count >= 3:
+                self._pad_begin(live, count)
+            elif count == 0:
+                self.state = "idle"
+
+    def shutdown(self):
+        if self.glide is not None:
+            self._glide_abort()
+        self.clone.clear()
+        self.pad3.clear()
+        self.pad4.clear()
+
+
+# ── session ──────────────────────────────────────────────────────────────────
+PAD_KEYS = [BTN_TOUCH, BTN_TOOL_FINGER, BTN_TOOL_DOUBLETAP, BTN_TOOL_TRIPLETAP, BTN_TOOL_QUADTAP]
+
+
+def run_session(touch_fd, info_x, info_y, wl):
+    xmin, xmax, xres = info_x
+    ymin, ymax, yres = info_y
+    # Real per-axis resolutions, falling back to the panel's physical size
+    # (303x190mm) if the digitiser reports none. The clone advertises them
+    # faithfully — the old single res_x on both axes claimed a 303x303mm
+    # touchscreen, harmless for taps (positioning is range-normalized) but a
+    # standing trap for any mm-based consumer.
+    res_x = xres or round((xmax - xmin) / 303) or 54
+    res_y = yres or round((ymax - ymin) / 190) or 86
+
+    clone = UInput(
+        "qshell-touch-screen", INPUT_PROP_DIRECT, [BTN_TOUCH],
+        {
+            ABS_X: (xmin, xmax, res_x),
+            ABS_Y: (ymin, ymax, res_y),
+            ABS_MT_SLOT: (0, 9, 0),
+            ABS_MT_POSITION_X: (xmin, xmax, res_x),
+            ABS_MT_POSITION_Y: (ymin, ymax, res_y),
+            ABS_MT_TRACKING_ID: (0, 65535, 0),
+        })
+
+    panel = PadSpace((xmin, xmax), (ymin, ymax), res_x, res_y)
+    pad_axes = {
+        ABS_X: (0, panel.side, res_x),
+        ABS_Y: (0, panel.side, res_x),
+        ABS_MT_SLOT: (0, 9, 0),
+        ABS_MT_POSITION_X: (0, panel.side, res_x),
+        ABS_MT_POSITION_Y: (0, panel.side, res_x),
+        ABS_MT_TRACKING_ID: (0, 65535, 0),
+    }
+    pad3 = UInput("qshell-touch-pad", INPUT_PROP_POINTER, PAD_KEYS, pad_axes)
+    pad4 = UInput("qshell-touch-move", INPUT_PROP_POINTER, PAD_KEYS, pad_axes)
+    time.sleep(0.6)  # let libinput adopt them before events flow
+
+    grabbed = False
+    next_grab_try = 0.0
+    try:
+        fcntl.ioctl(touch_fd, EVIOCGRAB, 1)
+        grabbed = True
+    except OSError as exc:
+        print(f"touch-gestures: grab failed ({exc}); passthrough only, retrying", file=sys.stderr)
+
+    output = os.environ.get("TOUCH_GESTURES_OUTPUT", "eDP-1")
+    router = Router(clone, pad3, pad4, panel,
+                    focus_at=lambda nx, ny: focus_window_at(nx, ny, output))
+    if wl is not None:
+        panel.transform = wl.transform
+    debug = os.environ.get("TG_DEBUG") == "1"
+    try:
+        while True:
+            if wl is not None:
+                wl.flush()
+            # The holdback needs a real clock: a still finger produces no
+            # further events (the kernel dedups per-slot ABS values), so the
+            # timeout counts down the actual remainder instead of a fixed
+            # 0.2s tick that used to hold a motionless press back for up to
+            # 200ms.
+            now = time.monotonic()
+            if router.state == "pending":
+                timeout = max(0.001, HOLDBACK_S - (now - router.pending_since))
+            else:
+                timeout = 0.2
+            due = router.glide_due()
+            if due is not None:
+                timeout = min(timeout, max(0.001, due - now))
+            fds = [touch_fd]
+            if wl is not None and wl.fd is not None:
+                fds.append(wl.fd)
+            try:
+                ready, _, _ = select.select(fds, [], [], timeout)
+            except (OSError, ValueError):
+                return
+            router.glide_step(time.monotonic())
+            # A transient grabber at session start (or a dying duplicate) used
+            # to disable gestures for the rest of the session — one attempt,
+            # never retried. Retry while idle only: grabbing mid-contact would
+            # strand the in-flight contact on the compositor's view of the
+            # real device.
+            if not grabbed and router.state == "idle" and time.monotonic() >= next_grab_try:
+                try:
+                    fcntl.ioctl(touch_fd, EVIOCGRAB, 1)
+                    grabbed = True
+                    print("touch-gestures: grab acquired", file=sys.stderr)
+                except OSError:
+                    next_grab_try = time.monotonic() + 2.0
+            if wl is not None and wl.fd is not None and wl.fd in ready:
+                if wl.pump():
+                    panel.transform = wl.transform
+                    router.transform_changed()
+                    if debug:
+                        print(f"TGDBG transform -> {panel.transform}", file=sys.stderr, flush=True)
+            if touch_fd not in ready:
+                if router.state == "pending":
+                    router.sync()
+                continue
+            try:
+                data = os.read(touch_fd, EVENT_SIZE * 256)
+            except BlockingIOError:
+                continue
+            except OSError:
+                return
+            if not data:
+                return
+            if not grabbed:
+                continue  # compositor still sees the real device; do nothing
+            for off in range(0, len(data) - EVENT_SIZE + 1, EVENT_SIZE):
+                _s, _u, etype, code, value = struct.unpack("llHHi", data[off:off + EVENT_SIZE])
+                if etype == EV_ABS:
+                    router.absolute(code, value)
+                elif etype == EV_SYN and code == SYN_REPORT:
+                    before = router.state
+                    router.sync()
+                    if debug and router.state != before:
+                        print(f"TGDBG {before} -> {router.state} contacts={len(router.contacts())}", file=sys.stderr, flush=True)
+    finally:
+        router.shutdown()
+        if grabbed:
+            try:
+                fcntl.ioctl(touch_fd, EVIOCGRAB, 0)
+            except OSError:
+                pass
+        clone.close()
+        pad3.close()
+        pad4.close()
+
+
+def main():
+    # One instance only: a debug launch beside the autostart one created a
+    # second clone/pad trio and left whichever lost the grab race sitting in
+    # passthrough limbo. The lock dies with the process; O_CREAT keeps it
+    # working across a cleaned runtime dir.
+    lock_path = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "touch-gestures.lock")
+    lock_fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        print("touch-gestures: another instance holds the lock; exiting", file=sys.stderr)
+        return 1
+
+    wl = OutputWatcher(os.environ.get("TOUCH_GESTURES_OUTPUT", "eDP-1"))
+    wl.connect()
+
+    announced = False
+    while True:
+        if wl.display is None:
+            wl.connect()  # cheap; only retried between sessions
+        node = find_touchscreen()
+        if node is None:
+            if not announced:
+                print("touch-gestures: no direct multitouch device found, waiting", file=sys.stderr)
+                announced = True
+            time.sleep(5)
+            continue
+        try:
+            fd = os.open(node, os.O_RDONLY | os.O_NONBLOCK)
+        except OSError as exc:
+            print(f"touch-gestures: cannot open {node}: {exc}", file=sys.stderr)
+            time.sleep(5)
+            continue
+        info_x = axis_info(fd, ABS_MT_POSITION_X)
+        info_y = axis_info(fd, ABS_MT_POSITION_Y)
+        if info_x is None or info_y is None:
+            print("touch-gestures: device reports no MT axis range", file=sys.stderr)
+            os.close(fd)
+            time.sleep(5)
+            continue
+        announced = False
+        try:
+            run_session(fd, info_x, info_y, wl)
+        except KeyboardInterrupt:
+            os.close(fd)
+            wl.close()
+            return 0
+        os.close(fd)
+        time.sleep(1)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

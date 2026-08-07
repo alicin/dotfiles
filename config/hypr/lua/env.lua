@@ -2,7 +2,7 @@
 -- See https://wiki.hypr.land/Configuring/Advanced-and-Cool/Environment-variables/
 
 -- Apps.
-hl.env("TERMINAL",          "kitty")
+hl.env("TERMINAL",          "ghostty")
 hl.env("EDITOR",            "code")
 hl.env("FILE_BROWSER",      "yazi")
 hl.env("BROWSER",           "google-chrome-stable")

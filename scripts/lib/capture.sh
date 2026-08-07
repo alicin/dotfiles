@@ -27,7 +27,9 @@ notify_capture() {
     local summary="$1" path="$2" timeout="${3:-8000}" extra="${4:-}"
     local actions="'qshell-open','Open','qshell-reveal','Show in folder'"
 
-    [ "$extra" = "edit" ] && actions="'qshell-edit','Annotate',$actions"
+    # Annotate only when swappy is actually installed — a visible button that
+    # silently does nothing (execDetached eats the ENOENT) is worse than none.
+    [ "$extra" = "edit" ] && command -v swappy >/dev/null 2>&1 && actions="'qshell-edit','Annotate',$actions"
 
     gdbus call --session --dest org.freedesktop.Notifications \
         --object-path /org/freedesktop/Notifications \
