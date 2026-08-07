@@ -171,6 +171,12 @@ Item {
     // What Enter will do, for the rows where that isn't obvious ("Copy" on an
     // emoji, "⇧⏎ terminal" on a command line). Sized before the label so the
     // text elides against it instead of running underneath.
+    // Theme rows derive "Active" HERE, reactively, instead of carrying it in
+    // the row object: baked-in active-ness changed two rows' identity on
+    // every pick, and the model churn threw the selection to the bottom of
+    // the picker (see Search.themeRows).
+    readonly property string liveBadge: root.modelData.kind === "theme" && root.modelData.swatch === Settings.theme ? "Active" : (root.modelData.badge ?? "")
+
     StyledText {
         id: badge
 
@@ -178,7 +184,7 @@ Item {
         anchors.rightMargin: Appearance.s(14)
         anchors.verticalCenter: parent.verticalCenter
         visible: text !== ""
-        text: root.arming ? "Enter again" : (root.modelData.badge ?? "")
+        text: root.arming ? "Enter again" : root.liveBadge
         color: root.arming ? Theme.urgent : Theme.surfaceFgDim
         font.pixelSize: Appearance.font.size.small
         font.weight: root.arming ? Font.Bold : Font.Normal
