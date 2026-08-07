@@ -218,9 +218,25 @@ Singleton {
                     icon: (entry.icon && Quickshell.iconPath(entry.icon, true)) || Quickshell.iconPath("application-x-executable", true) || "",
                     entry: entry,
                     run: () => {
-                        const live = Apps.entryFor(id);
-                        if (live)
-                            Apps.launch(live);
+                        // Re-resolved by id, for the reason above. If that
+                        // misses — the entry was uninstalled, or
+                        // DesktopEntries is mid-rebuild — fall back to the
+                        // object this row was built from; `launch` null-guards
+                        // it anyway, so the worst case is the same no-op.
+                        //
+                        // Returning false rather than failing silently is the
+                        // point: a launch that quietly does nothing while
+                        // activate() closes the panel is INDISTINGUISHABLE from
+                        // the launcher ignoring Enter, which is exactly what it
+                        // was reported as. Now the panel stays up and the log
+                        // says why.
+                        const live = Apps.entryFor(id) ?? entry;
+                        if (!live) {
+                            console.warn(`launcher: no desktop entry resolves for "${id}" — nothing launched`);
+                            return false;
+                        }
+                        Apps.launch(live);
+                        return true;
                     }
                 }));
     }

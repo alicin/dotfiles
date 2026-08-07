@@ -16,8 +16,17 @@
 #              its config-reload signal, so open windows recolor in place.
 #   kitty      same shape (current-theme.conf + SIGUSR1), kept working for as
 #              long as kitty stays installed anywhere. Skipped when it isn't.
-#   GTK 3/4    gsettings color-scheme + adw-gtk3(-dark). Libadwaita/GTK4 apps
-#              follow the portal live; GTK3 apps pick it up on next launch.
+#   GTK 3/4    the real palette, as @define-color overrides written into
+#              config/gtk-{3,4}.0/gtk.css by scripts/gtk-theme-css.py (which
+#              derives them from qshell/config/Theme.qml, so GTK matches the
+#              shell and there is one palette to maintain, not two). Plus
+#              gsettings color-scheme + adw-gtk3(-dark) as the base.
+#              MEASURED: light/dark follows the portal live, but the palette
+#              itself is read once at app startup — a running app does not
+#              re-read gtk.css, and poking gsettings does not make it. So a
+#              theme change recolours GTK apps on their NEXT launch. Nautilus
+#              in particular is single-instance, so `nautilus --new-window`
+#              reuses the old daemon and its old colours; it needs a real kill.
 #              sync-gnome-tweaks-to-gtk then mirrors it into settings.ini for
 #              the bare-Hyprland case (see that script's header).
 #   Chrome     nothing Chrome-specific: it watches the portal's
@@ -99,6 +108,19 @@ if command -v kitty >/dev/null 2>&1 && [[ -f "${KITTY_DIR}/themes/${THEME}.conf"
     # Reload every running kitty; -x matches the exact process name so this
     # can never wing something else.
     pkill -USR1 -x kitty 2>/dev/null || true
+fi
+
+# ── GTK colours ─────────────────────────────────────────────────────────────
+# The palette itself, as @define-color overrides for GTK 3 and GTK 4. Without
+# this the sixteen themes collapse into two GTK looks: adw-gtk3 vs
+# adw-gtk3-dark. Derived from qshell/config/Theme.qml so GTK apps match the
+# shell exactly and there is only one palette to maintain — see that script.
+#
+# Written BEFORE the gsettings writes below, because those are what make
+# running apps re-read it.
+if [[ -f "${DOTFILES_DIR}/scripts/gtk-theme-css.py" ]]; then
+    python3 "${DOTFILES_DIR}/scripts/gtk-theme-css.py" "${THEME}" \
+        || echo "theme-sync: GTK css generation failed; GTK colours left alone" >&2
 fi
 
 # ── GTK / portal (Chrome rides this) ────────────────────────────────────────

@@ -33,7 +33,9 @@ ShellRoot {
 
     Bar {}
 
-    Launcher {}
+    Launcher {
+        id: launcherPanel
+    }
 
     ClipboardHistory {
         id: clipboardHistory
@@ -289,6 +291,12 @@ ShellRoot {
         // it open?" is a real question with a real answer.
         function clip(): string {
             return clipboardHistory.debugState;
+        }
+
+        // Same reason as clip(): whether Enter fires comes down to
+        // list.currentIndex, and -1 looks identical to 0 from outside.
+        function launcher(): string {
+            return launcherPanel.debugState;
         }
 
         function weather(): string {

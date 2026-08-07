@@ -645,6 +645,38 @@ they only exist because of how this shell draws:
   Use `Theme.contrastFg(fill)` when the fill is a theme colour rather than a
   known one.
 
+### GTK apps get the palette too
+
+`scripts/theme-sync.sh` used to give GTK only light/dark — `adw-gtk3` or
+`adw-gtk3-dark` plus the portal preference — so all sixteen themes collapsed
+into two looks and Nautilus was identical under Gruvbox and under Nord.
+`scripts/gtk-theme-css.py` now writes the real palette into
+`config/gtk-{3,4}.0/gtk.css` as libadwaita `@define-color` overrides (those
+directories *are* `~/.config/gtk-{3,4}.0`, by symlink).
+
+- **Derived from `Theme.qml`, not typed out again.** A second hand-maintained
+  copy of sixteen palettes is a second thing to get wrong, and the two would
+  disagree the first time a colour was tuned in one of them. `surfaceBg` is
+  stored `#AARRGGBB`, so dropping the alpha digits is exactly the upstream base
+  colour (`#f7eff1f5` → `#eff1f5`, Latte's `base`).
+- **CSS rather than a theme name, because of libadwaita**: GTK4 apps ignore
+  `gtk-theme-name` entirely and read these named colours, which is precisely
+  why they only ever followed light/dark. GTK3 reaches the same names through
+  adw-gtk3, so one palette drives both.
+- Derived shades follow libadwaita's own convention — views sit *above* the
+  window on light themes (whiter) and *below* on dark ones — so depth cues do
+  not invert. Borders are a tint of the foreground, never a neutral grey, which
+  reads as dirt on a tinted ground like Everforest or Rosé Pine.
+- `accent_color` (text) is contrast-corrected against the window background,
+  separately from `accent_bg_color` (fills): Latte's mauve is 3.1:1 as link
+  text on its own base, which is a pastel that looks right as a button and is
+  unreadable as a word.
+- **Measured limitation: the palette applies at app startup.** Light/dark
+  follows the portal live, but a running app does not re-read `gtk.css` and
+  poking gsettings does not make it — so a theme change recolours GTK apps on
+  their *next* launch. Nautilus is single-instance, so `nautilus --new-window`
+  reuses the old daemon and its old colours; it needs a real kill to re-read.
+
 ## Structure
 
 ```

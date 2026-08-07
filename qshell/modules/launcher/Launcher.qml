@@ -89,10 +89,13 @@ Scope {
             root.armed = row;
             return;
         }
-        if (alt && row.alt)
-            row.alt();
-        else
-            row.run();
+        // A row that reports failure keeps the panel up. Closing on a launch
+        // that did nothing is what made this read as "Enter was ignored" — the
+        // launcher vanished and no app appeared, so the only recourse was to
+        // open it and try again, which looked like needing two Enters.
+        const ok = (alt && row.alt) ? row.alt() : row.run();
+        if (ok === false)
+            return;
         // Theme rows stay: picking one is comparing, and the launcher restyles
         // itself the instant the setting lands, so the panel you are looking at
         // *is* the preview. Closing after every pick would mean reopening and
@@ -115,6 +118,14 @@ Scope {
 
     function activateCurrent(alt: bool): void {
         root.activate(root.currentRow(), alt);
+    }
+
+    // Surfaced for `qs -c qshell ipc call debug launcher`. currentIndex is the
+    // difference between Enter launching something and Enter doing nothing at
+    // all, and it is otherwise unobservable from outside the process.
+    readonly property string debugState: {
+        const rows = root.open ? Search.results(field.text) : [];
+        return `open=${root.open} query="${field.text}" index=${list.currentIndex} count=${list.count} rows=${rows.length} armed=${root.armed !== null} row="${root.currentRow()?.name ?? "(null)"}"`;
     }
 
     // Opened from elsewhere in the shell (the Control Center's theme row).
@@ -339,6 +350,18 @@ Scope {
                                 list.currentIndex = 0;
                             } else if (list.currentIndex >= list.count) {
                                 list.currentIndex = Math.max(0, list.count - 1);
+                            } else if (list.currentIndex < 0 && list.count > 0) {
+                                // The other end, and the one that bites: a
+                                // ListView drops currentIndex to -1 the moment
+                                // its model is momentarily empty, and the clamp
+                                // above only ever looks at the upper bound — so
+                                // -1 was permanent. currentRow() reads
+                                // rows[-1], hands activate() undefined, and
+                                // Enter does nothing at all. Also what
+                                // highlightRangeMode: ApplyRange can leave
+                                // behind, since it re-derives currentIndex from
+                                // wherever contentY happens to be.
+                                list.currentIndex = 0;
                             }
                         }
                     }
