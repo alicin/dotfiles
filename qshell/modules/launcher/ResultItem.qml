@@ -32,6 +32,7 @@ Item {
     readonly property bool inert: !modelData.run && modelData.switchTo === undefined
 
     signal activated
+    signal toggleRequested
 
     width: ListView.view ? ListView.view.width : 0
     height: Appearance.sizes.launcherItemHeight
@@ -88,34 +89,11 @@ Item {
 
     // ── Leading slot ──
 
-    // Disclosure triangle, on apps that have a jump list. Rotated rather than
-    // swapped for a second glyph so the turn is the animation — the same thing
-    // a native expander does.
-    FIcon {
-        id: disclosure
-
-        anchors.left: parent.left
-        anchors.leftMargin: Appearance.s(7)
-        anchors.verticalCenter: parent.verticalCenter
-        visible: root.actionCount > 0
-        icon: "arrowtriangle_right_fill"
-        font.pixelSize: Appearance.font.size.small
-        color: Theme.surfaceFgDim
-        rotation: root.modelData.expanded === true ? 90 : 0
-
-        Behavior on rotation {
-            Anim {
-                duration: Appearance.anim.durations.expressiveFastEffects
-                curve: Appearance.anim.curves.expressiveFastEffects
-            }
-        }
-    }
-
     IconImage {
         id: icon
 
         anchors.left: parent.left
-        anchors.leftMargin: Appearance.s(28) + root.indent
+        anchors.leftMargin: Appearance.s(10) + root.indent
         anchors.verticalCenter: parent.verticalCenter
         implicitSize: Appearance.s(38)
         visible: (root.modelData.icon ?? "") !== ""
@@ -206,10 +184,52 @@ Item {
     // the picker (see Search.themeRows).
     readonly property string liveBadge: root.modelData.kind === "theme" && root.modelData.swatch === Settings.theme ? "Active" : (root.modelData.badge ?? "")
 
+    // Expand/collapse an app's jump list. A button on the right rather than a
+    // disclosure triangle on the left: the left edge is the icon's, and this is
+    // something you press, not a state marker.
+    //
+    // Its own MouseArea, which sits above the row's StateLayer and so consumes
+    // the click — pressing + must not also launch the app.
+    Item {
+        id: expander
+
+        anchors.right: parent.right
+        anchors.rightMargin: Appearance.s(10)
+        anchors.verticalCenter: parent.verticalCenter
+        implicitWidth: Appearance.s(34)
+        implicitHeight: Appearance.s(34)
+        visible: root.actionCount > 0
+
+        Rectangle {
+            anchors.fill: parent
+            radius: width / 2
+            color: expanderArea.containsMouse ? Theme.surfaceHoverBg : "transparent"
+        }
+
+        StyledText {
+            anchors.centerIn: parent
+            // Literal +/- rather than a glyph: at this weight the icon font's
+            // plus is a hairline, and the point is that it reads as a control
+            // from across the panel.
+            text: root.modelData.expanded === true ? "−" : "+"
+            color: expanderArea.containsMouse ? Theme.accent : Theme.surfaceFg
+            font.pixelSize: Appearance.s(16)
+            font.weight: Font.Medium
+        }
+
+        MouseArea {
+            id: expanderArea
+
+            anchors.fill: parent
+            hoverEnabled: true
+            onClicked: root.toggleRequested()
+        }
+    }
+
     StyledText {
         id: badge
 
-        anchors.right: parent.right
+        anchors.right: expander.visible ? expander.left : parent.right
         anchors.rightMargin: Appearance.s(14)
         anchors.verticalCenter: parent.verticalCenter
         visible: text !== ""
@@ -222,7 +242,7 @@ Item {
     Column {
         anchors.left: icon.left
         anchors.leftMargin: Appearance.s(48)
-        anchors.right: badge.visible ? badge.left : parent.right
+        anchors.right: badge.visible ? badge.left : (expander.visible ? expander.left : parent.right)
         anchors.rightMargin: Appearance.s(12)
         anchors.verticalCenter: parent.verticalCenter
         spacing: 1

@@ -119,7 +119,10 @@ Scope {
     // Open/close the selected app's jump list. Returns false when the row has
     // no group, so the key can fall through to the text cursor.
     function toggleGroup(wantOpen: var): bool {
-        const row = root.currentRow();
+        return root.toggleGroupFor(root.currentRow(), wantOpen);
+    }
+
+    function toggleGroupFor(row: var, wantOpen: var): bool {
         if (!row || (row.actionCount ?? 0) === 0)
             return false;
         const open = row.expanded === true;
@@ -421,6 +424,13 @@ Scope {
                         query: Search.bodyOf(field.text)
                         arming: root.armed === modelData
                         onActivated: root.activate(modelData, false)
+                        // Clicking + selects the row it is on as well as
+                        // toggling, so the keyboard and the mouse agree about
+                        // what is current — the same contract hover already has.
+                        onToggleRequested: {
+                            list.currentIndex = index;
+                            root.toggleGroupFor(modelData, undefined);
+                        }
                     }
 
                     WheelScroll {
