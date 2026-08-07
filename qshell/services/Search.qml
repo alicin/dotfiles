@@ -3,6 +3,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Hyprland
+import Quickshell.Io
 import qs.config
 import qs.services
 
@@ -431,20 +432,117 @@ read _`])
     // is a class of bug this shell shouldn't have.
 
     function calcRow(q: string): var {
+        // The local parser first, and it stays the fast path: it answers in the
+        // same frame, so ordinary arithmetic never flickers through a
+        // placeholder and never spawns a process.
         const r = root.calc(q);
-        if (r === null)
+        if (r !== null)
+            return root.makeCalcRow(q, r, false);
+
+        // Beyond the parser: units, currency, timezones. qalc can do those, but
+        // it is a subprocess and results() is synchronous, so the answer lands
+        // later and the row has to exist before it does.
+        if (!root.wantsQalc(q))
             return null;
+        root.askQalc(q);
+        const ans = root.calcAnswers[q];
+        if (ans === "")
+            return null;   // asked, and qalc had nothing useful to say
+        return root.makeCalcRow(q, ans ?? "…", ans === undefined);
+    }
+
+    function makeCalcRow(q: string, value: string, pending: bool): var {
         return {
             kind: "calc",
-            name: r,
+            name: value,
             sub: q,
             glyph: "equal",
-            badge: "Copy",
+            badge: pending ? "" : "Copy",
             // `--`, because wl-copy takes its text as argv and getopt eats a
             // leading dash: `1-5` answers `-4`, and `wl-copy -4` is an
             // "invalid option" that never reaches the clipboard.
-            run: () => Quickshell.execDetached(["wl-copy", "--", r])
+            run: pending ? (() => {}) : (() => Quickshell.execDetached(["wl-copy", "--", value]))
         };
+    }
+
+    // ── Units, currency and the rest, via qalc ────────────────────────────
+    //
+    // qalc CANNOT be the gate for "is this a calculation". Verified:
+    // `qalc -t "not an expression at all"` prints `n = 0` and exits 0 — it
+    // reads anything as an assignment and answers happily. So the gate is the
+    // two patterns below, and they are deliberately narrow: a false positive
+    // spawns a process on a keystroke of an ordinary app search.
+    //
+    // Both require a leading number, which is what keeps "firefox", "settings"
+    // and "1password" out. The conversion pattern requires LETTERS after
+    // to/in/as, which is what keeps "2 in 1" out.
+    property var calcAnswers: ({})
+    property string calcWanted: ""
+
+    readonly property var reConvert: /^\s*[-+]?[\d.,]+\s*[A-Za-z°%$€£¥\/]*\s+(to|in|as)\s+[A-Za-z°%$€£¥\/]+\s*$/
+    readonly property var reUnitMath: /^\s*[-+]?[\d.,]+\s*[A-Za-z°]+(\s*[-+*\/]\s*[-+]?[\d.,]+\s*[A-Za-z°]*)+\s*$/
+
+    function wantsQalc(q: string): bool {
+        return root.reConvert.test(q) || root.reUnitMath.test(q);
+    }
+
+    function askQalc(q: string): void {
+        if (!q || root.calcAnswers[q] !== undefined || root.calcWanted === q)
+            return;
+        root.calcWanted = q;
+        qalcDebounce.restart();
+    }
+
+    // Debounced rather than fired per keystroke: "180 GB to MB" would otherwise
+    // launch a process for every prefix of itself that happens to pass the gate.
+    Timer {
+        id: qalcDebounce
+
+        interval: 150
+        onTriggered: {
+            const q = root.calcWanted;
+            if (!q || root.calcAnswers[q] !== undefined)
+                return;
+            // One at a time. Coming back round is cheap and keeps this from
+            // needing a queue.
+            if (qalcProc.running) {
+                qalcDebounce.restart();
+                return;
+            }
+            qalcProc.forQuery = q;
+            // -m bounds a pathological expression; the query travels as argv, so
+            // no quoting of user text into a shell ever happens.
+            qalcProc.command = ["qalc", "-t", "-m", "900", q];
+            qalcProc.running = true;
+        }
+    }
+
+    Process {
+        id: qalcProc
+
+        property string forQuery: ""
+
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const q = qalcProc.forQuery;
+                if (!q)
+                    return;
+                // qalc answers with a Unicode minus (U+2212): it looks right and
+                // pastes wrong, because it is not a hyphen and anything reading
+                // the copied value back as a number chokes on it.
+                let ans = text.trim().replace(/−/g, "-");
+                // Its "I did not understand that" is an assignment echo, not an
+                // error — `n = 0` for pure gibberish. Treat an answer that just
+                // restates the question as no answer.
+                if (ans.includes("=") || ans === q)
+                    ans = "";
+                // Whole-object reassignment: mutating a var map in place tells
+                // no binding anything changed, and the row would never update.
+                const next = Object.assign({}, root.calcAnswers);
+                next[q] = ans;
+                root.calcAnswers = next;
+            }
+        }
     }
 
     readonly property var constants: ({
@@ -675,6 +773,12 @@ read _`])
         add("Screenshot region", "Drag out an area", "camera", () => Capture.shoot("area"));
         add("Screenshot window", "The focused window", "camera", () => Capture.shoot("window"));
         add("Screenshot screen", "After a short countdown", "camera", () => Capture.shoot("full"));
+        // The two region verbs that answer with text rather than a file. Listed
+        // here because their binds (Ctrl+Shift+8/9) continue the capture digits
+        // and are the least guessable in the set.
+        add(Pip.active ? "Unpin Picture-in-Picture" : "Picture-in-Picture", Pip.active ? Pip.title : "Pin the focused window on top", "rectangle_on_rectangle", () => Pip.toggle(""));
+        add("Copy text from screen", "Drag out an area — OCR", "textformat", () => Capture.extractText());
+        add("Scan QR code on screen", "Drag out an area", "qrcode", () => Capture.scanQr());
         if (Capture.recording || Capture.paused) {
             // No elapsed time in the subtitle: it is part of the row's cache
             // key, so it would mint a new row object every second — churn in

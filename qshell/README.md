@@ -374,6 +374,24 @@ Hyprland wiring (`~/.config/hypr/lua/`):
     results (`services/Search.qml` has a small recursive-descent parser —
     `eval()` on arbitrary typed text is not a thing this shell does), and
     Enter copies the answer.
+  - **Units, currency and conversions go to `qalc`** (libqalculate): `180 GB to
+    MB`, `40 USD in CAD` (live ECB rates), `5 km + 3 mi`, `2^10`. The local
+    parser stays the fast path — it answers in the same frame, so ordinary
+    arithmetic never flickers through a placeholder and never spawns a process;
+    qalc is only asked what the parser cannot do, and its answer replaces a `…`
+    when it lands (debounced 150ms, one process at a time).
+    - **qalc cannot be the gate** for "is this a calculation". Verified:
+      `qalc -t "not an expression at all"` prints `n = 0` and exits 0 — it reads
+      anything as an assignment and answers happily. So two deliberately narrow
+      patterns decide instead, both requiring a leading number, which is what
+      keeps `firefox`, `settings` and `1password` out; the conversion pattern
+      also requires letters after `to`/`in`/`as`, which is what keeps `2 in 1`
+      out.
+    - qalc answers with a **Unicode minus** (U+2212), which looks right and
+      pastes wrong — it is not a hyphen and anything reading the copied value
+      back as a number chokes. Normalised on the way in.
+    - Note `100 F to C` is farads to coulombs, not Fahrenheit — that is qalc's
+      unit table, not a bug here. `degF to degC` is the spelling it wants.
   - Desktop-entry **actions** ("New Private Window") ride along under their
     app, findable by the app's name or by the action's own words.
 - **Clipboard history** (Super+Shift+V) — a wide strip across the bottom of
@@ -388,6 +406,35 @@ Hyprland wiring (`~/.config/hypr/lua/`):
   - **Kind chips** (All / Pinned / Text / Links / Images / Files / Colors)
     filter the strip; Tab walks them. A colour-valued entry draws itself as
     the colour, which is the one payload whose value *is* what it looks like.
+  - **Ctrl+Q shows the entry as a QR code**, for picking a link up on a phone —
+    the other half of `capture qr`, which reads one off the screen. Offered for
+    text, links and colours only: an image entry has no text to encode and a
+    file entry's payload is a path that means nothing on the other device.
+    - It encodes the **full entry**, never the card's preview — cliphist's
+      listing is truncated, and a QR built from that is a perfectly valid code
+      for the wrong string.
+    - The payload never crosses into QML: the pipeline ends in `base64` and the
+      result goes straight into an `Image` as a `data:` URI, so no clipboard
+      entry is ever written to disk. `-s 1` makes the PNG one pixel per module
+      so the view scales it by an integer with `smooth: false` — a filtered QR
+      is a blurred QR, and blurred is unscannable.
+    - The plate is **the one surface in the shell that ignores the palette**:
+      a QR is read by a camera and the spec assumes dark modules on a light
+      ground, so it stays black-on-white in all 16 themes. The chrome around it
+      is themed; the code and its quiet zone are not.
+    - Past qrencode's ~2953-byte ceiling it says "too long to encode" rather
+      than showing a truncated code that scans to the wrong thing. `pipefail`
+      is load-bearing there: `base64` of empty input exits 0.
+  - **Opening the picker always lands on the first card**, with no slide. Two
+    things had to be true for that: the reset lives on the *model*, keyed on the
+    query and filter actually rendered (the launcher's list carries the same fix
+    and documents why — two handlers firing off one notification in an order QML
+    does not promise), and it re-asserts on every rebuild until the selection
+    genuinely moves, because `Clipboard.refresh()` is a subprocess whose result
+    lands long after `onOpenChanged`. Before that, `highlightRangeMode:
+    ApplyRange` re-derived `currentIndex` from wherever `contentX` sat during
+    the open relayout, which landed on card 749 of 750 — and Right then wrapped
+    modulo count straight back to the first.
   - **Source attribution**: cliphist stores content and nothing else — no app,
     no timestamp — and both are knowable only at the instant of the copy. The
     `wl-paste --watch` lines therefore run `scripts/clip-store.sh`, which *is*
@@ -424,6 +471,50 @@ Hyprland wiring (`~/.config/hypr/lua/`):
   (DropArea per cell, `hl.dsp.window.move({ workspace = N, follow = false,
   window = "address:…" })`). Esc / click outside dismisses.
 
+- **Read the screen** (`scripts/ocr.sh`, Ctrl+Shift+8 / Ctrl+Shift+9) — drag a
+  region and get its **text** on the clipboard (PowerToys' Text Extractor), or
+  decode a **QR/barcode** in it. Both go through `Capture.withUiHidden()` first:
+  the bar and any live toast are on the screen being read, and not hiding them
+  OCRs the shell's own UI into your clipboard.
+  - **Supersampling is the feature**, not a nicety. Measured on this display: at
+    native scale tesseract turns a line of 12pt terminal text into
+    `faiiged Wds Ld4L4lo Lk juusl vianuing`; at 2x native the same line comes
+    back verbatim. But grim's `-s` is an **absolute** output scale, not a
+    multiplier — its default is already the greatest scale of the outputs being
+    captured (1733x400 for a 1300x300 logical region on a scale-1.33 monitor),
+    so a hardcoded `-s 2` is only 1.5x here and would be a *downscale* on a 2x
+    display. The factor is computed against the monitor's scale.
+  - Capped at ~8MP: tesseract is roughly linear in pixel count and holds the
+    page in memory, so an unbounded upscale of a full-screen selection is a
+    multi-second stall with the shell's UI hidden, for no extra accuracy.
+  - **No temp file anywhere** — grim writes PNG to stdout and tesseract reads
+    `-` from stdin, so a cancelled or crashed run leaves nothing behind. A
+    screen region is exactly the class of thing (a password field, a DM) that
+    should not outlive the copy.
+  - A failed read **does not touch the clipboard**: losing what you had copied
+    because the OCR found nothing is worse than the failure itself.
+  - The toast preview is truncated by *characters*, not bytes — splitting a
+    multi-byte character makes gdbus reject the whole `Notify` call, which does
+    not mangle the notification, it means no notification appears at all.
+- **Picture-in-Picture** (Super+Shift+I — `services/Pip.qml`, `modules/pip/`) —
+  a live, always-on-top, scaled-down view of one window, so a build or a log
+  stays watchable from inside something else. Same mechanism as the overview's
+  thumbnails (hyprland-toplevel-export through `ScreencopyView`) pointed at one
+  window instead of all of them. Drag it anywhere, click it to jump to the
+  source, Super+Ctrl+Shift+I cycles the corners.
+  - Holds the window's **address, never the toplevel object**: Quickshell
+    destroys a `HyprlandToplevel` outright on `closewindow` and every held
+    reference silently becomes null, which would leave a frozen picture of a
+    window that no longer exists. The source going away unpins instead.
+  - The surface is **screen-sized and therefore constant**, with `mask: Region`
+    around just the card — so the card can be dragged and resized without any
+    animated child ever reaching the Wayland surface. That is the trap the OSD
+    fell into, where deriving `implicitWidth` from an animating pill resized the
+    layer surface every frame and made `rules.lua` fade `qshell:.*` underneath
+    the real animation.
+  - Nothing is mapped until something is pinned (a `LazyLoader`), and the card
+    hides itself outright while a capture is in flight — it is on the Overlay
+    layer, so it *is* in the screenshot otherwise.
 - **Shortcuts cheat sheet** (Super+/ — `modules/keycheat/`) — the whole keymap
   as a grid of grouped cards, **generated from `~/.config/hypr/lua/binds.lua`**
   (the file Hyprland actually loaded, not the repo copy) by reading its
@@ -463,6 +554,16 @@ qs ipc -c qshell call popouts toggle control # control center; also: audio /
 qs ipc -c qshell call launcher mode '#'      # theme picker (swatches)
 qs ipc -c qshell call overview toggle       # workspace overview (Alt+Tab)
 qs ipc -c qshell call keycheat toggle       # shortcuts cheat sheet (Super+/)
+qs ipc -c qshell call capture ocr           # drag a region -> its text on the
+                                            # clipboard (Ctrl+Shift+8)
+qs ipc -c qshell call capture qr            # drag a region -> decode a QR code
+                                            # in it (Ctrl+Shift+9)
+qs ipc -c qshell call pip toggle            # picture-in-picture the focused
+                                            # window; also pin <addr> / unpin
+qs ipc -c qshell call pip corner            # no argument cycles the corners
+qs ipc -c qshell call pip size large        # small / medium / large, or a
+                                            # fraction of the screen width
+qs ipc -c qshell call pip status            # what is pinned, and is it alive
 qs ipc -c qshell call capture shot window   # area / window / full
 qs ipc -c qshell call capture record        # select area / start armed / stop
 qs ipc -c qshell call capture audio mic     # toggle mic / system audio capture

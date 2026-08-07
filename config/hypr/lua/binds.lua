@@ -44,6 +44,12 @@ hl.bind(MS .. " + P",     dsp.exec_cmd(apps.colorpicker))-- color picker
 hl.bind(MS .. " + C",     dsp.exec_cmd(apps.bar))        -- toggle bar
 hl.bind(M  .. " + slash", dsp.exec_cmd(apps.keycheat))   -- shortcuts cheatsheet
 hl.bind(M  .. " + N",     dsp.exec_cmd("qs ipc -c qshell call popouts toggle notifs")) -- notification center
+-- Picture-in-Picture. On MS+I rather than M+I because Toshy's stock IDE keymap
+-- maps bare Super-i to Ctrl+I ("Implement methods") *below* the user_apps
+-- slice, so M+I would be eaten in those apps and work everywhere else — which
+-- is worse than not existing. Super+Shift+I is clear on both sides.
+hl.bind(MS .. " + I",     dsp.exec_cmd(apps.pip))        -- picture-in-picture (focused window)
+hl.bind(MCS .. " + I",    dsp.exec_cmd(apps.pip_corner)) -- move picture-in-picture corner
 -- Comma for the settings-ish panel, the one convention every desktop shares.
 -- The submap entry lives here rather than in submaps/control.lua so the
 -- cheatsheet — which only parses this file — can see it; the submap's own
@@ -112,6 +118,11 @@ hl.bind("CTRL + SHIFT + 4", dsp.exec_cmd(apps.grab))         -- area screenshot
 hl.bind("CTRL + SHIFT + 5", dsp.exec_cmd(apps.record))       -- area screen record (toggle)
 hl.bind("CTRL + SHIFT + 6", dsp.exec_cmd(apps.record_full))  -- full-screen record (toggle)
 hl.bind("CTRL + SHIFT + 7", dsp.exec_cmd(apps.record_pause)) -- pause / resume recording
+-- Continuing the capture family's digits rather than inventing a mnemonic:
+-- Ctrl+Shift+T would have been the obvious one for "text" and is exactly what a
+-- terminal emits for a new tab, which the Toshy terminal keymaps would eat first.
+hl.bind("CTRL + SHIFT + 8", dsp.exec_cmd(apps.ocr))          -- copy text from a region (OCR)
+hl.bind("CTRL + SHIFT + 9", dsp.exec_cmd(apps.qr_scan))      -- decode a QR code on screen
 hl.bind(MS .. " + M", dsp.exec_cmd(apps.toggle_edp))        -- toggle eDP
 hl.bind(MS .. " + O", dsp.exec_cmd(apps.relight_displays))  -- relight stuck/blank display (panic)
 -- One registration only: Hyprland matches bind keys case-insensitively and

@@ -156,6 +156,18 @@ Scope {
             Clipboard.togglePin(item.modelData);
     }
 
+    // The QR plate for the selected card. Session state, not a mode: it sits
+    // over the picker and Escape takes it away again.
+    property bool qrOpen: false
+
+    function showQrCurrent(): void {
+        const entry = list.currentItem?.modelData;
+        if (!entry || !Clipboard.qrCapable(entry))
+            return;
+        Clipboard.encodeQr(entry);
+        root.qrOpen = true;
+    }
+
     // Left/Right walk the strip. They cost the text cursor its arrow keys,
     // which is the right trade: this is a picker with a search field, not a
     // text editor — and the whole point of the layout is moving along a row.
@@ -221,7 +233,18 @@ Scope {
             active: root.open
             // The OSK is whitelisted so typing into the filter field from the
             // on-screen keyboard doesn't dismiss the picker on the first key.
-            windows: Osk.panelWindow ? [win, Osk.panelWindow] : [win]
+            //
+            // So is the QR plate, and it has to be: a second surface the grab
+            // does not know about reads as a click outside, onCleared fires,
+            // and the picker closes out from under the code it just raised.
+            windows: {
+                const w = [win];
+                if (Osk.panelWindow)
+                    w.push(Osk.panelWindow);
+                if (qrLoader.item)
+                    w.push(qrLoader.item);
+                return w;
+            }
             onCleared: root.open = false
         }
 
@@ -323,7 +346,14 @@ Scope {
                         onAccepted: root.copyCurrent()
                         Keys.onLeftPressed: root.move(-1)
                         Keys.onRightPressed: root.move(1)
-                        Keys.onEscapePressed: root.open = false
+                        // Escape peels one layer at a time: the QR plate first,
+                        // the picker only once it is gone.
+                        Keys.onEscapePressed: {
+                            if (root.qrOpen)
+                                root.qrOpen = false;
+                            else
+                                root.open = false;
+                        }
                         // Shift+Delete drops an entry — plain Delete has to
                         // stay available for editing the query.
                         Keys.onDeletePressed: event => {
@@ -347,6 +377,15 @@ Scope {
                                 event.accepted = true;
                             } else if (event.key === Qt.Key_D && (event.modifiers & Qt.ControlModifier)) {
                                 root.removeCurrent();
+                                event.accepted = true;
+                            } else if (event.key === Qt.Key_Q && (event.modifiers & Qt.ControlModifier)) {
+                                // Q for QR, following Ctrl+P / Ctrl+D. Worth
+                                // knowing: with the macOS modmaps on, physical
+                                // Cmd+Q arrives here as Ctrl+Q, so a reflexive
+                                // quit raises a code instead. Harmless — the
+                                // picker is not an app you quit, and Escape
+                                // takes the plate away.
+                                root.showQrCurrent();
                                 event.accepted = true;
                             } else if (event.key === Qt.Key_Tab) {
                                 // Walks the filter chips, which are otherwise
@@ -715,6 +754,117 @@ Scope {
                             font.pixelSize: Appearance.font.size.small
                             font.weight: Font.Normal
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    // ── QR plate ──────────────────────────────────────────────────────────
+    //
+    // Its own surface, not a layer inside the picker: the picker's window is a
+    // bottom strip capped at 460px, and a plate does not fit in it without
+    // resizing the Wayland surface every time it opens — which rules.lua would
+    // then animate underneath the real thing (the trap the OSD fell into).
+    //
+    // A LazyLoader so nothing is mapped until a code is actually asked for, and
+    // so the picker's focus grab can whitelist `qrLoader.item` by identity.
+    LazyLoader {
+        id: qrLoader
+
+        active: root.qrOpen
+
+        PanelWindow {
+            id: qrWin
+
+            screen: Quickshell.screens.find(s => s.name === (root.pinned || Hyprland.focusedMonitor?.name)) ?? Quickshell.screens[0] ?? null
+            color: "transparent"
+            exclusionMode: ExclusionMode.Ignore
+
+            anchors {
+                top: true
+                bottom: true
+                left: true
+                right: true
+            }
+
+            WlrLayershell.namespace: "qshell:clipqr"
+            WlrLayershell.layer: WlrLayer.Overlay
+            // The picker keeps the keyboard — Escape and the arrows still belong
+            // to it, and taking focus here would break the layer it sits on.
+            WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+
+            Rectangle {
+                anchors.fill: parent
+                color: Qt.alpha(Theme.shadow, 0.5)
+
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: root.qrOpen = false
+                }
+
+                Elevation {
+                    anchors.fill: plate
+                    radius: plate.radius
+                    level: 4
+                }
+
+                Rectangle {
+                    id: plate
+
+                    anchors.centerIn: parent
+                    width: Appearance.s(300)
+                    height: Appearance.s(300) + label.height + Appearance.s(28)
+                    radius: Appearance.s(18)
+                    // Deliberately NOT a Theme colour, and the one place in the
+                    // shell that ignores the palette on purpose: a QR code is
+                    // read by a camera, and the spec's contrast assumption is
+                    // dark modules on a light ground. Inverting it for a dark
+                    // theme produces a code many scanners refuse. The chrome
+                    // around it is themed; the code and its quiet zone are not.
+                    color: "#ffffff"
+
+                    Image {
+                        id: qrImage
+
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.top: parent.top
+                        anchors.topMargin: Appearance.s(14)
+                        width: Appearance.s(272)
+                        height: width
+                        visible: Clipboard.qrData !== ""
+                        // One pixel per module out of qrencode, scaled by an
+                        // integer with no smoothing — a filtered QR is a blurred
+                        // QR, and blurred is unscannable.
+                        smooth: false
+                        fillMode: Image.PreserveAspectFit
+                        source: Clipboard.qrData === "" ? "" : `data:image/png;base64,${Clipboard.qrData}`
+                    }
+
+                    StyledText {
+                        anchors.centerIn: qrImage
+                        visible: Clipboard.qrPending || Clipboard.qrFailed
+                        width: parent.width - Appearance.s(40)
+                        horizontalAlignment: Text.AlignHCenter
+                        wrapMode: Text.WordWrap
+                        text: Clipboard.qrPending ? "Encoding…" : "Too long to encode as a QR code"
+                        color: "#666666"
+                        font.pixelSize: Appearance.font.size.small
+                    }
+
+                    StyledText {
+                        id: label
+
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.top: qrImage.bottom
+                        anchors.topMargin: Appearance.s(8)
+                        width: parent.width - Appearance.s(28)
+                        horizontalAlignment: Text.AlignHCenter
+                        elide: Text.ElideMiddle
+                        text: Clipboard.entryText(list.currentItem?.modelData ?? null) || ""
+                        // Against the white plate, not the theme surface.
+                        color: "#444444"
+                        font.pixelSize: Appearance.font.size.small
                     }
                 }
             }

@@ -436,6 +436,83 @@ Singleton {
         copier.running = true;
     }
 
+    // ── QR ──
+    //
+    // Show an entry as a QR code, to pick a link up on a phone. The other half
+    // of this is Capture.scanQr(), which reads one off the screen.
+    //
+    // The payload never crosses into QML: the pipeline ends in base64 and the
+    // result goes straight into an Image as a `data:image/png;base64,…` URI. So
+    // there is no temp file, nothing to clean up, and no clipboard entry — which
+    // is exactly the class of thing you don't want on disk — written anywhere.
+    property string qrData: ""
+    property string qrKey: ""
+    property bool qrPending: false
+    property bool qrFailed: false
+
+    function qrKeyOf(entry: var): string {
+        return entry?.pinned ? `pin:${entry.file}` : `id:${entry?.id ?? ""}`;
+    }
+
+    // Only what a phone camera could do anything with. An image entry has no
+    // text to encode, and a file entry's payload is a path that means nothing
+    // on the other device.
+    function qrCapable(entry: var): bool {
+        const k = root.kindOf(entry);
+        return k === "text" || k === "link" || k === "color";
+    }
+
+    function encodeQr(entry: var): void {
+        // NEVER restart an in-flight encode by clearing `running`: Quickshell
+        // SIGTERMs the process and still publishes whatever stdout it had
+        // collected, so a cancelled run lands as a TRUNCATED base64 string —
+        // a corrupt image that looks exactly like a successful encode. Same
+        // trap refresh() documents for `cliphist list`.
+        if (qrProc.running)
+            return;
+        root.qrKey = root.qrKeyOf(entry);
+        root.qrData = "";
+        root.qrFailed = false;
+        root.qrPending = true;
+        // A pin reads its own bytes; a history row decodes by id — the same
+        // split copyEntry makes, and for the same reason (after a wipe there is
+        // no id left to decode, which is when you reach for a pin).
+        //
+        // The FULL entry, never the card's preview: cliphist's listing is
+        // truncated, and a QR built from that is a perfectly valid code for the
+        // wrong string.
+        const src = entry.pinned ? `cat '${entry.file}'` : `cliphist decode ${entry.id}`;
+        // -s 1 makes the PNG one pixel per module, so the view can scale it by
+        // an integer factor with smooth:false and stay razor-sharp; -m 0 drops
+        // qrencode's own quiet zone because the plate draws a bigger one.
+        //
+        // pipefail is not optional: base64 of empty input exits 0, so without it
+        // a qrencode that refused an over-long payload comes back looking like a
+        // successful encode of nothing.
+        qrProc.command = ["sh", "-c", `set -o pipefail; ${src} | qrencode -l L -m 0 -s 1 -t PNG -o - | base64 -w0`];
+        qrProc.running = true;
+    }
+
+    Process {
+        id: qrProc
+
+        stdout: StdioCollector {
+            onStreamFinished: {
+                root.qrPending = false;
+                const b64 = text.trim();
+                // qrencode's byte-mode ceiling is ~2953 bytes at EC level L.
+                // Past that it refuses, pipefail carries the failure through,
+                // and this is empty — which is reported as "too long" rather
+                // than as a blank plate.
+                if (b64 === "") {
+                    root.qrFailed = true;
+                    return;
+                }
+                root.qrData = b64;
+            }
+        }
+    }
+
     // Public because the launcher's emoji picker wants exactly this step once
     // its own copy has landed.
     function pasteInto(addr: string, cls: string): void {

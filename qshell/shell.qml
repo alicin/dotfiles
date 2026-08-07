@@ -21,6 +21,7 @@ import qs.modules.notifications
 import qs.modules.osd
 import qs.modules.osk
 import qs.modules.overview
+import qs.modules.pip
 
 ShellRoot {
     id: shellRoot
@@ -45,6 +46,10 @@ ShellRoot {
     OsdPanel {}
 
     Overview {}
+
+    // Picture-in-Picture: a live thumbnail of one window, pinned above
+    // everything. Nothing is mapped until something is pinned.
+    PipView {}
 
     // Shortcut cheat sheet, generated from ~/.config/hypr/lua/binds.lua.
     // Was bin/keycheat-overlay.py (GTK4, hardcoded Mocha palette); it is a shell
@@ -125,6 +130,19 @@ ShellRoot {
             }
             Capture.toggleRecording();
             return wasLive ? "stopping" : "starting";
+        }
+
+        // Region OCR and QR decode. Both take a selection and put the answer on
+        // the clipboard, so they belong with the other one-shot region verbs
+        // rather than in a target of their own.
+        function ocr(): string {
+            Capture.extractText();
+            return "ok";
+        }
+
+        function qr(): string {
+            Capture.scanQr();
+            return "ok";
         }
 
         function pause(): string {

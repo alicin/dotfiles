@@ -148,10 +148,25 @@ M.control_kdeconnect = "qs -c qshell ipc call popouts toggle kdeconnect"
 M.control_display    = "qs -c qshell ipc call popouts toggle display"
 -- Shortcuts cheat sheet. Now a shell surface (qshell/modules/keycheat) rather
 -- than the standalone GTK4 overlay, so it follows the active theme.
--- No `||` fallback to bin/keycheat: `qs ipc call` exits 0 even when the target
--- does not exist (it just prints "Target not found."), so the fallback could
--- never fire and would only ever double-fire. Same shape as M.menu/M.clipboard.
-M.keycheat           = "qs -c qshell ipc call keycheat toggle"
+--
+-- The fallback is worth keeping, and the exit codes are subtler than they look:
+-- `qs ipc call` exits *0* when the shell is up but the target or arity is wrong
+-- (it just prints "Target not found."), which is the trap the capture entries
+-- above document — but it exits non-zero when the shell is not running at all,
+-- which is the only case this fallback is for. bin/keycheat still renders the
+-- sheet without the shell.
+M.keycheat           = "qs -c qshell ipc call keycheat toggle 2>/dev/null || /home/ali/labs/dotfiles/bin/keycheat"
+
+-- Region OCR and QR decode. Shell-only, like M.menu and M.clipboard: both end
+-- in a notification, and with the shell down there is no notification daemon to
+-- receive it — a fallback would copy text and tell you nothing.
+-- Picture-in-Picture. No argument = the focused window, which is the whole
+-- gesture: you are looking at the build, you press the key, you switch away.
+M.pip                = "qs -c qshell ipc call pip toggle"
+M.pip_corner         = "qs -c qshell ipc call pip corner"    -- no argument cycles the four corners
+
+M.ocr                = "qs -c qshell ipc call capture ocr"   -- text out of a screen region
+M.qr_scan            = "qs -c qshell ipc call capture qr"    -- decode a QR code on screen
 
 -- Lock / idle daemons (singleton: only spawn if not already running).
 M.locking = "pidof hyprlock || hyprlock"

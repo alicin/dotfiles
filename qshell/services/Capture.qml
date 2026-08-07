@@ -184,6 +184,37 @@ Singleton {
         });
     }
 
+    // Pull the text out of a screen region — PowerToys' Text Extractor, the one
+    // thing that machine had and this one didn't. Same shape as pickColor: hide
+    // the shell, drag a rectangle, put the answer on the clipboard, say so.
+    //
+    // `grim -s 2` supersamples, and it is not optional. Measured on this
+    // display: at native scale tesseract turns a line of 12pt terminal text
+    // into "faiiged Wds Ld4L4lo Lk juusl vianuing", and at 2x the same line
+    // comes back essentially verbatim. It costs a moment on a large region and
+    // it is the difference between the feature working and not.
+    //
+    // No temp file anywhere: grim writes PNG to stdout and tesseract reads "-"
+    // from stdin, so a cancelled or crashed run leaves nothing behind.
+    //
+    // --psm 6 ("one uniform block of text") beat the default on screen regions;
+    // --psm 4 measured identically and is the more obvious choice for a column,
+    // so this is not a strong preference, just the one that was tested.
+    function extractText(): void {
+        withUiHidden(() => root.run(`${root.scriptsDir}/ocr.sh text`));
+    }
+
+    // Decode a QR code off the screen. Same region plumbing as extractText, so
+    // it costs almost nothing to have — and it is the half of the clipboard's
+    // QR feature that goes the other way: show a link as a code to pick up on a
+    // phone, read a code off a screen to get the link here.
+    //
+    // No -s 2 here: zbarimg wants the pixels as they are, and grim already
+    // captures at the output's native resolution rather than the logical one.
+    function scanQr(): void {
+        withUiHidden(() => root.run(`${root.scriptsDir}/ocr.sh qr`));
+    }
+
     // Open a screenshot in swappy to draw on it. Reached from the floating
     // thumbnail and from the notification's Annotate action — the two places
     // you're still thinking about the shot you just took.
