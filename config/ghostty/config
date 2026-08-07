@@ -37,16 +37,24 @@ shell-integration-features = no-cursor
 # kitty's `confirm_os_window_close 0` — closing a terminal closes it.
 confirm-close-surface = false
 
-# Scroll speed. A TOUCHSCREEN counts as a `precision` device here (same class
-# as a touchpad — continuous sub-line deltas), so `precision:` is the knob for
-# finger scrolling; ghostty's default of 1 sends the panel flying on a 120Hz
-# 2560x1600 screen where a short drag is a lot of pixels. `discrete:` is the
-# mouse wheel and keeps ghostty's stock 3-lines-per-notch.
+# Scroll speed. 0.1 is not a taste value — it is an exact cancellation.
 #
-# One caveat worth knowing: `precision` covers the dock's trackpad too, so
-# lowering it slows two-finger trackpad scrolling by the same factor. Raise it
-# if the trackpad ends up feeling sluggish; they cannot be tuned apart.
-mouse-scroll-multiplier = precision:0.3,discrete:3
+# A touchscreen is a `precision` device to ghostty (same class as a touchpad:
+# continuous pixel deltas). Its GTK layer then multiplies EVERY precision
+# delta by a hardcoded 10.0 before the config multiplier is applied —
+# src/apprt/gtk/class/surface.zig, `const multiplier: f64 = if
+# (priv.precision_scroll) 10.0 else 1.0;`, commented "to get a better
+# response from touchpad scrolling". So the default sends content flying at
+# ten times the finger, and 0.3 was still 3x. 0.1 undoes the 10 exactly and
+# gives true 1:1 tracking: content moves with the finger, which is what a
+# touchscreen is supposed to do.
+#
+# The catch, since the two share one knob: the dock's trackpad now scrolls
+# 1:1 too, and a trackpad IS small enough to want that amplification (which
+# is why ghostty put it there). If docked scrolling feels sluggish, raise
+# this — 0.3–0.5 is the compromise band — and accept a faster finger.
+# `discrete:` is the mouse wheel and keeps ghostty's stock 3 lines per notch.
+mouse-scroll-multiplier = precision:0.1,discrete:3
 
 # ── Theme ────────────────────────────────────────────────────────────────────
 # LAST, deliberately: ghostty takes the last value for single-value keys, so

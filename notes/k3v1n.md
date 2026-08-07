@@ -6,15 +6,17 @@ applied here. Format and pruning: `notes/README.md`.
 
 ## Open
 
-- [ ] 2026-08-07 — **Check ghostty's touch scroll speed.**
-      Touch scrolling WORKS (confirmed on the glass — this is why ghostty
-      replaced kitty, whose Wayland backend has no wl_touch at all). It came
-      out far too fast at ghostty's defaults, so
-      `mouse-scroll-multiplier = precision:0.3,discrete:3` is set in
-      `config/ghostty/config`. A touchscreen is a `precision` device to
-      ghostty, same class as a touchpad — so that number also scales the
-      dock's trackpad and the two cannot be tuned apart. Nudge it if either
-      end feels wrong; `discrete` is the mouse wheel and is untouched.
+- [ ] 2026-08-07 — **Confirm ghostty's touch scroll feels 1:1 now.**
+      `mouse-scroll-multiplier = precision:0.1` in `config/ghostty/config`.
+      That number is an exact cancellation, not a taste setting: ghostty's
+      GTK layer multiplies every precision (touch/trackpad) delta by a
+      hardcoded 10.0 before the config multiplier
+      (`src/apprt/gtk/class/surface.zig`, "to get a better response from
+      touchpad scrolling"), so 0.1 undoes it and content tracks the finger.
+      The catch is that the dock's trackpad shares the knob and now scrolls
+      1:1 as well — if that feels sluggish while docked, 0.3–0.5 is the
+      compromise band, at the cost of a faster finger. `discrete:` is the
+      mouse wheel and is untouched.
 
 - [ ] 2026-08-06 — **Verify rotation on the glass.**
       Rotate (bar button / `Super+Ctrl+R`) and check three things: taps land
