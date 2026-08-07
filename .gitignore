@@ -22,6 +22,17 @@ config/micro/buffers
 # regenerated caches.
 config/ali/apps_cache.toml
 config/ali/frecency.toml
+# Toshy's prefs DB was tracked and symlinked back into ~/.config/toshy, so the
+# keymapper wrote runtime state straight into this working tree: it appends to
+# mru_layouts (a trigger-trimmed rolling layout log) on every start, which made
+# the file dirty after every login on every host, forever. config_preferences —
+# the part that actually decides modifier behavior — is stable, but there is no
+# way to track one table and ignore the other in a binary blob. Untracked
+# 2026-08-07; ~/.config/toshy/ now holds a real file, not a link in here.
+# The last tracked copy is recoverable:
+#   git show 5aedf00d:config/toshy/toshy_user_preferences.sqlite > \
+#     ~/.config/toshy/toshy_user_preferences.sqlite
+config/toshy/toshy_user_preferences.sqlite
 # Sunshine/Deskflow/FreeRDP were deliberately NOT imported — they hold TLS
 # private keys. Listed here so a future `dotlink` of them fails loudly instead
 # of quietly committing a key.

@@ -134,8 +134,15 @@ Config root `config/hypr/hyprland.lua`, modules in `lua/*.lua`, hosts in
 
 `~/.config/toshy/toshy_config.py` is a **symlink** into the repo
 (`config/toshy/toshy_config.py`); prefs live in
-`toshy_user_preferences.sqlite` (also tracked). Verify with
-`sqlite3 ~/.config/toshy/toshy_user_preferences.sqlite "SELECT name,value FROM config_preferences"`.
+`toshy_user_preferences.sqlite`, which is **not tracked and not a symlink**
+(since 2026-08-07 — it was both, and Toshy appending to `mru_layouts` on every
+start left the working tree permanently dirty). It is a plain per-machine file:
+nothing in the repo backs it up, and `toshy-install.sh` will not recreate or
+clobber it. Verify with
+`sqlite3 ~/.config/toshy/toshy_user_preferences.sqlite "SELECT name,value FROM config_preferences"`
+— 16 rows; an empty or defaults-only result on a host that used to have a
+symlink means it dangled and Toshy rebuilt it (recovery:
+`config/toshy/README.md`).
 
 **Edit → validate → restart → verify** (always all four):
 

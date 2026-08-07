@@ -3,13 +3,43 @@
 Toshy installs itself into `~/.config/toshy` (a ~74 MB tree: a Python `.venv`,
 dbus services, GUI code, scripts, kwin-script, etc.). Almost none of that is
 *config* — it's the program, and Toshy regenerates much of it on upgrade. So we
-do **not** symlink the whole directory. Only these two files are tracked here
-(three counting this README, which stays put) and symlinked back into place:
+do **not** symlink the whole directory. Only this one file is tracked here (two
+counting this README, which stays put) and symlinked back into place:
 
 | File | What it is |
 |------|------------|
 | `toshy_config.py` | The keymapper config. Keymaps live in its `SLICE_MARK_START/END` blocks (e.g. the `imv`/`yazi` keymaps in `user_apps`) — but the 2026-07-05 **modifier scheme is edits *outside* the slices**; see "The upgrade trap" below. The rest is upstream template (base: toshy commit `17dc24c4c3`, template `20260615`). |
-| `toshy_user_preferences.sqlite` | GUI preferences that decide modifier behavior (optspec layout, Cmd-is-Ctrl, keyboard type, etc.). See the `desktop` skill for what the values mean. |
+
+### `toshy_user_preferences.sqlite` is NOT tracked (since 2026-08-07)
+
+It used to be, symlinked back like `toshy_config.py`. That meant Toshy wrote
+runtime state directly into this working tree: it appends to `mru_layouts` — a
+trigger-trimmed rolling layout log — on **every start**, so the file showed as
+modified after every login, on every host, forever. The half that matters
+(`config_preferences`: `override_kbtype`, `forced_numpad`, `altgr_on_menu_key`,
+the `Caps2*` and `l_*_is_sup_and_*` flags the modmaps read) is stable, but you
+cannot track one table of a binary blob and ignore another.
+
+So `~/.config/toshy/toshy_user_preferences.sqlite` is now a **real file**, not a
+link into here, and the path is in `.gitignore`. Consequences:
+
+- Prefs are per-machine now and are **not** backed up by this repo. Set them
+  with the Toshy GUI/tray; verify with
+  `sqlite3 ~/.config/toshy/toshy_user_preferences.sqlite "SELECT name,value FROM config_preferences"`.
+- Provisioning a new host no longer gets them for free. The last tracked copy
+  is the seed — see the recovery command below.
+- `scripts/toshy-install.sh` no longer relinks it, and will not clobber it.
+
+Recovering the last tracked copy (also what a host that still has a dangling
+symlink should run — the symlink must be removed first, or the redirect writes
+straight through it):
+
+```sh
+rm -f ~/.config/toshy/toshy_user_preferences.sqlite
+git -C ~/labs/dotfiles show 5aedf00d:config/toshy/toshy_user_preferences.sqlite \
+  > ~/.config/toshy/toshy_user_preferences.sqlite
+systemctl --user restart toshy-config.service
+```
 
 > **Never add `toshy` to a profile's `configs` array.** That array is fed to
 > `link_config()`, which symlinks the *whole* `~/.config/<name>` directory and
@@ -17,14 +47,13 @@ do **not** symlink the whole directory. Only these two files are tracked here
 > entire 74 MB install — `.venv`, dbus services, `scripts/` — gets swapped for
 > the three tracked files here, and every `~/.local/bin/toshy-*` symlink (they
 > all point into `~/.config/toshy/scripts/bin/`) dangles. Use
-> `scripts/toshy-install.sh` instead; it installs Toshy and re-creates the two
-> file-level symlinks below.
+> `scripts/toshy-install.sh` instead; it installs Toshy and re-creates the
+> file-level symlink below.
 
-Symlinks (created once):
+Symlink (created once):
 
 ```sh
 ln -s ~/labs/dotfiles/config/toshy/toshy_config.py                ~/.config/toshy/toshy_config.py
-ln -s ~/labs/dotfiles/config/toshy/toshy_user_preferences.sqlite  ~/.config/toshy/toshy_user_preferences.sqlite
 ```
 
 ## The upgrade trap

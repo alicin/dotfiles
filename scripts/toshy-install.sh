@@ -5,20 +5,26 @@
 # Toshy is not an AUR package -- upstream ships an installer that builds a
 # ~74 MB tree under ~/.config/toshy: a Python .venv, the dbus services, the GUI,
 # the systemd units, the whole program. Almost none of that is config, so this
-# repo tracks exactly two files out of it (see config/toshy/README.md):
+# repo tracks exactly one file out of it (see config/toshy/README.md):
 #
 #   toshy_config.py                -- the keymapper config; our customizations
 #                                     live in its SLICE_MARK_START/END blocks
-#   toshy_user_preferences.sqlite  -- GUI prefs that decide modifier behavior
-#                                     (Cmd-is-Ctrl, optspec layout, kbd type)
 #
-# The installer writes real files at both paths, so this script runs it FIRST
-# and re-creates the symlinks afterwards. Anything Toshy wrote is moved aside
-# rather than deleted -- on a version bump the upstream template changes, and
-# you want to diff it against the tracked copy instead of losing it.
+# toshy_user_preferences.sqlite used to be tracked and relinked here too. It no
+# longer is (2026-08-07): the symlink pointed into the working tree, so Toshy
+# appending to mru_layouts on every start left the repo permanently dirty on
+# every host. It is now a plain per-machine file that this script must NOT
+# touch -- relinking it would point ~/.config/toshy at an ignored path and
+# hand back the same churn. Recovery of the last tracked copy, for a host still
+# holding a dangling symlink: config/toshy/README.md.
 #
-# Safe to re-run: an existing install is upgraded in place, and the symlinks are
-# only rewritten if they are not already pointing at the repo.
+# The installer writes a real file at the tracked path, so this script runs it
+# FIRST and re-creates the symlink afterwards. Anything Toshy wrote is moved
+# aside rather than deleted -- on a version bump the upstream template changes,
+# and you want to diff it against the tracked copy instead of losing it.
+#
+# Safe to re-run: an existing install is upgraded in place, and the symlink is
+# only rewritten if it is not already pointing at the repo.
 
 set -euo pipefail
 
@@ -109,7 +115,7 @@ relink() {
 
 log_step "Re-attaching tracked Toshy config"
 relink "toshy_config.py"
-relink "toshy_user_preferences.sqlite"
+# NOT toshy_user_preferences.sqlite -- deliberately per-machine now, see header.
 
 # ── Sanity check ────────────────────────────────────────────────────────────
 # A syntax error here means no keymapper at all, and the failure mode is a
