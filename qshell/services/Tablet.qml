@@ -35,9 +35,10 @@ Singleton {
 
     // "normal" | "bottom-up" | "left-up" | "right-up", from iio-sensor-proxy.
     // Permanently "normal" on this hardware — the AMD sensor hub exposes an
-    // ambient light sensor and no accelerometer at all (todo-tablet.md has the
-    // report-descriptor dump). Wired up anyway so autorotate is a hardware
-    // question rather than a software one.
+    // ambient light sensor and no accelerometer at all (its HID report
+    // descriptor declares usage 0x41 and nothing else — no 0x73 Accelerometer
+    // 3D). Wired up anyway so autorotate is a hardware question rather than a
+    // software one.
     property string orientation: "normal"
 
     // Whether there is an accelerometer to autorotate *from*. Reported by the

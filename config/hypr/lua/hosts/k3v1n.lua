@@ -94,7 +94,7 @@ hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd(apps.brightness_down), { locked
 -- the old Super+z pair fell back to asusctl — an ASUS ROG tool that has no
 -- business on a Minisforum.
 
--- ── Tablet binds (see todo-tablet.md) ───────────────────────────────────────
+-- ── Tablet binds ────────────────────────────────────────────────────────────
 -- Only on this host: the other two machines have no touchscreen, and these
 -- would be three keybinds that do nothing there. Super+Ctrl is the group with
 -- room left in it -- O, T and R are all unclaimed in lua/binds.lua.

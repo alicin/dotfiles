@@ -135,7 +135,7 @@ local tiled_classes = {
   -- Code editors / IDEs.
   "^(code|code-oss|VSCodium|vscodium|cursor|Cursor)$",
   -- Terminals.
-  "^(kitty|Alacritty|alacritty|foot|foot-direct|footclient)$",
+  "^(com.mitchellh.ghostty|ghostty|kitty|Alacritty|alacritty|foot|foot-direct|footclient)$",
   "^(wezterm|org.wezfurlong.wezterm|WezTerm)$",
   "^(gnome-terminal|konsole|xterm|xterm-256color|tilix|Tilix)$",
 }

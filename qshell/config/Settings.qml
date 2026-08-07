@@ -117,7 +117,8 @@ Singleton {
     // up — bounded well short of half the screen for that reason.
     readonly property real oskHeight: Math.max(0.2, Math.min(0.5, root.staged.oskHeight ?? adapter.oskHeight))
 
-    // Rotation lock. Inert on k3v1n (no accelerometer — see todo-tablet.md),
+    // Rotation lock. Inert on k3v1n (its AMD sensor hub exposes an ambient
+    // light sensor and no accelerometer at all, so nothing ever rotates it),
     // but it is the gate the orientation listener checks, so autorotate starts
     // behaving correctly the day a sensor exists rather than needing new code.
     readonly property bool rotationLock: adapter.rotationLock
@@ -323,9 +324,9 @@ Singleton {
             property bool weather: true
             property string weatherPlace: ""
             property bool batteryCriticalSuspend: true
-            property string terminal: "kitty"
+            property string terminal: "ghostty"
             property bool clipboardPaste: false
-            property string clipboardPasteTerminals: "kitty|foot|alacritty|wezterm|ghostty|konsole|terminator|xterm|st"
+            property string clipboardPasteTerminals: "ghostty|floating_shell|kitty|foot|alacritty|wezterm|konsole|terminator|xterm|st"
             property string tabletMode: "auto"
             property real touchScale: 1.25
             property string osk: "auto"

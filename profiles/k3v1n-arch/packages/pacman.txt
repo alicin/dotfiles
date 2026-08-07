@@ -123,7 +123,7 @@ swappy
 wf-recorder
 brightnessctl
 ddcutil
-# ── Tablet mode (see todo-tablet.md) ──
+# ── Tablet mode ──
 # wtype drives zwp_virtual_keyboard_v1, so qshell's on-screen keyboard types
 # straight into the compositor. Deliberately not ydotool: that injects through
 # uinput, which lands *upstream* of Toshy (xwaykeyz) and would come back out
@@ -215,7 +215,7 @@ gst-plugin-pipewire
 ffmpegthumbnailer
 
 # ── Terminal / shell ────────────────────────────────────────────────────────
-kitty
+ghostty
 zsh
 starship
 atuin

@@ -7,7 +7,7 @@ import qs.services
 //
 // This is a *manual* control because it has to be. k3v1n has no accelerometer
 // — the AMD sensor hub's HID report descriptor declares an ambient light
-// sensor and nothing else (todo-tablet.md carries the dump), so there is no
+// sensor and nothing else (notes/k3v1n.md carries the dump), so there is no
 // orientation to read and no daemon that could read it. The autorotate path
 // exists in services/Tablet.qml and is wired to iio-sensor-proxy; it will
 // simply never fire on this panel.

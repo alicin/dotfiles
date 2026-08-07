@@ -5350,6 +5350,7 @@ keymap("Cmd+W dialog fix - Alt+F4", {
 
 
 tab_UI_fix_CtrlShiftTab_lst = [
+    "com.mitchellh.ghostty",            # ALI: ghostty tabs are ctrl+(shift+)tab
     "com.raggesilver.BlackBox",
     "com.system76.CosmicTerm",
     "org.gnome.Console|Console",
@@ -5558,8 +5559,10 @@ keymap("Hyper terminal tab switching", {
     ctx_ovl_terminal_ergo and
     hmp_is_term_hyper_term(ctx) )
 
-hmp_is_term_kitty               = matchProps(clas="^kitty$")
-keymap("Kitty terminal - not tab nav", {
+# ALI: ghostty added (it replaced kitty as the terminal 2026-08-07); both
+# clear with Ctrl+L, so the Cmd+K/Cmd+L mapping below is identical.
+hmp_is_term_kitty               = matchProps(clas="^kitty$|^com.mitchellh.ghostty$|.*floating_shell.*")
+keymap("Kitty/Ghostty terminal - not tab nav", {
     C("RC-L"):                  C("C-L"),                       # Clear log
     C("RC-K"):                  C("C-L"),                       # Clear log (macOS)
 }, when = lambda ctx:

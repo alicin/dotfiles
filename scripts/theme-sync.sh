@@ -10,9 +10,12 @@
 #
 # What it drives, and how each one picks the change up live:
 #
-#   kitty      writes current-theme.conf (an include kitty.conf already has)
-#              and SIGUSR1s every kitty — kitty re-reads its config on that
-#              signal, so open terminals recolor in place.
+#   ghostty    THE terminal since 2026-08-07 (kitty had no touchscreen support
+#              and no setting for it). Writes config/ghostty/current-theme, an
+#              include the main config ends with, then SIGUSR2s every ghostty —
+#              its config-reload signal, so open windows recolor in place.
+#   kitty      same shape (current-theme.conf + SIGUSR1), kept working for as
+#              long as kitty stays installed anywhere. Skipped when it isn't.
 #   GTK 3/4    gsettings color-scheme + adw-gtk3(-dark). Libadwaita/GTK4 apps
 #              follow the portal live; GTK3 apps pick it up on next launch.
 #              sync-gnome-tweaks-to-gtk then mirrors it into settings.ini for
@@ -23,10 +26,6 @@
 #   VS Code    sets workbench.colorTheme in settings.json; Code watches the
 #              file and applies instantly. Theme names verified against the
 #              installed extensions' package.json.
-#   ghostty    best-effort and UNVERIFIED — not installed on any host yet.
-#              If it ever is: writes its theme line and SIGUSR2s it (its
-#              config-reload signal). Names are ghostty's bundled set and may
-#              need correcting on first contact with a real install.
 #
 # The shell's own surfaces are NOT handled here — qshell restyles itself from
 # Theme.qml the instant the setting lands.
@@ -61,20 +60,20 @@ echo "== $(date '+%F %T') theme=${THEME}"
 declare -A LIGHT VSCODE GHOSTTY
 row() { LIGHT[$1]=$2; VSCODE[$1]=$3; GHOSTTY[$1]=$4; }
 
-row catppuccin-latte      1 "Catppuccin Latte"      "catppuccin-latte"
-row catppuccin-frappe     0 "Catppuccin Frappé"     "catppuccin-frappe"
-row catppuccin-macchiato  0 "Catppuccin Macchiato"  "catppuccin-macchiato"
-row catppuccin-mocha      0 "Catppuccin Mocha"      "catppuccin-mocha"
-row rose-pine             0 "Rosé Pine"             "rose-pine"
-row rose-pine-moon        0 "Rosé Pine Moon"        "rose-pine-moon"
-row rose-pine-dawn        1 "Rosé Pine Dawn"        "rose-pine-dawn"
+row catppuccin-latte      1 "Catppuccin Latte"      "Catppuccin Latte"
+row catppuccin-frappe     0 "Catppuccin Frappé"     "Catppuccin Frappe"
+row catppuccin-macchiato  0 "Catppuccin Macchiato"  "Catppuccin Macchiato"
+row catppuccin-mocha      0 "Catppuccin Mocha"      "Catppuccin Mocha"
+row rose-pine             0 "Rosé Pine"             "Rose Pine"
+row rose-pine-moon        0 "Rosé Pine Moon"        "Rose Pine Moon"
+row rose-pine-dawn        1 "Rosé Pine Dawn"        "Rose Pine Dawn"
 row tokyo-night           0 "Tokyo Night"           "TokyoNight"
 row tokyo-night-day       1 "Tokyo Night Light"     "TokyoNight Day"
-row gruvbox-dark          0 "Gruvbox Dark Medium"   "GruvboxDark"
-row gruvbox-light         1 "Gruvbox Light Medium"  "GruvboxLight"
-row everforest-dark       0 "Everforest Dark"       "Everforest Dark - Med"
-row everforest-light      1 "Everforest Light"      "Everforest Light - Med"
-row nord                  0 "Nord"                  "nord"
+row gruvbox-dark          0 "Gruvbox Dark Medium"   "Gruvbox Dark"
+row gruvbox-light         1 "Gruvbox Light Medium"  "Gruvbox Light"
+row everforest-dark       0 "Everforest Dark"       "Everforest Dark Hard"
+row everforest-light      1 "Everforest Light"      "Everforest Light Med"
+row nord                  0 "Nord"                  "Nord"
 row dracula               0 "Dracula Theme"         "Dracula"
 row kanagawa              0 "Kanagawa"              "Kanagawa Wave"
 
@@ -83,15 +82,23 @@ if [[ -z "${VSCODE[$THEME]:-}" ]]; then
     exit 1
 fi
 
-# ── kitty ────────────────────────────────────────────────────────────────────
+# ── ghostty ──────────────────────────────────────────────────────────────────
+# Theme names are ghostty's own bundled set, verified against
+# `ghostty +list-themes` on 1.3.1 — the earlier guesses were all wrong.
+GHOSTTY_THEME_FILE="${DOTFILES_DIR}/config/ghostty/current-theme"
+if [[ -f "${GHOSTTY_THEME_FILE}" ]]; then
+    printf '# Written by scripts/theme-sync.sh on every qshell theme change — do not edit.\ntheme = %s\n' \
+        "${GHOSTTY[$THEME]}" > "${GHOSTTY_THEME_FILE}"
+    pkill -USR2 -x ghostty 2>/dev/null || true
+fi
+
+# ── kitty (only while it is still installed) ─────────────────────────────────
 KITTY_DIR="${DOTFILES_DIR}/config/kitty"
-if [[ -f "${KITTY_DIR}/themes/${THEME}.conf" ]]; then
+if command -v kitty >/dev/null 2>&1 && [[ -f "${KITTY_DIR}/themes/${THEME}.conf" ]]; then
     printf 'include themes/%s.conf\n' "${THEME}" > "${KITTY_DIR}/current-theme.conf"
     # Reload every running kitty; -x matches the exact process name so this
     # can never wing something else.
     pkill -USR1 -x kitty 2>/dev/null || true
-else
-    echo "theme-sync: no kitty theme for '${THEME}'" >&2
 fi
 
 # ── GTK / portal (Chrome rides this) ────────────────────────────────────────
@@ -166,15 +173,4 @@ if out != src:
         fh.write(out)
     os.replace(tmp, path)
 PY
-fi
-
-# ── ghostty (best-effort; see header) ───────────────────────────────────────
-GHOSTTY_CONF="${HOME}/.config/ghostty/config"
-if command -v ghostty >/dev/null 2>&1 && [[ -f "${GHOSTTY_CONF}" ]]; then
-    if grep -q '^theme *=' "${GHOSTTY_CONF}"; then
-        sed -i "s/^theme *=.*/theme = ${GHOSTTY[$THEME]}/" "${GHOSTTY_CONF}"
-    else
-        printf 'theme = %s\n' "${GHOSTTY[$THEME]}" >> "${GHOSTTY_CONF}"
-    fi
-    pkill -USR2 -x ghostty 2>/dev/null || true
 fi

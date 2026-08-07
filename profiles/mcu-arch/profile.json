@@ -25,7 +25,7 @@
     "gtk-3.0",
     "gtk-4.0",
     "input-remapper-2",
-    "kitty",
+    "ghostty",
     "gogcli",
     "rclone",
     "code-flags.conf",

@@ -11,8 +11,12 @@ scale 1.6667 → logical 1536x960, Goodix touch+stylus digitiser). Host-specific
 compositor bits live in `config/hypr/lua/hosts/<hostname>.lua`; everything else
 is shared, so a "fix" must not degrade the other two machines.
 
-Known-issues ledger: `desktop-review.md` (2026-08-06 full review, severity-
-ranked, partially fixed). Build log for the tablet work: `todo-tablet.md`.
+Per-host pull checklists live in `notes/<hostname>.md` — anything a machine
+must do by hand after a pull (install a package, restart a service, verify
+hardware). `bin/host-notes` lists what is open here and deletes done entries a
+week after they are done; Hyprland runs it with `--notify` at session start.
+That replaced the old `desktop-review.md` / `todo-tablet.md` work logs, whose
+findings are all either fixed or recorded in git history.
 
 ## The modifier scheme (rewritten 2026-07-05 — "native Super")
 
@@ -26,7 +30,7 @@ pre-2026-07-05 scheme — physical Ctrl→Super, Super→Alt — which is now wr
 | Left Ctrl      | **Ctrl** (native)       | **Ctrl** (native)    | plain Ctrl |
 | Left Super/Win | **Super** (native)      | **Super** (native)   | Hyprland's WM key |
 | Left Alt       | **Cmd** (internally Right_Ctrl, "RC" in keymaps) | same | macOS Command |
-| Right Ctrl     | Super (stale — see desktop-review.md M3) | Ctrl | |
+| Right Ctrl     | **Ctrl** (native)       | **Ctrl** (native)    | plain Ctrl |
 | Right Win      | Alt                     | Alt                  | the only input-side Alt |
 | Shift, Caps    | unchanged               | unchanged            | |
 
@@ -38,7 +42,7 @@ pre-2026-07-05 scheme — physical Ctrl→Super, Super→Alt — which is now wr
   A Cmd combo no keymap matches arrives as plain Ctrl+key — that's why the
   macOS-style screenshot binds are `CTRL + SHIFT + 4..7` in binds.lua.
 - Terminal context = Toshy's terminals list **plus** the `.*floating_shell.*`
-  entry (~line 497) that makes the floating kitty scratchpads count.
+  entry (~line 497) that makes the floating ghostty scratchpads count.
 - Ground truth when unsure: `wev -f wl_keyboard:key`, press the combo, read
   `sym:`/`mods:` — that is exactly what Hyprland binds against.
 
@@ -66,7 +70,7 @@ key means you add a self-map to the passthrough keymap.
 
 1. Translate the physical combo via the table above; pick `SUPER` for WM
    actions, `CTRL+SHIFT+<x>` only for macOS-Cmd-style app-global combos
-   (never one that a terminal keymap emits — check the yazi/kitty/General
+   (never one that a terminal keymap emits — check the yazi/ghostty/General
    Terminals keymaps first).
 2. Edit `config/hypr/lua/binds.lua` (host-only binds → `hosts/<host>.lua`,
    but note the Super+/ cheatsheet **only parses binds.lua** — trailing
@@ -196,6 +200,15 @@ Conventions and traps:
   once via `RotateStatus.transform`).
 - `qshell/settings.json` is a live-edit surface: every value read from it needs
   a **read-path** clamp/normalize (setter-only validation is a known bug class).
+- **The terminal is ghostty** (since 2026-08-07; kitty's Wayland backend has
+  no wl_touch support at all, and `touch_scroll_multiplier` is a *touchpad*
+  knob — there was no setting to fix that). Config `config/ghostty/config`,
+  reloads on **SIGUSR2**, theme via the `config-file = current-theme` include
+  that theme-sync rewrites. A touchscreen is a `precision` device to ghostty,
+  so `mouse-scroll-multiplier = precision:…` is the finger-scroll knob — and
+  it scales the trackpad by the same factor, they cannot be split. Gotcha:
+  ghostty creates its own `~/.config/ghostty/` on first run, which blocks the
+  profile symlink; `ghostty +show-config | grep theme` empty means re-link.
 - Debug/IPC handles: `qs -c qshell ipc call osk status`,
   `... tablet status`, `... display rotate|reset|transform N`,
   `... settings open|close|toggle|section <name>` (the standalone Settings

@@ -93,7 +93,7 @@ Column {
     // no orientation for anything to autorotate *to*. The listener exists
     // anyway (services/Tablet.qml reads iio-sensor-proxy, and the lock below
     // gates it), so a machine that does have one needs no new code — but on
-    // k3v1n these four buttons are the whole feature. todo-tablet.md carries
+    // k3v1n these four buttons are the whole feature. notes/k3v1n.md carries
     // the report-descriptor dump.
     Card {
         title: "Rotation"

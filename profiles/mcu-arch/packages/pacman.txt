@@ -79,7 +79,7 @@ htop
 imv
 iwd
 jq
-kitty
+ghostty
 lazygit
 lib32-giflib
 lib32-gnutls

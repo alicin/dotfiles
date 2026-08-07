@@ -1,7 +1,55 @@
+# Ghostty — the terminal, replacing kitty (2026-08-07).
+#
+# Why: kitty's Wayland backend has no wl_touch support at all (zero touch
+# symbols in glfw-wayland.so), so a touchscreen does nothing in it — and
+# there is no setting for that, it is an upstream gap. Ghostty's Linux
+# frontend is GTK4, which receives touch from the compositor natively.
+#
+# Ported 1:1 from the old config/kitty/conf.d/*.conf. Ghostty option names
+# are hyphenated where kitty's were underscored; every key here was verified
+# against `ghostty +show-config --default` for 1.3.1.
+#
+# Reload: SIGUSR2 (confirmed in the binary — "received SIGUSR2, reloading
+# configuration"), which is how scripts/theme-sync.sh recolors open windows.
+
+# ── Fonts ────────────────────────────────────────────────────────────────────
+# "OperatorMono Nerd Font" is the ONLY family actually installed — the bare
+# "OperatorMono" that kitty's config asked for matches nothing here (kitty
+# fuzzy-matched its way to the right file; ghostty would have fallen back to a
+# default and lost every nerd glyph starship/eza/fastfetch draw). Bold and
+# italic are styles WITHIN this family, so ghostty resolves them itself — no
+# font-family-bold/italic overrides, which would need family names that do not
+# exist either.
+font-family = "OperatorMono Nerd Font"
+font-size = 12
+
+# ── Appearance ───────────────────────────────────────────────────────────────
 window-padding-x = 8
 window-padding-y = 8
+# Split the leftover half-cell evenly instead of dropping it all on one side.
 window-padding-balance = true
-theme = rose-pine
-font-family = "OperatorMono Nerd Font"
+cursor-style = block
+
+# ── Behavior ─────────────────────────────────────────────────────────────────
+# kitty's `shell_integration no-cursor`: let the shell drive everything except
+# the cursor shape, which is set above.
+shell-integration-features = no-cursor
+# kitty's `confirm_os_window_close 0` — closing a terminal closes it.
 confirm-close-surface = false
-font-size = 12
+
+# Scroll speed. A TOUCHSCREEN counts as a `precision` device here (same class
+# as a touchpad — continuous sub-line deltas), so `precision:` is the knob for
+# finger scrolling; ghostty's default of 1 sends the panel flying on a 120Hz
+# 2560x1600 screen where a short drag is a lot of pixels. `discrete:` is the
+# mouse wheel and keeps ghostty's stock 3-lines-per-notch.
+#
+# One caveat worth knowing: `precision` covers the dock's trackpad too, so
+# lowering it slows two-finger trackpad scrolling by the same factor. Raise it
+# if the trackpad ends up feeling sluggish; they cannot be tuned apart.
+mouse-scroll-multiplier = precision:0.3,discrete:3
+
+# ── Theme ────────────────────────────────────────────────────────────────────
+# LAST, deliberately: ghostty takes the last value for single-value keys, so
+# this include wins over anything above. scripts/theme-sync.sh rewrites that
+# file on every shell theme change (same shape as kitty's current-theme.conf).
+config-file = current-theme
