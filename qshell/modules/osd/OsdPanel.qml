@@ -32,6 +32,22 @@ Scope {
 
     readonly property bool shown: root.showing !== ""
 
+    // What the pill actually DRAWS, which is not the same question as whether
+    // it is up. `showing` drops to "" the instant the OSD is dismissed, but the
+    // pill stays on screen for the fade-out — and every content property below
+    // keys off it, so at that moment `mode` fell through to "bar", `glyph` to
+    // the speaker fallback and `width` to s(320). The submap legend visibly
+    // collapsed into a volume pill, complete with bar and percentage, and THEN
+    // faded. Latching the last real value lets the fade finish drawing what was
+    // there. Worst on the submap because its pill is the widest (~544px vs
+    // 320px), but mic / power / countdown were all doing it to a smaller degree.
+    property string drawing: ""
+
+    onShowingChanged: {
+        if (root.showing !== "")
+            root.drawing = root.showing;
+    }
+
     // Pinned per showing — the pill used to jump screens mid-fade when the
     // cursor crossed monitors. By NAME: a ShellScreen object dies with its
     // monitor and a severed binding never recovers (see the launcher's pin).
@@ -43,43 +59,43 @@ Scope {
     }
 
     readonly property string mode: {
-        if (root.showing === "kbd")
+        if (root.drawing === "kbd")
             return "steps";
-        if (root.showing === "mic" || root.showing === "power" || root.showing === "countdown" || root.showing === "submap")
+        if (root.drawing === "mic" || root.drawing === "power" || root.drawing === "countdown" || root.drawing === "submap")
             return "label";
         return "bar";
     }
 
-    readonly property bool muted: (root.showing === "volume" && Audio.muted) || (root.showing === "mic" && Audio.micMuted)
+    readonly property bool muted: (root.drawing === "volume" && Audio.muted) || (root.drawing === "mic" && Audio.micMuted)
 
-    readonly property real value: root.showing === "brightness" ? Brightness.display : Audio.volume
+    readonly property real value: root.drawing === "brightness" ? Brightness.display : Audio.volume
 
     // Which sink the volume is actually driving — with BT headphones and
     // speakers both present, a bare bar doesn't say what just changed.
-    readonly property string device: root.showing === "volume" ? (Audio.sink?.description ?? "") : ""
+    readonly property string device: root.drawing === "volume" ? (Audio.sink?.description ?? "") : ""
 
     readonly property string label: {
-        if (root.showing === "mic")
+        if (root.drawing === "mic")
             return Audio.micMuted ? "Microphone muted" : "Microphone on";
-        if (root.showing === "countdown")
+        if (root.drawing === "countdown")
             return `Screenshot in ${Capture.countdown}…`;
-        if (root.showing === "submap")
+        if (root.drawing === "submap")
             return Osd.submapLabel;
         return Power.label(Power.profile);
     }
 
     readonly property string glyph: {
-        if (root.showing === "brightness")
+        if (root.drawing === "brightness")
             return Brightness.display < 0.4 ? "sun_min_fill" : "sun_max_fill";
-        if (root.showing === "kbd")
+        if (root.drawing === "kbd")
             return "keyboard";
-        if (root.showing === "mic")
+        if (root.drawing === "mic")
             return Audio.micMuted ? "mic_slash_fill" : "mic_fill";
-        if (root.showing === "power")
+        if (root.drawing === "power")
             return Power.glyph(Power.profile);
-        if (root.showing === "countdown")
+        if (root.drawing === "countdown")
             return "timer_fill";
-        if (root.showing === "submap")
+        if (root.drawing === "submap")
             return "keyboard";
         if (Audio.muted)
             return "speaker_slash_fill";
@@ -156,7 +172,15 @@ Scope {
             // A touch taller for volume, to carry the device line.
             height: root.device !== "" ? Appearance.s(72) : Appearance.s(58)
 
+            // Only while the pill is actually on screen. Now that `drawing`
+            // holds its value through the fade-out, an off-screen pill keeps the
+            // previous kind's geometry — so without this the next OSD would
+            // animate in *from* that size, e.g. a volume pill growing out of the
+            // submap legend's 544px. Hidden: snap. Visible: morph, which is the
+            // point of these Behaviors.
             Behavior on height {
+                enabled: pill.visible
+
                 Anim {
                     duration: Appearance.anim.durations.expressiveFastSpatial
                     curve: Appearance.anim.curves.emphasized
@@ -168,6 +192,8 @@ Scope {
             border.color: Theme.surfaceBorder
 
             Behavior on width {
+                enabled: pill.visible
+
                 Anim {
                     duration: Appearance.anim.durations.expressiveFastSpatial
                     curve: Appearance.anim.curves.emphasized
