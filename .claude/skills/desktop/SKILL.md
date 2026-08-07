@@ -204,9 +204,17 @@ Conventions and traps:
   no wl_touch support at all, and `touch_scroll_multiplier` is a *touchpad*
   knob — there was no setting to fix that). Config `config/ghostty/config`,
   reloads on **SIGUSR2**, theme via the `config-file = current-theme` include
-  that theme-sync rewrites. A touchscreen is a `precision` device to ghostty,
-  so `mouse-scroll-multiplier = precision:…` is the finger-scroll knob — and
-  it scales the trackpad by the same factor, they cannot be split. Gotcha:
+  that theme-sync rewrites. **No terminal on this desktop scrolls on touch.**
+  Ghostty *receives* touch (which kitty cannot) but never scrolls on it: GTK4's
+  EventControllerScroll handles GDK_SCROLL and GDK_TOUCHPAD_* only, never
+  GDK_TOUCH_*, and ghostty's surface declares that controller plus a
+  GestureClick and nothing else (1.3.1 and upstream main alike). So
+  `mouse-scroll-multiplier` governs only the trackpad (`precision:`, which
+  ghostty pre-multiplies by a hardcoded 10) and the wheel (`discrete:`) —
+  do not reach for it to fix finger scrolling, it is not in that path. Method
+  worth reusing: a synthetic touchscreen (raw uinput, same mechanics as
+  `bin/touch-gestures`) plus a GTK4 probe carrying the app's exact controller
+  settles "does this app see touch?" without guessing. Gotcha:
   ghostty creates its own `~/.config/ghostty/` on first run, which blocks the
   profile symlink; `ghostty +show-config | grep theme` empty means re-link.
 - Debug/IPC handles: `qs -c qshell ipc call osk status`,

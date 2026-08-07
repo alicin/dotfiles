@@ -6,18 +6,6 @@ applied here. Format and pruning: `notes/README.md`.
 
 ## Open
 
-- [ ] 2026-08-07 — **Confirm ghostty's touch scroll feels 1:1 now.**
-      `mouse-scroll-multiplier = precision:0.1` in `config/ghostty/config`.
-      That number is an exact cancellation, not a taste setting: ghostty's
-      GTK layer multiplies every precision (touch/trackpad) delta by a
-      hardcoded 10.0 before the config multiplier
-      (`src/apprt/gtk/class/surface.zig`, "to get a better response from
-      touchpad scrolling"), so 0.1 undoes it and content tracks the finger.
-      The catch is that the dock's trackpad shares the knob and now scrolls
-      1:1 as well — if that feels sluggish while docked, 0.3–0.5 is the
-      compromise band, at the cost of a faster finger. `discrete:` is the
-      mouse wheel and is untouched.
-
 - [ ] 2026-08-06 — **Verify rotation on the glass.**
       Rotate (bar button / `Super+Ctrl+R`) and check three things: taps land
       under the finger, the pen tracks, and a physically-horizontal 3-finger
@@ -37,8 +25,18 @@ applied here. Format and pruning: `notes/README.md`.
 
 ## Done
 
-- [x] 2026-08-07 → done 2026-08-07 — Ghostty touch scrolling verified working;
-      the reason kitty was replaced.
+- [x] 2026-08-07 → done 2026-08-07 — **Ghostty does not scroll on touch, and no
+      setting can make it.** Superseding the earlier claim that it did. GTK4's
+      EventControllerScroll handles GDK_SCROLL and GDK_TOUCHPAD_* only, never
+      GDK_TOUCH_*; ghostty's surface declares that controller plus a
+      GestureClick and nothing else, on 1.3.1 and on upstream main. Measured:
+      a synthetic touchscreen drag arrives in a GTK4 client as a real
+      touchscreen drag (GestureDrag begin/update/end, src=touchscreen) while a
+      controller identical to ghostty's emits zero scroll events, and the same
+      drag over a real ghostty window moves nothing. So `mouse-scroll-multiplier`
+      is trackpad/wheel only and is back at ghostty's defaults. Ghostty still
+      beats kitty here — it receives touch at all, which kitty cannot — but
+      scrollback on the glass needs the keyboard or the dock's trackpad.
 
 - [x] 2026-08-07 → done 2026-08-07 — Ghostty installed, kitty replaced everywhere.
 - [x] 2026-08-07 → done 2026-08-07 — `rose-pine-gtk-theme-full` installed; icon

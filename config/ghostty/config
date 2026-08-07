@@ -37,24 +37,23 @@ shell-integration-features = no-cursor
 # kitty's `confirm_os_window_close 0` — closing a terminal closes it.
 confirm-close-surface = false
 
-# Scroll speed. 0.1 is not a taste value — it is an exact cancellation.
+# Scroll speed is left at ghostty's defaults (precision:1, discrete:3) on
+# purpose — do NOT reach for mouse-scroll-multiplier to fix TOUCH scrolling.
 #
-# A touchscreen is a `precision` device to ghostty (same class as a touchpad:
-# continuous pixel deltas). Its GTK layer then multiplies EVERY precision
-# delta by a hardcoded 10.0 before the config multiplier is applied —
-# src/apprt/gtk/class/surface.zig, `const multiplier: f64 = if
-# (priv.precision_scroll) 10.0 else 1.0;`, commented "to get a better
-# response from touchpad scrolling". So the default sends content flying at
-# ten times the finger, and 0.3 was still 3x. 0.1 undoes the 10 exactly and
-# gives true 1:1 tracking: content moves with the finger, which is what a
-# touchscreen is supposed to do.
+# Ghostty does not scroll on touch, at all. GTK4's EventControllerScroll
+# handles GDK_SCROLL and GDK_TOUCHPAD_* only; it never turns GDK_TOUCH_* into
+# scroll (checked in the 4.22.4 source we run). Ghostty's surface declares
+# that controller plus a GestureClick and nothing else — true on 1.3.1 and on
+# upstream main — so a finger never reaches the scroll path and no multiplier
+# can slow it down. Measured, not assumed: a synthetic touchscreen drag lands
+# in a GTK4 client as a proper touchscreen drag (GestureDrag begin/update/end,
+# src=touchscreen) while the identical-to-ghostty scroll controller emits zero
+# scroll events, and the same drag over a real ghostty window moves nothing.
 #
-# The catch, since the two share one knob: the dock's trackpad now scrolls
-# 1:1 too, and a trackpad IS small enough to want that amplification (which
-# is why ghostty put it there). If docked scrolling feels sluggish, raise
-# this — 0.3–0.5 is the compromise band — and accept a faster finger.
-# `discrete:` is the mouse wheel and keeps ghostty's stock 3 lines per notch.
-mouse-scroll-multiplier = precision:0.1,discrete:3
+# So this knob only ever governs the dock's TRACKPAD (`precision:`, which
+# ghostty's GTK layer pre-multiplies by a hardcoded 10) and the mouse wheel
+# (`discrete:`). Set it if docked scrolling feels wrong; it will not do a
+# thing for fingers on the glass.
 
 # ── Theme ────────────────────────────────────────────────────────────────────
 # LAST, deliberately: ghostty takes the last value for single-value keys, so
