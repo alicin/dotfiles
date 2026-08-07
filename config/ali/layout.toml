@@ -32,10 +32,6 @@ id = "gimp.desktop"
 
 [[items]]
 kind = "app"
-id = "kitty.desktop"
-
-[[items]]
-kind = "app"
 id = "io.dbeaver.DBeaver.desktop"
 
 [[items]]

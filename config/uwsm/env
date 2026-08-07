@@ -3,7 +3,7 @@
 # systemd --user and D-Bus activation environments.
 
 # Apps.
-export TERMINAL="kitty"
+export TERMINAL="ghostty"
 export EDITOR="code"
 export FILE_BROWSER="yazi"
 export BROWSER="google-chrome-stable"

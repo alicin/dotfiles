@@ -19,7 +19,10 @@ export PAGER="${PAGER:-$(_first_cmd less more)}"
 if [[ "$(uname)" != "Darwin" ]]; then
   # macOS resolves these via `open`/LaunchServices, so only set on Linux/BSD.
   export BROWSER="${BROWSER:-$(_first_cmd google-chrome google-chrome-stable firefox chromium)}"
-  export TERMINAL="${TERMINAL:-$(_first_cmd kitty ghostty foot)}"
+  # ghostty first: kitty stays installed on these machines for now, so a
+  # kitty-first probe kept resolving $TERMINAL to the old terminal long after
+  # apps.lua and the profiles had moved.
+  export TERMINAL="${TERMINAL:-$(_first_cmd ghostty kitty foot)}"
 fi
 
 unfunction _first_cmd

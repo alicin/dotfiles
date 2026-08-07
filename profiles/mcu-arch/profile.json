@@ -48,7 +48,7 @@
   },
   "environment": {
     "BROWSER": "google-chrome-stable",
-    "TERMINAL": "kitty",
+    "TERMINAL": "ghostty",
     "XDG_SESSION_TYPE": "wayland"
   }
 }
