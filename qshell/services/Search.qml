@@ -166,12 +166,19 @@ Singleton {
             return root.helpRows();
         }
 
-        const rows = Apps.search(q).map(e => root.appRow(e));
-        // Jump lists ride along with their app rather than forming a mode of
-        // their own — "firefox private" should find the window you meant, and
-        // an empty query listing every action of every app is noise.
-        if (q)
-            rows.push(...root.actions(q));
+        // Jump lists are a SUB-LIST under their app rather than siblings in
+        // the flat list: eight "Chrome ▸ New Window"-style rows competing with
+        // the app itself was noise, and the relationship was only implied by
+        // the arrow in the label.
+        //
+        // Flat rows with an indent, not a nested view — the same call
+        // NotifsMenu documents, because a ListView inside a ListView delegate
+        // brings its own scrolling and keyboard handling to fight with.
+        const rows = [];
+        for (const e of root.appsFor(q)) {
+            rows.push(root.appRow(e, q));
+            rows.push(...root.actionRows(e, q));
+        }
         const sum = root.calcRow(q);
         if (sum)
             rows.unshift(sum);
@@ -193,7 +200,7 @@ Singleton {
                 })).filter(x => x.score > 0).sort((a, b) => b.score - a.score).map(x => x.r);
     }
 
-    function appRow(entry: var): var {
+    function appRow(entry: var, q: string): var {
         // `id`, captured by value, is what `run` closes over — not the
         // DesktopEntry object.
         //
@@ -211,8 +218,16 @@ Singleton {
         // the cache is dropped on Apps.all changing (see below) so those stay
         // fresh too.
         const id = entry.id;
-        return root.cached(`a|${id}`, () => ({
+        // Does this app have a jump list, and is its group open? Both ride in
+        // the cache key: the row draws a triangle whose direction is part of
+        // what it shows, so a stale cached row would point the wrong way.
+        const nActions = (entry.actions ?? []).length;
+        const open = root.isExpanded(id);
+        return root.cached(`a|${id}|${nActions}|${open}`, () => ({
                     kind: "app",
+                    appId: id,
+                    actionCount: nActions,
+                    expanded: open,
                     name: entry.name,
                     sub: entry.comment || entry.genericName || "",
                     icon: (entry.icon && Quickshell.iconPath(entry.icon, true)) || Quickshell.iconPath("application-x-executable", true) || "",
@@ -255,58 +270,86 @@ Singleton {
     // DesktopEntry.actions has been sitting there unread: "New Private
     // Window", "New Incognito Window", "Compose Message" — the second thing
     // anyone wants from a browser or a mail client.
-    function actions(q: string): var {
-        // Two characters minimum: "n" matches a "New Window" on half the
-        // applications installed, and those rows would be the entire list.
+    // Which apps appear at all. Apps.search covers name/comment; an app whose
+    // *action* matches has to be here too, or typing "private window" would
+    // find nothing now that actions no longer stand on their own.
+    function appsFor(q: string): var {
+        const apps = Apps.search(q);
         if (q.length < 2)
-            return [];
-        const scored = [];
+            return apps;
+        const seen = new Set(apps.map(e => e.id));
         for (const entry of Apps.all) {
-            const acts = entry.actions ?? [];
-            if (acts.length === 0)
+            if (seen.has(entry.id))
                 continue;
-            const byApp = Apps.scoreText(entry.name, q);
-            for (const a of acts) {
-                // Found by the app's name OR by the action's own words —
-                // "private window" is how you look for it at least as often
-                // as "chrome" is.
-                const score = Math.max(byApp, Apps.scoreText(`${entry.name} ${a.name}`, q), Apps.scoreText(a.name, q));
-                if (score <= 0)
-                    continue;
-                // Captured by VALUE for run(): the DesktopEntry and
-                // DesktopAction QObjects die whenever Quickshell rebuilds
-                // DesktopEntries (any package install/remove), and executing
-                // a dead capture was a silent no-op Enter — the exact bug the
-                // app rows' re-resolve-by-id fix was written for, applied
-                // here half a review later.
-                const id = entry.id;
-                const actName = a.name;
-                scored.push({
-                    score,
-                    row: root.cached(`x|${entry.id}|${a.name}`, () => ({
-                            kind: "action",
-                            name: `${entry.name}  ▸  ${a.name}`,
-                            sub: entry.comment || entry.genericName || "",
-                            icon: (entry.icon && Quickshell.iconPath(entry.icon, true)) || "",
-                            badge: "Action",
-                            run: () => {
-                                const live = Apps.entryFor(id);
-                                const act = live?.actions?.find(x => x.name === actName) ?? null;
-                                if (!live || !act)
-                                    return;
-                                // Frecency is per app, and running one of its
-                                // actions is still using the app.
-                                Apps.record(live);
-                                act.execute();
-                            }
-                        }))
-                });
-            }
+            if ((entry.actions ?? []).some(a => Apps.scoreText(a.name, q) > 0))
+                apps.push(entry);
         }
-        // Capped, and they sit *under* the app matches rather than instead of
-        // them: a jump list is a shortcut, not a competitor to the app.
-        return scored.sort((a, b) => b.score - a.score).slice(0, 8).map(x => x.row);
+        return apps;
     }
+
+    // Expanded app ids. UI state, but it lives here because results() is what
+    // decides whether the child rows exist at all.
+    property var expandedApps: ({})
+
+    function isExpanded(id: string): bool {
+        return root.expandedApps[id] === true;
+    }
+
+    function toggleExpanded(id: string): void {
+        if (!id)
+            return;
+        // Whole-object reassignment: mutating a var map in place notifies no
+        // binding, and the list would not rebuild.
+        const next = Object.assign({}, root.expandedApps);
+        if (next[id])
+            delete next[id];
+        else
+            next[id] = true;
+        root.expandedApps = next;
+    }
+
+    // An app's action rows, shown when it is expanded — or when the query
+    // itself names one, so searching still reaches them without a keystroke to
+    // open the group first.
+    function actionRows(entry: var, q: string): var {
+        const acts = entry.actions ?? [];
+        if (acts.length === 0)
+            return [];
+        const matched = q.length >= 2 ? acts.filter(a => Apps.scoreText(a.name, q) > 0) : [];
+        const show = root.isExpanded(entry.id) ? acts : matched;
+        return show.map(a => root.actionRow(entry, a));
+    }
+
+    function actionRow(entry: var, a: var): var {
+        // Captured by VALUE: the DesktopEntry and DesktopAction QObjects die
+        // whenever Quickshell rebuilds DesktopEntries (any package install or
+        // removal), and executing a dead capture was a silent no-op Enter.
+        const id = entry.id;
+        const actName = a.name;
+        return root.cached(`x|${id}|${actName}`, () => ({
+                    kind: "action",
+                    name: actName,
+                    sub: "",
+                    // No icon: the app above it already carries one, and
+                    // repeating it down the group is visual noise.
+                    glyph: "arrow_turn_down_right",
+                    child: true,
+                    run: () => {
+                        const live = Apps.entryFor(id);
+                        const act = live?.actions?.find(x => x.name === actName) ?? null;
+                        if (!live || !act) {
+                            console.warn(`launcher: action "${actName}" of "${id}" no longer resolves`);
+                            return false;
+                        }
+                        // Frecency is per app, and running one of its actions
+                        // is still using the app.
+                        Apps.record(live);
+                        act.execute();
+                        return true;
+                    }
+                }));
+    }
+
 
     function windows(q: string): var {
         const rows = Windows.list.map(t => {

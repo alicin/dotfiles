@@ -49,19 +49,15 @@ Scope {
             if (Osd.kind !== "countdown")
                 Osd.hide();
             field.text = "";
-            list.currentIndex = 0;
-            list.positionViewAtBeginning();
             list.lastHoverPos = Qt.point(-1e9, -1e9);
             field.forceActiveFocus();
         } else {
-            // Same reason as the clipboard strip's copy of this: the launcher
-            // lives in shell.qml and is never destroyed, so currentIndex and
-            // contentY outlive a close. The highlight is a custom Rectangle
-            // with a 500ms Behavior on y, so reopening on a stale index slid
-            // it down from the old row. Reset here and the next open has
-            // nothing to move.
+            // Reset on the way OUT, not the way in. This panel lives in
+            // shell.qml and is never destroyed, so the selection outlives a
+            // close — and putting it back now means the next open has nothing
+            // for the highlight to animate away from. No scroll reset needed:
+            // highlightFollowsCurrentItem brings the view along.
             list.currentIndex = 0;
-            list.positionViewAtBeginning();
         }
         root.armed = null;
     }
@@ -118,6 +114,32 @@ Scope {
 
     function activateCurrent(alt: bool): void {
         root.activate(root.currentRow(), alt);
+    }
+
+    // Open/close the selected app's jump list. Returns false when the row has
+    // no group, so the key can fall through to the text cursor.
+    function toggleGroup(wantOpen: var): bool {
+        const row = root.currentRow();
+        if (!row || (row.actionCount ?? 0) === 0)
+            return false;
+        const open = row.expanded === true;
+        if (wantOpen !== undefined && wantOpen === open)
+            return false;
+        const id = row.appId;
+        Search.toggleExpanded(id);
+        // Put the selection back on the app. Flipping the triangle changes what
+        // the row *shows*, so it gets a new cache key and a new identity —
+        // ScriptModel sees a removal plus an insertion and ListView slides the
+        // selection off onto whatever landed at that index. Without this,
+        // expanding moved the cursor three rows down and the second press could
+        // not collapse what was no longer selected.
+        Qt.callLater(() => {
+            const rows = list.model?.values ?? [];
+            const i = rows.findIndex(r => r.appId === id);
+            if (i >= 0)
+                list.currentIndex = i;
+        });
+        return true;
     }
 
     // Surfaced for `qs -c qshell ipc call debug launcher`. currentIndex is the
@@ -357,10 +379,7 @@ Scope {
                                 // above only ever looks at the upper bound — so
                                 // -1 was permanent. currentRow() reads
                                 // rows[-1], hands activate() undefined, and
-                                // Enter does nothing at all. Also what
-                                // highlightRangeMode: ApplyRange can leave
-                                // behind, since it re-derives currentIndex from
-                                // wherever contentY happens to be.
+                                // Enter does nothing at all.
                                 list.currentIndex = 0;
                             }
                         }
@@ -371,24 +390,29 @@ Scope {
                     spacing: Appearance.s(4)
                     clip: true
 
-                    preferredHighlightBegin: 0
-                    preferredHighlightEnd: height
-                    highlightRangeMode: ListView.ApplyRange
-
-                    highlightFollowsCurrentItem: false
+                    // ListView moves and animates the highlight itself. This
+                    // used to be highlightFollowsCurrentItem: false plus a
+                    // Rectangle binding its own y to currentItem.y behind a
+                    // Behavior — a reimplementation of exactly this, which cost
+                    // two bugs: the highlight slid in from the previous row on
+                    // every reopen (patched with a close-reset and a
+                    // positionViewAtBeginning that are now both gone), and
+                    // currentItem is null for any row outside the realized
+                    // range, so the highlight collapsed to y=0 height=0 when
+                    // the selection scrolled off.
+                    //
+                    // No preferredHighlightBegin/End or ApplyRange either: the
+                    // range was 0..height, i.e. the entire viewport, so it
+                    // positioned nothing — while switching on the behaviour
+                    // where ListView re-derives currentIndex from contentY.
+                    // That is what left currentIndex at -1 and made Enter do
+                    // nothing. Keeping the current row visible is what
+                    // highlightFollowsCurrentItem already does.
+                    highlightMoveDuration: Appearance.anim.durations.expressiveDefaultSpatial
+                    highlightResizeDuration: Appearance.anim.durations.expressiveFastEffects
                     highlight: Rectangle {
                         radius: Appearance.s(16)
                         color: Theme.surfaceHoverBg
-                        width: list.width
-                        height: list.currentItem?.height ?? 0
-                        y: list.currentItem?.y ?? 0
-
-                        Behavior on y {
-                            Anim {
-                                curve: Appearance.anim.curves.expressiveDefaultSpatial
-                                duration: Appearance.anim.durations.expressiveDefaultSpatial
-                            }
-                        }
                     }
 
                     delegate: ResultItem {
@@ -476,12 +500,11 @@ Scope {
                     selectedTextColor: Theme.accentFg
                     clip: true
 
-                    // A new query is a new list; a new list starts at the top,
-                    // and nothing stays armed across it.
-                    onTextChanged: {
-                        list.currentIndex = 0;
-                        root.armed = null;
-                    }
+                    // No currentIndex reset here. It lives on the model, keyed
+                    // on the query actually rendered — see the ScriptModel
+                    // above, whose comment is about this exact line: both fire
+                    // off one textChanged in an order QML does not promise.
+                    onTextChanged: root.armed = null
 
                     onAccepted: root.activateCurrent(false)
                     // Wraparound: Down on the last row was a dead key.
@@ -506,6 +529,17 @@ Scope {
                         } else if (event.key === Qt.Key_PageDown) {
                             list.currentIndex = Math.min(list.count - 1, list.currentIndex + Settings.launcherMaxShown);
                             event.accepted = true;
+                        } else if (event.key === Qt.Key_Right && field.cursorPosition === field.text.length) {
+                            // Only at the end of the text, so Right keeps
+                            // working as a text cursor everywhere it would
+                            // actually move. Expands the selected app's jump
+                            // list; a second press collapses it.
+                            event.accepted = root.toggleGroup(undefined);
+                        } else if (event.key === Qt.Key_Left && field.cursorPosition === 0) {
+                            // The mirror, and only ever a collapse — Left at
+                            // the start of an empty query should not open
+                            // something.
+                            event.accepted = root.toggleGroup(false);
                         } else if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && (event.modifiers & Qt.ShiftModifier)) {
                             // The row's alternate verb, where it has one —
                             // onAccepted can't see modifiers.

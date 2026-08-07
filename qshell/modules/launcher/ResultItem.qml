@@ -36,6 +36,12 @@ Item {
     width: ListView.view ? ListView.view.width : 0
     height: Appearance.sizes.launcherItemHeight
 
+    // A jump-list row sits under its app, indented. `child` and `actionCount`
+    // are set by Search.actionRow / Search.appRow.
+    readonly property bool isChild: root.modelData.child === true
+    readonly property int actionCount: root.modelData.actionCount ?? 0
+    readonly property real indent: root.isChild ? Appearance.s(28) : 0
+
     StateLayer {
         radius: Appearance.s(16)
         color: Theme.surfaceFg
@@ -82,11 +88,34 @@ Item {
 
     // ── Leading slot ──
 
+    // Disclosure triangle, on apps that have a jump list. Rotated rather than
+    // swapped for a second glyph so the turn is the animation — the same thing
+    // a native expander does.
+    FIcon {
+        id: disclosure
+
+        anchors.left: parent.left
+        anchors.leftMargin: Appearance.s(7)
+        anchors.verticalCenter: parent.verticalCenter
+        visible: root.actionCount > 0
+        icon: "arrowtriangle_right_fill"
+        font.pixelSize: Appearance.font.size.small
+        color: Theme.surfaceFgDim
+        rotation: root.modelData.expanded === true ? 90 : 0
+
+        Behavior on rotation {
+            Anim {
+                duration: Appearance.anim.durations.expressiveFastEffects
+                curve: Appearance.anim.curves.expressiveFastEffects
+            }
+        }
+    }
+
     IconImage {
         id: icon
 
         anchors.left: parent.left
-        anchors.leftMargin: Appearance.s(10)
+        anchors.leftMargin: Appearance.s(28) + root.indent
         anchors.verticalCenter: parent.verticalCenter
         implicitSize: Appearance.s(38)
         visible: (root.modelData.icon ?? "") !== ""
