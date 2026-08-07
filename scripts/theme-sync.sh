@@ -48,6 +48,13 @@ fi
 exec 9>"${XDG_RUNTIME_DIR:-/tmp}/theme-sync.lock"
 flock 9
 
+# Every run logs. This script is spawned DETACHED by the shell, so its output
+# used to vanish — "GTK didn't change" was undiagnosable after the fact.
+LOG_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/qshell"
+mkdir -p "$LOG_DIR"
+exec >>"$LOG_DIR/theme-sync.log" 2>&1
+echo "== $(date '+%F %T') theme=${THEME}"
+
 # ── The mapping ──────────────────────────────────────────────────────────────
 # qshell name → light? ; vscode label ; ghostty name. The kitty file shares
 # the qshell slug (config/kitty/themes/<name>.conf), so it needs no column.
@@ -100,6 +107,27 @@ if command -v gsettings >/dev/null 2>&1; then
     else
         gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark' || gtk_fail=1
         gsettings set org.gnome.desktop.interface gtk-theme 'adw-gtk3-dark' || gtk_fail=1
+    fi
+    # Rose Pine icon + cursor sets follow light/dark (per ali): dark themes
+    # get the dark set — the icons are neutral enough to sit under every
+    # family. Guarded on the set actually being installed
+    # (rose-pine-gtk-theme-full from the AUR; BreezeX cursors), so a
+    # not-yet-provisioned machine keeps what it has rather than falling back
+    # to hicolor soup.
+    if [[ "${LIGHT[$THEME]}" == "1" ]]; then
+        want_icons="rose-pine-dawn-icons"
+        want_cursor="BreezeX-RosePineDawn-Linux"
+    else
+        want_icons="rose-pine-icons"
+        want_cursor="BreezeX-RosePine-Linux"
+    fi
+    if [[ -d "/usr/share/icons/${want_icons}" || -d "${HOME}/.local/share/icons/${want_icons}" ]]; then
+        gsettings set org.gnome.desktop.interface icon-theme "${want_icons}" || gtk_fail=1
+    else
+        echo "theme-sync: icon theme '${want_icons}' not installed; leaving icons alone"
+    fi
+    if [[ -d "/usr/share/icons/${want_cursor}" || -d "${HOME}/.local/share/icons/${want_cursor}" ]]; then
+        gsettings set org.gnome.desktop.interface cursor-theme "${want_cursor}" || gtk_fail=1
     fi
     if [[ "${gtk_fail}" == "1" ]]; then
         echo "theme-sync: gsettings write failed (no session bus?) — GTK/Chrome not synced" >&2

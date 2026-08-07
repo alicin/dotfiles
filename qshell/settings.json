@@ -9,13 +9,18 @@
     "oskHeight": 0.32,
     "overviewColumns": 6,
     "rotationLock": false,
-    "scale": 1,
+    "scale": 1.15,
     "scrollFactor": 3.5,
     "tabletMode": "auto",
     "terminal": "kitty",
-    "theme": "catppuccin-latte",
+    "theme": "dracula",
     "touchScale": 1,
     "weather": true,
     "weatherPlace": "",
-    "workspaces": 12
+    "workspaces": 12,
+    "workspacesByHost": {
+        "h4l9000": 12,
+        "k3v1n": 9,
+        "mcu": 10
+    }
 }

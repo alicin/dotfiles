@@ -43,6 +43,9 @@ visual-studio-code-bin
 # resolve to exactly these two. Both are data-only, no compile.
 rose-pine-hyprcursor
 rose-pine-cursor
+# GTK + icon themes: theme-sync.sh switches rose-pine-icons ⇄
+# rose-pine-dawn-icons (and the BreezeX cursors) with the shell theme.
+rose-pine-gtk-theme-full
 
 # ── Dev ─────────────────────────────────────────────────────────────────────
 # HTTP client TUI; config/posting is linked by this profile.
