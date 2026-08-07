@@ -109,17 +109,28 @@ Scope {
 
         screen: Quickshell.screens.find(s => s.name === (root.pinned || Hyprland.focusedMonitor?.name)) ?? Quickshell.screens[0] ?? null
         color: "transparent"
-        // Follows the pill instead of leading it. Label mode sizes itself to
-        // its text, and a submap hint is a whole key legend — the power one
-        // measures ~544px against the flat s(420) this used to be, so both
-        // submaps drew their first and last few characters outside the layer
-        // surface, where a surface clips them away. The pill can grow; the
-        // window it lives in has to be told.
-        implicitWidth: Math.max(Appearance.s(420), pill.width + Appearance.s(48))
         implicitHeight: Appearance.s(170)
 
+        // Full width, and therefore CONSTANT — the surface never resizes.
+        //
+        // This used to be `implicitWidth: max(s(420), pill.width + s(48))`, i.e.
+        // derived from a value with a 350ms Behavior on it, so the layer surface
+        // was resized on every frame of the pill's morph. rules.lua animates
+        // every `qshell:.*` surface change, so Hyprland ran a second, laggier
+        // fade underneath the real one and the whole thing read as choppy and
+        // slow. Exactly the trap the bar popouts hit and fixed by making their
+        // host window a constant (see README).
+        //
+        // Anchoring both edges rather than picking a number sidesteps the
+        // logical-vs-physical pixel question entirely, and costs nothing: the
+        // input mask below is empty, so the surface is wholly click-through.
+        // It also retires the old clipping bug — the ~544px submap legends can
+        // no longer be cut off by a 420px surface, since the pill clamps itself
+        // to maxWidth and centres in the full width.
         anchors {
             bottom: true
+            left: true
+            right: true
         }
 
         // Above the on-screen keyboard rather than behind it: a volume pill
@@ -163,7 +174,10 @@ Scope {
             // screen is a config mistake, but it has to degrade to elided text
             // rather than to text drawn past the edge of the surface, which is
             // just missing. Leaves a margin so the pill never touches the sides.
-            readonly property int maxWidth: Math.max(Appearance.s(320), (win.screen?.width ?? Appearance.s(1200)) - Appearance.s(96))
+            // Measured off the surface now that it spans the output, rather than
+            // off screen.width — same number, but in the units the pill is
+            // actually laid out in.
+            readonly property int maxWidth: Math.max(Appearance.s(320), win.width - Appearance.s(96))
 
             // Label mode shrinks to its text — a 320px pill with "Microphone
             // muted" adrift in it reads as a layout bug. Animated, so switching
@@ -182,7 +196,7 @@ Scope {
                 enabled: pill.visible
 
                 Anim {
-                    duration: Appearance.anim.durations.expressiveFastSpatial
+                    duration: Appearance.anim.durations.expressiveDefaultEffects
                     curve: Appearance.anim.curves.emphasized
                 }
             }
@@ -195,7 +209,7 @@ Scope {
                 enabled: pill.visible
 
                 Anim {
-                    duration: Appearance.anim.durations.expressiveFastSpatial
+                    duration: Appearance.anim.durations.expressiveDefaultEffects
                     curve: Appearance.anim.curves.emphasized
                 }
             }
@@ -209,9 +223,13 @@ Scope {
             // Decelerating, never overshooting: the M3 *Spatial curves all rise
             // past 1 before settling, which is the bounce. Out stays a plain
             // accelerate.
+            // Effects durations, not Spatial ones (350ms in / 200ms out): this
+            // is an acknowledgement of a key you already pressed, so it wants to
+            // be present before you look for it. At 350ms the pill was still
+            // arriving after the thing it was reporting had happened.
             Behavior on anim {
                 Anim {
-                    duration: root.shown ? Appearance.anim.durations.expressiveFastSpatial : Appearance.anim.durations.expressiveDefaultEffects
+                    duration: root.shown ? Appearance.anim.durations.expressiveDefaultEffects : Appearance.anim.durations.expressiveFastEffects
                     curve: root.shown ? Appearance.anim.curves.emphasizedDecel : Appearance.anim.curves.standardAccel
                 }
             }
