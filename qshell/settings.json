@@ -13,7 +13,7 @@
     "scrollFactor": 3.5,
     "tabletMode": "auto",
     "terminal": "kitty",
-    "theme": "dracula",
+    "theme": "catppuccin-latte",
     "touchScale": 1,
     "weather": true,
     "weatherPlace": "",
