@@ -15,6 +15,7 @@ import qs.modules.capture
 import qs.modules.clipboard
 import qs.modules.control
 import qs.modules.gestures
+import qs.modules.keycheat
 import qs.modules.launcher
 import qs.modules.notifications
 import qs.modules.osd
@@ -42,6 +43,11 @@ ShellRoot {
     OsdPanel {}
 
     Overview {}
+
+    // Shortcut cheat sheet, generated from ~/.config/hypr/lua/binds.lua.
+    // Was bin/keycheat-overlay.py (GTK4, hardcoded Mocha palette); it is a shell
+    // surface now so it follows the theme.
+    KeyCheat {}
 
     // The standalone Settings window (macOS System Settings shaped) — a
     // LazyLoader that only materialises while SettingsUi.open is true.

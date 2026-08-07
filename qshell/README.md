@@ -424,6 +424,29 @@ Hyprland wiring (`~/.config/hypr/lua/`):
   (DropArea per cell, `hl.dsp.window.move({ workspace = N, follow = false,
   window = "address:…" })`). Esc / click outside dismisses.
 
+- **Shortcuts cheat sheet** (Super+/ — `modules/keycheat/`) — the whole keymap
+  as a grid of grouped cards, **generated from `~/.config/hypr/lua/binds.lua`**
+  (the file Hyprland actually loaded, not the repo copy) by reading its
+  `-- ▸ Group` headers and trailing `-- label` comments. `watchChanges` is on,
+  so editing a bind updates the sheet with no reload.
+  - Was `bin/keycheat-overlay.py`, a standalone GTK4 + gtk4-layer-shell app
+    with a **hardcoded Catppuccin-Mocha palette** — fine while the shell was
+    always dark, and a slab of `#1b1c2b` over a light desktop the moment it
+    wasn't. As a shell surface it draws from Theme/Appearance and retextures
+    with every other panel. It also inherits the standard dismissal set: the
+    GTK version took keyboard focus `NONE` and could only be closed by clicking
+    or re-firing the bind, this one takes `OnDemand` and answers Esc.
+  - Three parsing cases the source needs help with: the workspace binds are
+    generated in a Lua `for` loop with no per-key label (summarised as
+    `Super + 1…9`), gestures are `hl.gesture` rather than `hl.bind` and carry
+    no label (synthesised from `fingers`/`direction`/`action` — the Python
+    version parsed only `hl.bind`, so the Gestures group came out empty and was
+    dropped), and **text editing lives in Toshy, not in binds.lua**, so that
+    group is hand-written in the module and listed in *physical* keys.
+  - Cards are packed into balanced masonry columns rather than a row-major
+    flow: one tall group otherwise forces a tall row and every short card
+    beside it leaves a hole.
+
 ## IPC
 
 ```sh
@@ -439,6 +462,7 @@ qs ipc -c qshell call popouts toggle control # control center; also: audio /
                                              # that page
 qs ipc -c qshell call launcher mode '#'      # theme picker (swatches)
 qs ipc -c qshell call overview toggle       # workspace overview (Alt+Tab)
+qs ipc -c qshell call keycheat toggle       # shortcuts cheat sheet (Super+/)
 qs ipc -c qshell call capture shot window   # area / window / full
 qs ipc -c qshell call capture record        # select area / start armed / stop
 qs ipc -c qshell call capture audio mic     # toggle mic / system audio capture

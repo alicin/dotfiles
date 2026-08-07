@@ -146,7 +146,12 @@ M.control_audio      = "qs -c qshell ipc call popouts toggle audio"
 M.control_bluetooth  = "qs -c qshell ipc call popouts toggle bluetooth"
 M.control_kdeconnect = "qs -c qshell ipc call popouts toggle kdeconnect"
 M.control_display    = "qs -c qshell ipc call popouts toggle display"
-M.keycheat           = "/home/ali/labs/dotfiles/bin/keycheat"   -- shortcuts overlay (toggle)
+-- Shortcuts cheat sheet. Now a shell surface (qshell/modules/keycheat) rather
+-- than the standalone GTK4 overlay, so it follows the active theme.
+-- No `||` fallback to bin/keycheat: `qs ipc call` exits 0 even when the target
+-- does not exist (it just prints "Target not found."), so the fallback could
+-- never fire and would only ever double-fire. Same shape as M.menu/M.clipboard.
+M.keycheat           = "qs -c qshell ipc call keycheat toggle"
 
 -- Lock / idle daemons (singleton: only spawn if not already running).
 M.locking = "pidof hyprlock || hyprlock"
