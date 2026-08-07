@@ -1,0 +1,161 @@
+#!/usr/bin/env python3
+"""Per-host pull checklists: show what's open, prune what's long done.
+
+One file per host under notes/ (see notes/README.md for the format). This
+exists so the checklists cannot rot the way the todo-*.md files they replaced
+did: every invocation deletes done entries whose done-date is more than a week
+old, so a file that nobody has touched in a month is either empty or genuinely
+still open.
+
+    host-notes                 open items for this host (prunes as it goes)
+    host-notes --all           every host
+    host-notes --notify        as above, but via hyprctl notify; silent when
+                               there is nothing open (used at session start)
+    host-notes --done PATTERN  mark the first matching open item done today
+"""
+
+import os
+import re
+import subprocess
+import sys
+from datetime import date, timedelta
+
+NOTES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "notes")
+NOTES = os.path.normpath(NOTES)
+KEEP_DONE_DAYS = 7
+
+OPEN_RE = re.compile(r"^- \[ \] (\d{4}-\d{2}-\d{2}) — (.*)$")
+DONE_RE = re.compile(r"^- \[x\] (\d{4}-\d{2}-\d{2}) → done (\d{4}-\d{2}-\d{2}) — (.*)$")
+
+
+def hostname():
+    try:
+        with open("/etc/hostname") as fh:
+            return fh.read().strip()
+    except OSError:
+        return ""
+
+
+def note_path(host):
+    return os.path.join(NOTES, f"{host}.md")
+
+
+def parse(lines):
+    """-> [(kind, header_index, [line indices])]; kind is open/done/other."""
+    entries, cur = [], None
+    for i, line in enumerate(lines):
+        if OPEN_RE.match(line):
+            cur = ("open", i, [i])
+            entries.append(cur)
+        elif DONE_RE.match(line):
+            cur = ("done", i, [i])
+            entries.append(cur)
+        elif cur and (line.startswith("      ") or line.startswith("\t")) and line.strip():
+            # Indented continuation belongs to the entry above it.
+            cur[2].append(i)
+        else:
+            cur = None
+    return entries
+
+
+def prune(path):
+    """Delete done entries whose done-date is older than KEEP_DONE_DAYS."""
+    try:
+        with open(path) as fh:
+            lines = fh.read().splitlines()
+    except OSError:
+        return 0
+    cutoff = date.today() - timedelta(days=KEEP_DONE_DAYS)
+    drop = set()
+    for kind, head, idxs in parse(lines):
+        if kind != "done":
+            continue
+        done_on = DONE_RE.match(lines[head]).group(2)
+        try:
+            y, m, d = (int(x) for x in done_on.split("-"))
+        except ValueError:
+            continue
+        if date(y, m, d) < cutoff:
+            drop.update(idxs)
+    if not drop:
+        return 0
+    kept = [ln for i, ln in enumerate(lines) if i not in drop]
+    with open(path, "w") as fh:
+        fh.write("\n".join(kept).rstrip() + "\n")
+    return len(drop)
+
+
+def open_items(path):
+    try:
+        with open(path) as fh:
+            lines = fh.read().splitlines()
+    except OSError:
+        return []
+    return [OPEN_RE.match(lines[head]).group(2)
+            for kind, head, _ in parse(lines) if kind == "open"]
+
+
+def mark_done(path, pattern):
+    try:
+        with open(path) as fh:
+            lines = fh.read().splitlines()
+    except OSError:
+        print(f"host-notes: no notes file at {path}", file=sys.stderr)
+        return 1
+    needle = pattern.lower()
+    for kind, head, _ in parse(lines):
+        if kind != "open":
+            continue
+        m = OPEN_RE.match(lines[head])
+        if needle not in m.group(2).lower():
+            continue
+        lines[head] = f"- [x] {m.group(1)} → done {date.today().isoformat()} — {m.group(2)}"
+        with open(path, "w") as fh:
+            fh.write("\n".join(lines).rstrip() + "\n")
+        print(f"done: {m.group(2)}")
+        return 0
+    print(f"host-notes: no open item matching {pattern!r}", file=sys.stderr)
+    return 1
+
+
+def main(argv):
+    args = argv[1:]
+
+    if "--done" in args:
+        i = args.index("--done")
+        if i + 1 >= len(args):
+            print("usage: host-notes --done PATTERN", file=sys.stderr)
+            return 2
+        return mark_done(note_path(hostname()), args[i + 1])
+
+    hosts = [hostname()]
+    if "--all" in args:
+        hosts = sorted(f[:-3] for f in os.listdir(NOTES)
+                       if f.endswith(".md") and f != "README.md")
+
+    for host in hosts:
+        prune(note_path(host))
+
+    if "--notify" in args:
+        # Session-start use: say something only when there IS something.
+        items = open_items(note_path(hostname()))
+        if items:
+            head = items[0] if len(items) == 1 else f"{len(items)} items — see notes/{hostname()}.md"
+            subprocess.run(["hyprctl", "notify", "1", "8000", "rgb(a6da95)",
+                            f"Pull checklist: {head}"],
+                           capture_output=True)
+        return 0
+
+    for host in hosts:
+        items = open_items(note_path(host))
+        if len(hosts) > 1:
+            print(f"── {host}")
+        if not items:
+            print("  nothing open" if len(hosts) > 1 else "nothing open")
+        for it in items:
+            print(f"  - {it}" if len(hosts) > 1 else f"- {it}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

@@ -30,6 +30,13 @@ hl.on("hyprland.start", function()
   -- apps would silently fall back to the Adwaita default.
   hl.exec_cmd("/home/ali/labs/dotfiles/bin/sync-gnome-tweaks-to-gtk")
 
+  -- Anything this machine still has to do by hand after a pull (notes/<host>.md
+  -- — install a package, restart a service, verify hardware). Notifies only
+  -- when something is open, and prunes done entries a week after their
+  -- done-date, so the checklists cannot rot the way the todo files they
+  -- replaced did.
+  hl.exec_cmd("/home/ali/labs/dotfiles/bin/host-notes --notify")
+
   -- Daemons / one-shots.
   hl.exec_cmd(apps.idle)
 
