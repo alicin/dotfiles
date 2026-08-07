@@ -6,6 +6,24 @@ applied here. Format and pruning: `notes/README.md`.
 
 ## Open
 
+- [ ] 2026-08-07 — **Confirm the new keycheat module loads on release Quickshell.**
+      The shortcuts cheat sheet is a shell surface now
+      (`qshell/modules/keycheat/`) instead of `bin/keycheat-overlay.py`, and
+      `Super+/` calls `qs -c qshell ipc call keycheat toggle`. It was written
+      and tested against **quickshell-git 0.3.0.r11** on h4l9000; this machine
+      is on the `extra` release, and that pairing is still unverified
+      generally. The module leans on `FileView` (`watchChanges`,
+      `onFileChanged`, `onLoadFailed`), `IpcHandler`, `HyprlandFocusGrab` and
+      `WlrLayershell` — if the release build differs on any of them the whole
+      shell fails to load, not just this panel.
+      After the pull: `qs -c qshell ipc show | grep -A3 '^target keycheat'`
+      should list open/close/toggle, and `Super+/` should draw the sheet in
+      the current theme. If the shell won't start, the panel is self-contained
+      — drop `KeyCheat {}` and its import from `qshell/shell.qml` and it's
+      back to how it was.
+      `bin/keycheat` and `bin/keycheat-overlay.py` are left in the repo but
+      nothing references them; the GTK4 python deps are no longer needed here.
+
 - [ ] 2026-08-07 — **Toshy prefs DB is untracked now — your symlink is dangling.**
       `~/.config/toshy/toshy_user_preferences.sqlite` was a symlink into the
       repo, and this pull **deletes the file it points at**, so Toshy will
