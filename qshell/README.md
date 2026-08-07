@@ -478,6 +478,8 @@ qs ipc -c qshell call debug screencast      # every video node + why it did or
 qs ipc -c qshell call debug ddc             # DDC displays found, if any
 qs ipc -c qshell call debug search '>power' # what the launcher would list
 qs ipc -c qshell call debug notif           # newest notification's raw hints
+qs ipc -c qshell call debug clip            # clipboard strip: selected index,
+                                            # count, filter, query, contentX
 ```
 
 ## Settings & theming

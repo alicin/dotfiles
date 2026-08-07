@@ -50,8 +50,18 @@ Scope {
                 Osd.hide();
             field.text = "";
             list.currentIndex = 0;
+            list.positionViewAtBeginning();
             list.lastHoverPos = Qt.point(-1e9, -1e9);
             field.forceActiveFocus();
+        } else {
+            // Same reason as the clipboard strip's copy of this: the launcher
+            // lives in shell.qml and is never destroyed, so currentIndex and
+            // contentY outlive a close. The highlight is a custom Rectangle
+            // with a 500ms Behavior on y, so reopening on a stale index slid
+            // it down from the old row. Reset here and the next open has
+            // nothing to move.
+            list.currentIndex = 0;
+            list.positionViewAtBeginning();
         }
         root.armed = null;
     }

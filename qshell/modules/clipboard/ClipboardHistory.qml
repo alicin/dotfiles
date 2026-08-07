@@ -40,7 +40,28 @@ Scope {
     // Clipboard.kindOf() can name.
     property string filter: "all"
 
-    onFilterChanged: list.currentIndex = 0
+    // True from the moment the panel opens until the selection first moves off
+    // card 0, and the actual fix for "it opens on the last card".
+    //
+    // Two things conspire. Clipboard.refresh() is a subprocess, so the real
+    // list lands well after onOpenChanged — a reset written there is applied to
+    // a model that is about to be replaced. And highlightRangeMode is
+    // ApplyRange, which means the ListView does not merely *follow*
+    // currentIndex, it re-derives it from whatever item sits in the preferred
+    // range as contentX changes; during the open relayout that resolved to the
+    // far end, landing on index 749 of 750. Right then wrapped modulo count
+    // straight back to the first card, which is the jump you see.
+    //
+    // So the reset cannot be a one-shot. While this is set, every model rebuild
+    // re-asserts card 0.
+    property bool openingReset: false
+
+    // Surfaced for `qs -c qshell ipc call debug clip`. The picker's selection
+    // and scroll offset are otherwise unobservable from outside the process,
+    // which made "does it really open on the first card?" a question only
+    // screenshots could answer — and screenshots of a list whose contents keep
+    // changing answer it badly.
+    readonly property string debugState: `open=${root.open} filter="${root.filter}" query="${field.text}" index=${list.currentIndex} count=${list.count} contentX=${Math.round(list.contentX)}`
 
     readonly property var filters: [
         {
@@ -93,10 +114,31 @@ Scope {
             Clipboard.refresh();
             field.text = "";
             root.filter = "all";
+            root.openingReset = true;
             list.currentIndex = 0;
+            list.positionViewAtBeginning();
+            // Again after this layout pass: the panel is being shown, and the
+            // view's own relayout runs after this handler.
+            Qt.callLater(() => {
+                if (root.open) {
+                    list.currentIndex = 0;
+                    list.positionViewAtBeginning();
+                }
+            });
             list.lastHoverPos = Qt.point(-1e9, -1e9);
             clearBtn.armed = false;
             field.forceActiveFocus();
+        } else {
+            root.openingReset = false;
+            // Reset on the way OUT as well as in. This panel is instantiated
+            // in shell.qml and is never destroyed — unlike the bar popouts,
+            // whose Loader rebuilds them every time — so currentIndex and
+            // contentX survive a close. Putting the strip back now means the
+            // next open finds it already on card 0 at x=0, and there is
+            // nothing for highlightMoveDuration to animate; resetting only on
+            // open left the highlight sliding in from wherever it had been.
+            list.currentIndex = 0;
+            list.positionViewAtBeginning();
         }
     }
 
@@ -274,7 +316,9 @@ Scope {
                         selectedTextColor: Theme.accentFg
                         clip: true
 
-                        onTextChanged: list.currentIndex = 0
+                        // No currentIndex reset here — it lives on the model,
+                        // keyed on the query actually rendered. See the
+                        // ScriptModel below.
 
                         onAccepted: root.copyCurrent()
                         Keys.onLeftPressed: root.move(-1)
@@ -521,15 +565,59 @@ Scope {
                     highlightRangeMode: ListView.ApplyRange
                     highlightMoveDuration: Appearance.anim.durations.expressiveFastSpatial
 
+                    // The moment the selection genuinely leaves card 0 — by
+                    // key, hover or click — the panel is being driven and the
+                    // opening reset must stop firing, or the next rebuild
+                    // (pinning a card, say) would yank the strip back. One
+                    // watcher rather than clearing the flag in each of the four
+                    // call sites that can move the selection.
+                    onCurrentIndexChanged: {
+                        if (list.currentIndex > 0)
+                            root.openingReset = false;
+                    }
+
                     model: ScriptModel {
+                        // The reset hangs off the MODEL, keyed on what was
+                        // actually rendered — the same fix the launcher's list
+                        // carries, for the same reason. Resetting from
+                        // field.onTextChanged and root.onFilterChanged instead
+                        // raced this binding: both fire off the same
+                        // notification in an order QML does not promise, and
+                        // ListView independently clamps currentIndex to
+                        // count-1 when the model shrinks under it. That is how
+                        // opening the panel could land on the LAST card — and
+                        // then Right would wrap modulo count straight back to
+                        // the first.
+                        property string builtFor: ""
+
                         values: Clipboard.search(field.text, root.filter)
-                        // Not a reset: pinning a card rebuilds the list (the
-                        // pin sorts to the front) and this used to throw the
-                        // strip back to the beginning, away from the card you
-                        // just pinned. A new query or filter resets instead.
+
                         onValuesChanged: {
-                            if (list.currentIndex >= list.count)
+                            // Filter and query together: either one changing is
+                            // a different list, and both must land on card 0.
+                            const key = `${root.filter}\t${field.text}`;
+                            // Still opening: whatever the model just did, the
+                            // answer is card 0. This is the branch that fixes
+                            // the reopen — refresh() lands here, long after
+                            // onOpenChanged has had its say.
+                            if (root.openingReset) {
+                                builtFor = key;
+                                list.currentIndex = 0;
+                                list.positionViewAtBeginning();
+                                return;
+                            }
+                            if (builtFor !== key) {
+                                builtFor = key;
+                                list.currentIndex = 0;
+                                list.positionViewAtBeginning();
+                            } else if (list.currentIndex >= list.count) {
+                                // Still NOT an unconditional reset: pinning a
+                                // card rebuilds the list (the pin sorts to the
+                                // front), and throwing the strip back to the
+                                // beginning moved the card you just pinned out
+                                // from under you.
                                 list.currentIndex = Math.max(0, list.count - 1);
+                            }
                         }
                     }
 

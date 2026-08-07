@@ -34,7 +34,9 @@ ShellRoot {
 
     Launcher {}
 
-    ClipboardHistory {}
+    ClipboardHistory {
+        id: clipboardHistory
+    }
 
     RecordOverlay {}
 
@@ -262,6 +264,13 @@ ShellRoot {
 
         function osd(): string {
             return `kind="${Osd.kind}" submap="${Osd.submap}" label="${Osd.submapLabel}"`;
+        }
+
+        // Selection and scroll offset of the clipboard strip. Both survive a
+        // close (the panel lives here, it is never destroyed), so "where does
+        // it open?" is a real question with a real answer.
+        function clip(): string {
+            return clipboardHistory.debugState;
         }
 
         function weather(): string {
