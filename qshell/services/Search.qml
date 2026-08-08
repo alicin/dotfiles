@@ -503,7 +503,6 @@ read _`])
         // later and the row has to exist before it does.
         if (!root.wantsQalc(q))
             return null;
-        root.askQalc(q);
         const ans = root.calcAnswers[q];
         if (ans === "")
             return null;   // asked, and qalc had nothing useful to say
@@ -545,8 +544,12 @@ read _`])
         return root.reConvert.test(q) || root.reUnitMath.test(q);
     }
 
+    // Called by the launcher when the query changes, NOT from results().
+    // results() is a binding — it re-evaluates whenever anything it touches
+    // changes, and a binding that spawns a subprocess is a surprise waiting to
+    // happen. The caller knows when the text actually changed; this does not.
     function askQalc(q: string): void {
-        if (!q || root.calcAnswers[q] !== undefined || root.calcWanted === q)
+        if (!q || !root.wantsQalc(q) || root.calcAnswers[q] !== undefined || root.calcWanted === q)
             return;
         root.calcWanted = q;
         qalcDebounce.restart();

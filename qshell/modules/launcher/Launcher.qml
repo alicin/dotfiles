@@ -370,19 +370,17 @@ Scope {
                         // those moves the selection out from under Enter while
                         // you are simply arrowing down the list.
                         onValuesChanged: {
+                            // The ONLY thing this has to do. Both clamps that
+                            // used to live here are gone: measured on the live
+                            // shell, ListView tracks the selection through a
+                            // removal by itself (closing a window under the `/`
+                            // list moved index 5->4 and kept the same row
+                            // selected), and it leaves currentIndex at 0 rather
+                            // than -1 when the model empties. The -1 branch was
+                            // written for a cause that turned out to be a
+                            // compositor focus race.
                             if (builtFor !== field.text) {
                                 builtFor = field.text;
-                                list.currentIndex = 0;
-                            } else if (list.currentIndex >= list.count) {
-                                list.currentIndex = Math.max(0, list.count - 1);
-                            } else if (list.currentIndex < 0 && list.count > 0) {
-                                // The other end, and the one that bites: a
-                                // ListView drops currentIndex to -1 the moment
-                                // its model is momentarily empty, and the clamp
-                                // above only ever looks at the upper bound — so
-                                // -1 was permanent. currentRow() reads
-                                // rows[-1], hands activate() undefined, and
-                                // Enter does nothing at all.
                                 list.currentIndex = 0;
                             }
                         }
@@ -514,7 +512,11 @@ Scope {
                     // on the query actually rendered — see the ScriptModel
                     // above, whose comment is about this exact line: both fire
                     // off one textChanged in an order QML does not promise.
-                    onTextChanged: root.armed = null
+                    onTextChanged: {
+                        root.armed = null;
+                        // The one place that knows the query actually changed.
+                        Search.askQalc(Search.bodyOf(field.text).trim());
+                    }
 
                     onAccepted: root.activateCurrent(false)
                     // Wraparound: Down on the last row was a dead key.
