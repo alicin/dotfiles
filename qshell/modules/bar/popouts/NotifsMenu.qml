@@ -42,13 +42,28 @@ Column {
     property var headerCache: ({})
     property var moreCache: ({})
 
+    // Group order, pinned for as long as the menu is open. `grouped` ranks
+    // apps by their newest notification, so dismissing the top group's newest
+    // items could re-rank it mid-clear: the half-cleared group teleported down
+    // the list and the next app surfaced under the cursor. A group keeps its
+    // slot until it disappears; new apps still enter at the top. Mutated in
+    // place (like the row caches) so the rows binding doesn't observe it.
+    property var appOrder: []
+
     // The list flattened into rows the ListView can render: a header per app,
     // then its notifications, then a "+n more" row when the run is collapsed.
     // Flat rather than nested views — a ListView inside a ListView delegate
     // has no usable content height, and this list has to size the popout.
     readonly property var rows: {
+        const groups = Notifs.grouped;
+        // Reverse iteration keeps grouped's newest-first order among apps
+        // that arrive together (each unshifts in front of the previous).
+        for (let i = groups.length - 1; i >= 0; i--)
+            if (!root.appOrder.includes(groups[i].app))
+                root.appOrder.unshift(groups[i].app);
+
         const out = [];
-        for (const g of Notifs.grouped) {
+        for (const g of [...groups].sort((a, b) => root.appOrder.indexOf(a.app) - root.appOrder.indexOf(b.app))) {
             if (!root.headerCache[g.app])
                 root.headerCache[g.app] = ({
                         kind: "header",
