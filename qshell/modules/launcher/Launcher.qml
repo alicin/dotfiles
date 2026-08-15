@@ -153,6 +153,33 @@ Scope {
         return `open=${root.open} query="${field.text}" index=${list.currentIndex} count=${list.count} rows=${rows.length} armed=${root.armed !== null} row="${root.currentRow()?.name ?? "(null)"}"`;
     }
 
+    // Search dropped its row cache, so every row in the model is about to be
+    // replaced by an identical-looking new object. ScriptModel diffs by
+    // identity, so it sees the whole list inserted at 0 and the whole old list
+    // removed off the end — and ListView dutifully carries the selection along
+    // to the bottom. Measured: index 0 -> 108 of 109 rows the moment a single
+    // .desktop file appeared, i.e. any package install or removal silently left
+    // the launcher sitting on the last app in the list. The query never changed,
+    // so the model's own handler is blind to it.
+    //
+    // Deferred, and that is the point: this signal and the model's rebuild both
+    // hang off the same app-list change, and QML does not promise which lands
+    // first. callLater runs after both, whatever the order — the same trick
+    // toggleGroupFor uses to pin a selection through ScriptModel churn. Passing
+    // a named function rather than a closure lets Qt collapse the burst of
+    // bumps DesktopEntries emits while it settles into one reset.
+    Connections {
+        target: Search
+
+        function onGenerationChanged(): void {
+            Qt.callLater(root.resetSelection);
+        }
+    }
+
+    function resetSelection(): void {
+        list.currentIndex = 0;
+    }
+
     // Opened from elsewhere in the shell (the Control Center's theme row).
     // Unconditional rather than the IPC's toggle-on-repeat: the caller is a
     // button that says "open the picker", not a keybind pressed twice.
@@ -370,17 +397,34 @@ Scope {
                         // those moves the selection out from under Enter while
                         // you are simply arrowing down the list.
                         onValuesChanged: {
-                            // The ONLY thing this has to do. Both clamps that
-                            // used to live here are gone: measured on the live
-                            // shell, ListView tracks the selection through a
-                            // removal by itself (closing a window under the `/`
-                            // list moved index 5->4 and kept the same row
+                            // The only thing this has to do — a wholly rebuilt
+                            // row set is the other reason to reset and it can
+                            // not be spotted from here, so it hangs off
+                            // Search.generationChanged instead (see above).
+                            // Both clamps that used to live here are gone:
+                            // measured on the live shell, ListView tracks the
+                            // selection through a removal by itself (closing a
+                            // window under the `/` list moved 5->4, same row
                             // selected), and it leaves currentIndex at 0 rather
                             // than -1 when the model empties. The -1 branch was
                             // written for a cause that turned out to be a
                             // compositor focus race.
                             if (builtFor !== field.text) {
                                 builtFor = field.text;
+                                list.currentIndex = 0;
+                            } else if (!root.open) {
+                                // Nothing anyone did put a selection here while
+                                // the panel is shut, so whatever moved it is
+                                // churn and must not be sitting under Enter at
+                                // the next open. The close handler pins it to
+                                // the top, and then the model keeps changing
+                                // underneath: flushUsage re-sorts on the way
+                                // out of every launch, and the usage file
+                                // arrives after the app list at startup — a
+                                // re-sort is a ScriptModel *move*, which
+                                // ListView follows by design. That is how a
+                                // freshly reloaded shell opened on row 5.
+                                // Free here, with nothing on screen to animate.
                                 list.currentIndex = 0;
                             }
                         }

@@ -133,6 +133,34 @@ Singleton {
     // changes and the row is legitimately new.
     property var rowCache: ({})
 
+    // Bumped every time the cache is dropped, and the signal every consumer
+    // holding a selection has to listen to. A drop replaces every row object
+    // with an identical-LOOKING new one, and a model that diffs by identity
+    // (ScriptModel does) reads that as "every row removed, every row inserted"
+    // — which drags the selection along even though, to the person looking at
+    // the list, nothing changed. The query cannot express that; see the
+    // launcher, which resets off generationChanged rather than trying to spot
+    // it in the model's own values handler.
+    property int generation: 0
+
+    // Clears IN PLACE rather than assigning a fresh object, and that is the
+    // whole point: `rowCache = {}` is a property write, results() reads
+    // rowCache, and results() is a binding — so a write invalidates that
+    // binding. Dropping the cache used to happen in a Connections handler on
+    // Apps.allChanged, which could land while results() was still running, and
+    // QML calls a binding invalidated during its own evaluation a loop and
+    // ABORTS it — the "Binding loop detected for property values" that filled
+    // the log on every config load, ~15 per load while DesktopEntries settled
+    // in bursts. An aborted evaluation leaves the model on a stale list.
+    //
+    // Mutating the object notifies nothing, which is what we want: the app list
+    // changing is what legitimately re-runs results(), and that already does.
+    function dropCache(): void {
+        for (const k in root.rowCache)
+            delete root.rowCache[k];
+        root.generation++;
+    }
+
     function cached(key: string, build: var): var {
         let row = root.rowCache[key];
         if (!row) {
@@ -140,7 +168,7 @@ Singleton {
             // is a render optimisation, not a store — drop it wholesale
             // rather than tracking liveness per row.
             if (Object.keys(root.rowCache).length > 4000)
-                root.rowCache = {};
+                root.dropCache();
             row = build();
             root.rowCache[key] = row;
         }
@@ -263,7 +291,7 @@ Singleton {
         target: Apps
 
         function onAllChanged(): void {
-            root.rowCache = {};
+            root.dropCache();
         }
     }
 
