@@ -5594,8 +5594,9 @@ keymap("Hyper terminal tab switching", {
     ctx_ovl_terminal_ergo and
     hmp_is_term_hyper_term(ctx) )
 
-# ALI: ghostty added (it replaced kitty as the terminal 2026-08-07); both
-# clear with Ctrl+L, so the Cmd+K/Cmd+L mapping below is identical.
+# ALI: matches both kitty and ghostty (kitty is the terminal again since
+# 2026-08-15; ghostty had it 2026-08-07 → 2026-08-15 and stays installed);
+# both clear with Ctrl+L, so the Cmd+K/Cmd+L mapping below is identical.
 hmp_is_term_kitty               = matchProps(clas="^kitty$|^com.mitchellh.ghostty$|.*floating_shell.*")
 keymap("Kitty/Ghostty terminal - not tab nav", {
     C("RC-L"):                  C("C-L"),                       # Clear log

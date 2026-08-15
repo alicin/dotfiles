@@ -5,6 +5,20 @@ Format and pruning: `notes/README.md`. Run `bin/host-notes` here.
 
 ## Open
 
+- [ ] 2026-08-15 — **Kitty is the terminal again (ghostty was slow).**
+      kitty should still be installed and linked from before 2026-08-07 —
+      check `pacman -Q kitty` (else `sudo pacman -S kitty`) and
+      `readlink ~/.config/kitty` (must point into the repo; else
+      `ln -s ~/labs/dotfiles/config/kitty ~/.config/kitty`). Everything that
+      names a terminal says kitty again: `$TERMINAL` (relogin so the uwsm env
+      lands), `apps.term` and the two `--class=com.ali.floating_shell*`
+      scratchpads, qshell's `terminal` setting. Window rules, Toshy's terminal
+      keymaps and theme-sync always covered both terminals, so nothing else to
+      do beyond `hyprctl reload`.
+      Ghostty is not uninstalled by the pull; drop it whenever you like
+      (`config/ghostty/` stays in the repo and theme-sync keeps syncing it
+      for as long as the binary exists).
+
 - [ ] 2026-08-07 — **Toshy prefs DB is untracked now — your symlink is dangling.**
       `~/.config/toshy/toshy_user_preferences.sqlite` was a symlink into the
       repo, and this pull **deletes the file it points at**, so Toshy will

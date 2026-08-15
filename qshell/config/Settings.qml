@@ -324,9 +324,9 @@ Singleton {
             property bool weather: true
             property string weatherPlace: ""
             property bool batteryCriticalSuspend: true
-            property string terminal: "ghostty"
+            property string terminal: "kitty"
             property bool clipboardPaste: false
-            property string clipboardPasteTerminals: "ghostty|floating_shell|kitty|foot|alacritty|wezterm|konsole|terminator|xterm|st"
+            property string clipboardPasteTerminals: "kitty|floating_shell|ghostty|foot|alacritty|wezterm|konsole|terminator|xterm|st"
             property string tabletMode: "auto"
             property real touchScale: 1.25
             property string osk: "auto"

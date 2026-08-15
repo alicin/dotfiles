@@ -6,6 +6,22 @@ applied here. Format and pruning: `notes/README.md`.
 
 ## Open
 
+- [ ] 2026-08-15 — **Kitty is the terminal again (ghostty was slow).**
+      kitty should still be installed and linked from before 2026-08-07 —
+      check `pacman -Q kitty` (else `sudo pacman -S kitty`) and
+      `readlink ~/.config/kitty` (must point into the repo; else
+      `ln -s ~/labs/dotfiles/config/kitty ~/.config/kitty`). Everything that
+      names a terminal says kitty again: `$TERMINAL` (relogin so the uwsm env
+      lands), `apps.term` and the two `--class=com.ali.floating_shell*`
+      scratchpads, qshell's `terminal` setting. Window rules, Toshy's terminal
+      keymaps and theme-sync always covered both terminals, so nothing else to
+      do beyond `hyprctl reload`. No touch regression on this machine:
+      ghostty never scrolled on touch either (see the 2026-08-07 done entry) —
+      the glass was keyboard/trackpad-only in both.
+      Ghostty is not uninstalled by the pull; drop it whenever you like
+      (`config/ghostty/` stays in the repo and theme-sync keeps syncing it
+      for as long as the binary exists).
+
 - [ ] 2026-08-07 — **Confirm the new keycheat module loads on release Quickshell.**
       The shortcuts cheat sheet is a shell surface now
       (`qshell/modules/keycheat/`) instead of `bin/keycheat-overlay.py`, and

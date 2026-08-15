@@ -6,13 +6,14 @@ local M = {}
 -- (No wallpaper entry: hyprpaper reads its own conf from ~/.wallpapers/, and
 -- the old M.bg here pointed at a path that didn't exist, with no consumer.)
 
--- Terminals. Ghostty since 2026-08-07: kitty's Wayland backend has no
--- wl_touch support at all, so a touchscreen did nothing in it (and there is
--- no setting for that — see notes/k3v1n.md). Ghostty is GTK4 and gets touch
--- from the compositor. `--class=` works the same as kitty's for the
--- scratchpad shells (verified live), and the classes are unchanged, so the
--- window rules and Toshy's terminal detection carry over untouched.
-M.term                 = "ghostty"
+-- Terminals. Back to kitty 2026-08-15: ghostty was noticeably slower.
+-- The touch argument that motivated ghostty (2026-08-07) turned out to be
+-- moot — ghostty *receives* touch but never scrolls on it (GTK4 controller
+-- gap, see notes/k3v1n.md), so no terminal here scrolls on the glass either
+-- way and kitty gives nothing up. `--class=` works the same in both, the
+-- classes are unchanged, so the window rules and Toshy's terminal detection
+-- carry over untouched. Ghostty stays installed as fallback for now.
+M.term                 = "kitty"
 M.term_float           = M.term .. " --class=com.ali.floating_shell"
 M.term_float_portrait  = M.term .. " --class=com.ali.floating_shell_portrait"
 

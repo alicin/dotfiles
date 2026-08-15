@@ -80,6 +80,7 @@ imv
 iwd
 jq
 ghostty
+kitty
 lazygit
 lib32-giflib
 lib32-gnutls

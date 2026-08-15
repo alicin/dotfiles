@@ -38,6 +38,7 @@
     "wofi",
     "fuzzel",
     "ghostty",
+    "kitty",
     "yazi",
     "imv",
     "micro",
@@ -76,7 +77,7 @@
   },
   "environment": {
     "BROWSER": "google-chrome-stable",
-    "TERMINAL": "ghostty",
+    "TERMINAL": "kitty",
     "XDG_SESSION_TYPE": "wayland"
   }
 }

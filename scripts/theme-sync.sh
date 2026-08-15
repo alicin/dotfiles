@@ -10,12 +10,13 @@
 #
 # What it drives, and how each one picks the change up live:
 #
-#   ghostty    THE terminal since 2026-08-07 (kitty had no touchscreen support
-#              and no setting for it). Writes config/ghostty/current-theme, an
-#              include the main config ends with, then SIGUSR2s every ghostty —
-#              its config-reload signal, so open windows recolor in place.
-#   kitty      same shape (current-theme.conf + SIGUSR1), kept working for as
-#              long as kitty stays installed anywhere. Skipped when it isn't.
+#   kitty      THE terminal again since 2026-08-15 (ghostty was slow; the
+#              touch argument for it was moot — neither scrolls on touch).
+#              Writes config/kitty/current-theme.conf, an include the main
+#              config ends with, then SIGUSR1s every kitty — its config-reload
+#              signal, so open windows recolor in place.
+#   ghostty    same shape (current-theme + SIGUSR2), kept working for as long
+#              as ghostty stays installed anywhere. Skipped when it isn't.
 #   GTK 3/4    the real palette, as @define-color overrides written into
 #              config/gtk-{3,4}.0/gtk.css by scripts/gtk-theme-css.py (which
 #              derives them from qshell/config/Theme.qml, so GTK matches the
@@ -91,19 +92,19 @@ if [[ -z "${VSCODE[$THEME]:-}" ]]; then
     exit 1
 fi
 
-# ── ghostty ──────────────────────────────────────────────────────────────────
+# ── ghostty (only while it is still installed) ───────────────────────────────
 # Theme names are ghostty's own bundled set, verified against
 # `ghostty +list-themes` on 1.3.1 — the earlier guesses were all wrong.
 GHOSTTY_THEME_FILE="${DOTFILES_DIR}/config/ghostty/current-theme"
-if [[ -f "${GHOSTTY_THEME_FILE}" ]]; then
+if command -v ghostty >/dev/null 2>&1 && [[ -f "${GHOSTTY_THEME_FILE}" ]]; then
     printf '# Written by scripts/theme-sync.sh on every qshell theme change — do not edit.\ntheme = %s\n' \
         "${GHOSTTY[$THEME]}" > "${GHOSTTY_THEME_FILE}"
     pkill -USR2 -x ghostty 2>/dev/null || true
 fi
 
-# ── kitty (only while it is still installed) ─────────────────────────────────
+# ── kitty ────────────────────────────────────────────────────────────────────
 KITTY_DIR="${DOTFILES_DIR}/config/kitty"
-if command -v kitty >/dev/null 2>&1 && [[ -f "${KITTY_DIR}/themes/${THEME}.conf" ]]; then
+if [[ -f "${KITTY_DIR}/themes/${THEME}.conf" ]]; then
     printf 'include themes/%s.conf\n' "${THEME}" > "${KITTY_DIR}/current-theme.conf"
     # Reload every running kitty; -x matches the exact process name so this
     # can never wing something else.

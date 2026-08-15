@@ -26,6 +26,7 @@
     "gtk-4.0",
     "input-remapper-2",
     "ghostty",
+    "kitty",
     "gogcli",
     "rclone",
     "code-flags.conf",
@@ -48,7 +49,7 @@
   },
   "environment": {
     "BROWSER": "google-chrome-stable",
-    "TERMINAL": "ghostty",
+    "TERMINAL": "kitty",
     "XDG_SESSION_TYPE": "wayland"
   }
 }

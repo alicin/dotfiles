@@ -116,7 +116,7 @@ dotfiles/
 │   ├── zsh/                    # ZSH configuration
 │   ├── hypr/                   # Hyprland window manager
 │   ├── waybar/                 # Status bar for Wayland
-│   ├── ghostty/                # Terminal emulator
+│   ├── kitty/                  # Terminal emulator
 │   ├── yabai/                  # macOS window manager
 │   ├── sketchybar/             # macOS status bar
 │   ├── skhd/                   # macOS hotkey daemon
@@ -191,7 +191,7 @@ Each profile is defined by a `profile.json` file with the following structure:
   },
   "environment": {
     "BROWSER": "firefox",
-    "TERMINAL": "ghostty"
+    "TERMINAL": "kitty"
   },
   "features": {
     "gaming": true,
@@ -214,7 +214,7 @@ The system supports multiple package managers per profile:
 Configurations are organized in three categories:
 
 1. **Dotfiles**: Files linked to `~/.*` (e.g., `.zshrc`, `.gitconfig`)
-2. **Configs**: Directories linked to `~/.config/*` (e.g., `hypr`, `waybar`, `ghostty`)
+2. **Configs**: Directories linked to `~/.config/*` (e.g., `hypr`, `waybar`, `kitty`)
 3. **Themes**: Asset directories like fonts and wallpapers
 
 ## Scripts

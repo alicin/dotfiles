@@ -19,6 +19,7 @@
     "skhd",
     "sketchybar",
     "ghostty",
+    "kitty",
     "yazi",
     "btop",
     "borders",
@@ -39,6 +40,6 @@
   },
   "environment": {
     "BROWSER": "open",
-    "TERMINAL": "ghostty"
+    "TERMINAL": "kitty"
   }
 }

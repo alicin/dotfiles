@@ -42,7 +42,7 @@ pre-2026-07-05 scheme — physical Ctrl→Super, Super→Alt — which is now wr
   A Cmd combo no keymap matches arrives as plain Ctrl+key — that's why the
   macOS-style screenshot binds are `CTRL + SHIFT + 4..7` in binds.lua.
 - Terminal context = Toshy's terminals list **plus** the `.*floating_shell.*`
-  entry (~line 497) that makes the floating ghostty scratchpads count.
+  entry (~line 497) that makes the floating kitty scratchpads count.
 - Ground truth when unsure: `wev -f wl_keyboard:key`, press the combo, read
   `sym:`/`mods:` — that is exactly what Hyprland binds against.
 
@@ -70,7 +70,7 @@ key means you add a self-map to the passthrough keymap.
 
 1. Translate the physical combo via the table above; pick `SUPER` for WM
    actions, `CTRL+SHIFT+<x>` only for macOS-Cmd-style app-global combos
-   (never one that a terminal keymap emits — check the yazi/ghostty/General
+   (never one that a terminal keymap emits — check the yazi/kitty/General
    Terminals keymaps first).
 2. Edit `config/hypr/lua/binds.lua` (host-only binds → `hosts/<host>.lua`,
    but note the Super+/ cheatsheet **only parses binds.lua** — trailing
@@ -207,23 +207,25 @@ Conventions and traps:
   once via `RotateStatus.transform`).
 - `qshell/settings.json` is a live-edit surface: every value read from it needs
   a **read-path** clamp/normalize (setter-only validation is a known bug class).
-- **The terminal is ghostty** (since 2026-08-07; kitty's Wayland backend has
-  no wl_touch support at all, and `touch_scroll_multiplier` is a *touchpad*
-  knob — there was no setting to fix that). Config `config/ghostty/config`,
-  reloads on **SIGUSR2**, theme via the `config-file = current-theme` include
-  that theme-sync rewrites. **No terminal on this desktop scrolls on touch.**
-  Ghostty *receives* touch (which kitty cannot) but never scrolls on it: GTK4's
+- **The terminal is kitty** (again, since 2026-08-15 — ghostty was slow;
+  ghostty had it 2026-08-07 → 2026-08-15 and stays installed as fallback).
+  Config `config/kitty/kitty.conf` (conf.d includes), reloads on **SIGUSR1**,
+  theme via the `include current-theme.conf` line that theme-sync rewrites
+  (ghostty's `current-theme` is still synced too, while it stays installed).
+  **No terminal on this desktop scrolls on touch** — that is why the 2026-08-07
+  switch to ghostty bought nothing: kitty's Wayland backend has no wl_touch at
+  all, and ghostty *receives* touch but never scrolls on it (GTK4's
   EventControllerScroll handles GDK_SCROLL and GDK_TOUCHPAD_* only, never
-  GDK_TOUCH_*, and ghostty's surface declares that controller plus a
-  GestureClick and nothing else (1.3.1 and upstream main alike). So
-  `mouse-scroll-multiplier` governs only the trackpad (`precision:`, which
-  ghostty pre-multiplies by a hardcoded 10) and the wheel (`discrete:`) —
-  do not reach for it to fix finger scrolling, it is not in that path. Method
-  worth reusing: a synthetic touchscreen (raw uinput, same mechanics as
+  GDK_TOUCH_*; ghostty 1.3.1 and upstream main alike declare that controller
+  plus a GestureClick and nothing else). Scrollback on the glass needs the
+  keyboard or the dock's trackpad; don't reach for scroll-multiplier options
+  in either terminal to fix finger scrolling — they are not in that path.
+  Method worth reusing: a synthetic touchscreen (raw uinput, same mechanics as
   `bin/touch-gestures`) plus a GTK4 probe carrying the app's exact controller
-  settles "does this app see touch?" without guessing. Gotcha:
-  ghostty creates its own `~/.config/ghostty/` on first run, which blocks the
-  profile symlink; `ghostty +show-config | grep theme` empty means re-link.
+  settles "does this app see touch?" without guessing. Gotcha (if ghostty runs
+  first on a fresh machine): it creates its own `~/.config/ghostty/`, which
+  blocks the profile symlink; `ghostty +show-config | grep theme` empty means
+  re-link.
 - Debug/IPC handles: `qs -c qshell ipc call osk status`,
   `... tablet status`, `... display rotate|reset|transform N`,
   `... settings open|close|toggle|section <name>` (the standalone Settings

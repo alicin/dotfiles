@@ -216,6 +216,7 @@ ffmpegthumbnailer
 
 # ── Terminal / shell ────────────────────────────────────────────────────────
 ghostty
+kitty
 zsh
 starship
 atuin

@@ -87,4 +87,4 @@ ctrl + alt - r : sh /Users/ali/labs/dotfiles/bin/restartdesktop.sh
 
 # apps
 
-shift + alt - return : open -a ghostty
+shift + alt - return : open -a kitty
