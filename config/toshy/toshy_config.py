@@ -4093,12 +4093,46 @@ keymap("imv image viewer", {
 keymap("ALI - pass physical Super through to Hyprland (WM)", {
     C("Super-a"):               C("Super-a"),
     C("Super-b"):               C("Super-b"),
-    C("Super-d"):               C("Super-d"),
     C("Super-e"):               C("Super-e"),
     C("Super-f"):               C("Super-f"),
     C("Super-k"):               C("Super-k"),
     C("Super-n"):               C("Super-n"),
     C("Super-p"):               C("Super-p"),
+    # ── Binds that open a qshell panel you then press Enter in ──────────────
+    #
+    # These still pass their combo straight through (Hyprland's bind fires
+    # exactly as before); the iEF2(..., False) wrapper additionally latches
+    # _enter_is_F2 to False, which makes the NEXT Enter a real Enter.
+    #
+    # Why they need it: every one of these panels is a wayland LAYER SURFACE,
+    # and the window context Toshy runs on comes from
+    # wlr_foreign_toplevel_management_unstable_v1, which only ever lists
+    # toplevels. A layer surface is not a toplevel, so while the launcher holds
+    # keyboard focus through its HyprlandFocusGrab, ctx.wm_class still names the
+    # window *underneath* it (verified: launcher open and focused, `hyprctl
+    # activewindow` answers org.gnome.Nautilus). Open one of these over a file
+    # manager and "General File Managers - Finder Mods" below is therefore still
+    # live -- so its C("Enter"): iEF2(C("F2"), C("Enter")) sends F2 for one
+    # Enter and Return for the next. F2 does nothing in the launcher, so Enter
+    # "did nothing" and the panel stayed up, then worked on the second press,
+    # then failed again: the double-Enter-that-alternates bug.
+    #
+    # Enter-to-rename is not lost. The latch is self-healing at three points:
+    # _get_iEF2_context resets it the moment a real non-file-manager context is
+    # seen, the file manager keymap's own C("Esc") resets it if you back out of
+    # the panel instead of launching, and the Enter that does launch something
+    # flips it back to True on its way through. Worst case is one Enter in the
+    # file manager opening a file instead of renaming it.
+    #
+    # This is Toshy's own documented remedy for Spotlight-style launchers (see
+    # the commented-out C("Super-Space") lines in the GenGUI section), except
+    # latched to False rather than True, because here the stale context IS the
+    # file manager and True is the side that sends F2.
+    C("Super-d"):               iEF2(C("Super-d"), False),          # app launcher
+    C("Shift-Super-w"):         iEF2(C("Shift-Super-w"), False),    # window switcher (launcher `/`)
+    C("Shift-Super-v"):         iEF2(C("Shift-Super-v"), False),    # clipboard history
+    C("C-Super-Space"):         iEF2(C("C-Super-Space"), False),    # command palette (launcher `>`)
+    C("Super-Dot"):             iEF2(C("Super-Dot"), False),        # emoji picker (launcher `:`)
     # Tab and Grave: stock keymaps further down still interpret the OLD
     # scheme's Super combos -- "GenGUI overrides" turns Super-Tab into
     # Ctrl+Tab in every app including terminals, and the VSCodes keymap eats
@@ -4106,8 +4140,9 @@ keymap("ALI - pass physical Super through to Hyprland (WM)", {
     # (Super+Tab) and scratchpad (Super+`) binds. First-match order makes
     # these self-maps win. In-app tab cycling stays on physical Ctrl+Tab and
     # VS Code's terminal toggle on physical Ctrl+` (both native now).
-    C("Super-Tab"):             C("Super-Tab"),
-    C("Shift-Super-Tab"):       C("Shift-Super-Tab"),
+    # Tab carries the latch too: the overview takes Enter to focus a window.
+    C("Super-Tab"):             iEF2(C("Super-Tab"), False),
+    C("Shift-Super-Tab"):       iEF2(C("Shift-Super-Tab"), False),
     C("Super-Grave"):           C("Super-Grave"),
     C("Shift-Super-Grave"):     C("Shift-Super-Grave"),
     C("Super-Backspace"):       C("Super-Backspace"),
