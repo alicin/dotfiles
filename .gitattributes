@@ -1,0 +1,7 @@
+# QML is text. Saying so out loud because it took a stray NUL byte inside a
+# string literal in qshell/components/NotificationCard.qml — one byte, no
+# behavioral effect — to make git call the file binary, drop it from every
+# `git diff`, and make it invisible to plain `grep -r`. The byte is gone; this
+# keeps the next one from hiding anything.
+*.qml diff
+*.qml text

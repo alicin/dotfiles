@@ -78,6 +78,17 @@ Singleton {
     // is one settings edit, not a code change.
     readonly property string clipboardPasteTerminals: adapter.clipboardPasteTerminals
 
+    // Apps whose notifications never carry a real picture, only their own
+    // launcher icon in the image-data hint — Electron puts the icon there
+    // because notify_notification_set_image_from_pixbuf() is the only way it
+    // sets one, and the spec calls that hint content, so the card grew a 150px
+    // logo under every line. components/NotificationCard.qml rejects the shape
+    // of that mistake generically (square, standard size); this is the manual
+    // override for whatever gets through. Matched, anchored and
+    // case-insensitively, against both appName and desktopEntry — the same
+    // regex-in-settings idiom as clipboardPasteTerminals above.
+    readonly property string notifIconOnlyApps: adapter.notifIconOnlyApps
+
     // ── Touch / tablet ──
     // "auto" resolves from hardware (services/Tablet.qml): a detached keyboard
     // or a hinge folded past the tablet-mode switch. "tablet"/"desktop" pin it,
@@ -327,6 +338,7 @@ Singleton {
             property string terminal: "kitty"
             property bool clipboardPaste: false
             property string clipboardPasteTerminals: "kitty|floating_shell|ghostty|foot|alacritty|wezterm|konsole|terminator|xterm|st"
+            property string notifIconOnlyApps: "Claude|com\\.anthropic\\.Claude"
             property string tabletMode: "auto"
             property real touchScale: 1.25
             property string osk: "auto"

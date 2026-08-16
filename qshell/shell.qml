@@ -315,13 +315,22 @@ ShellRoot {
             return `count=${Notifs.count} unseen=${Notifs.unseen} popups=${Notifs.popups.length} dnd=${Notifs.dnd} lastSeen=${Notifs.lastSeenAt}`;
         }
 
-        // What the newest notification actually carries — which hint an app
-        // put its picture in decides whether a card grows a preview band.
+        // What the notifications actually carry — which hint an app put its
+        // picture in decides whether a card grows a preview band. All of them,
+        // not just the newest: the app you are trying to explain is rarely the
+        // one that just fired, and "image://qsimage/..." (raw image-data, no
+        // path to judge) versus a file path is the whole diagnosis.
         function notif(): string {
-            const n = Notifs.list[0]?.n;
-            if (!n)
+            if (Notifs.list.length === 0)
                 return "no notifications";
-            return `app="${n.appName}" appIcon="${n.appIcon}" image="${n.image}" desktopEntry="${n.desktopEntry}"`;
+            return Notifs.list.map((w, i) => {
+                const n = w.n;
+                // id is what `gdbus … CloseNotification` wants; a ghost
+                // restored from the state file has none, which is also the
+                // answer to "why won't that one close from a script".
+                const id = w.ghost ? "ghost" : (n?.id ?? "?");
+                return `[${i}] id=${id} app="${n?.appName}" appIcon="${n?.appIcon}" image="${n?.image}" desktopEntry="${n?.desktopEntry}"`;
+            }).join("\n");
         }
 
         function scan(active: bool): string {

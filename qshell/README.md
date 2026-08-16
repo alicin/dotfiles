@@ -578,7 +578,9 @@ qs ipc -c qshell call debug screencast      # every video node + why it did or
                                             # didn't count as a cast
 qs ipc -c qshell call debug ddc             # DDC displays found, if any
 qs ipc -c qshell call debug search '>power' # what the launcher would list
-qs ipc -c qshell call debug notif           # newest notification's raw hints
+qs ipc -c qshell call debug notif           # every notification's raw hints —
+                                            # image://qsimage/… means raw
+                                            # image-data, i.e. no path to judge
 qs ipc -c qshell call debug clip            # clipboard strip: selected index,
                                             # count, filter, query, contentX
 ```
@@ -604,8 +606,19 @@ slowed down.
 `scale` multiplies every size token (fonts, bar height, menus, launcher) —
 the whole shell grows/shrinks with one knob (`Appearance.s(px)`).
 
-Every key except `clipboardPasteTerminals` also has a control on the **Settings
-page** (Control Center → Settings, or `qs ipc call popouts toggle settings`).
+`notifIconOnlyApps` is an anchored, case-insensitive regex over a notification's
+app name *and* its desktop entry, naming senders whose "image" is never a
+picture — only their own launcher icon. Electron is the reason it exists: the
+only way it attaches an icon is `notify_notification_set_image_from_pixbuf()`,
+which sets the **`image-data`** hint, and the spec calls that hint *content*, so
+every Claude notification grew a 150px logo under it. `NotificationCard.qml`
+rejects the shape of that mistake generically (a square blob is an icon), and
+this is the manual override for whatever gets through — a sender whose logo
+isn't square, say. Confirm what an app actually sends with
+`qs ipc -c qshell call debug notif`.
+
+Every key except `clipboardPasteTerminals` and `notifIconOnlyApps` also has a
+control on the **Settings page** (Control Center → Settings, or `qs ipc call popouts toggle settings`).
 Numeric setters stage the value in memory and debounce the file write by 220ms:
 a slider under a finger emits every frame, and rewriting — and re-watching, and
 re-reparsing — settings.json sixty times a second is both wasteful and the

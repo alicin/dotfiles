@@ -5,6 +5,7 @@
     "clipboardPasteTerminals": "kitty|floating_shell|ghostty|foot|alacritty|wezterm|konsole|terminator|xterm|st",
     "edgeSwipes": true,
     "launcherMaxShown": 8,
+    "notifIconOnlyApps": "Claude|com\\.anthropic\\.Claude",
     "osk": "auto",
     "oskHeight": 0.32,
     "overviewColumns": 6,
