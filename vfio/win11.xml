@@ -146,6 +146,10 @@
   </clock>
 
   <on_poweroff>destroy</on_poweroff>
+  <!-- NOTE: with 'restart', libvirt relaunches the domain on any guest reboot — and Windows
+       auto-restarts on bugcheck. That is what turns a single nvlddmkm failure into an unbreakable
+       boot loop when a display is plugged into the dGPU's HDMI (seen 2026-08-16). Switch to
+       'destroy' to stop the VM instead, so the BSOD stays readable while debugging. -->
   <on_reboot>restart</on_reboot>
   <on_crash>destroy</on_crash>
   <pm>
@@ -209,7 +213,15 @@
     <audio id="1" type="spice"/>
     <!-- vga stays as the OVMF/boot console AND the surface Looking Glass captures. (Switching to
          <model type='none'/> requires a guest-side virtual display that survives headless boot; the
-         MTT Virtual Display Driver in the guest provides the 2560x1600@240 surface LG captures.) -->
+         MTT Virtual Display Driver in the guest provides the 2560x1600@240 surface LG captures.)
+
+         TRIED AND REVERTED 2026-08-16: setting this to 'none' to cut a display path left the guest
+         with ZERO heads when run without a monitor on the dGPU's HDMI — the VDD was then the only
+         possible head, and it did not come up. Windows booted to nothing: no LG session, no guest
+         agent, no DHCP lease, and it would not even answer an ACPI shutdown. There is also no
+         host-side view of the guest with 'none' (virsh screenshot / SPICE have no display device to
+         capture), so it is a bad state to debug from. Do not set 'none' until the VDD is proven to
+         come up on its own, and keep a monitor attached the first time you try. -->
     <video>
       <model type="vga" vram="16384" heads="1"/>
     </video>
@@ -244,6 +256,11 @@
         <address domain="0x0000" bus="0x02" slot="0x00" function="0x0"/>
       </source>
     </hostdev>
+
+    <!-- action='none', NOT 'reset'. This watchdog was added to the live domain outside this repo and
+         set to 'reset'; combined with <on_reboot>restart</on_reboot> it made any guest stall relaunch
+         the VM forever. Keep it at 'none' unless you actually want automatic recovery. -->
+    <watchdog model="itco" action="none"/>
 
     <memballoon model="none"/>
 

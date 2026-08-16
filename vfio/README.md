@@ -82,14 +82,49 @@ automatically:
 | `app:renderer` | `EGL` | best path on the Intel Arc host; **don't** switch to OpenGL/gamescope (that advice is for NVIDIA-hosted compositors and adds latency here). |
 | `app:shmFile` | `/dev/shm/looking-glass` | matches the `<shmem>` device in `win11.xml`. |
 
-### Compositor side — `config/hypr/lua/{options,rules}.lua` (symlinked into `~/.config/hypr`)
-| Setting | Where | Why |
-|---|---|---|
-| `general { allow_tearing = true }` | `options.lua` | lets the fullscreen LG client tear; without it `egl:vsync=no` is negated and frames queue to vblank. |
-| `immediate` window rule for `^(looking-glass-client)$` | `rules.lua` | actually engages tearing for the LG window. |
-| `debug { vfr = false }` | `options.lua` | Hyprland's variable-frame-rate **idle throttle** drops its render rate when the screen looks idle and starves the client — this was the *big* few-FPS collapse. VFR moved from `misc:vfr` to **`debug:vfr`** in 0.55. Cost: slightly higher idle GPU/power. |
+### Compositor side — `config/hypr/lua/hosts/h4l9000.lua` (symlinked into `~/.config/hypr`)
+All three moved out of the global `options.lua`/`rules.lua` into the h4l9000 host file on
+2026-08-07, so the tablet doesn't pay for them.
+
+| Setting | Why |
+|---|---|
+| `general { allow_tearing = true }` | lets the fullscreen LG client tear; without it `egl:vsync=no` is negated and frames queue to vblank. |
+| `immediate` window rule for `^(looking-glass-client)$` | actually engages tearing for the LG window. |
+| `debug { vfr = false }` | Hyprland's variable-frame-rate **idle throttle** drops its render rate when the screen looks idle and starves the client — this was the *big* few-FPS collapse. VFR moved from `misc:vfr` to **`debug:vfr`** in 0.55. Cost: slightly higher idle GPU/power. |
 
 ### Gotchas learned (so we don't re-derive them)
+- **`<video><model type='none'/>` is a trap while the VDD is unproven.** Tried 2026-08-16 and
+  reverted the same day: without a monitor on the dGPU's HDMI the VDD becomes the *only* possible
+  head, and when it doesn't come up the guest boots to zero displays — no LG session, no guest
+  agent, no DHCP lease, and no response to ACPI shutdown. It also removes the only host-side view
+  (`virsh screenshot` and SPICE need a display device), so you cannot see what went wrong. Keep
+  `vga` until the VDD is verified, and test with a monitor attached.
+- **The guest has no `looking-glass-host.ini`, despite `guest/README.md` saying to deploy one.**
+  The LG host therefore runs on defaults and picks the **D12** capture backend, not `dxgi`. That is
+  the configuration that has actually been working — don't "fix" it blind. The log's
+  `Trying:`/`Using:` lines tell you which backend is live. (Related: `d3d12CopyDevice=1` in the
+  repo's ini is out of range — the guest enumerates exactly one D3D12 adapter, since an emulated
+  vga has no D3D12 driver and never appears in that enumeration.)
+- **The VDD's `vdd_settings.xml` in the guest is not pinned** (`<friendlyname>default`) and offers
+  6 resolutions × 7 refresh rates, both contrary to `guest/README.md`. Left as-is because it is the
+  known-working state; pinning it to `NVIDIA GeForce RTX 5070 Laptop GPU` and locking one mode was
+  tried on 2026-08-16 and is unproven (it was rolled back together with the `video=none` change, so
+  which of the two broke the headless boot was never isolated).
+- **A VM that dies ~30 s in is probably `game.sh`, not a crash.** The old launcher started the
+  client immediately after `virsh start` and shut the VM down on *any* client exit — so "LG showed
+  nothing and then it crashed" was really "the client quit while the guest was still booting, and
+  the trap powered it off". Tell them apart from the qemu log: `reason=shutdown` is a graceful ACPI
+  request (i.e. us), `reason=crashed`/`destroyed` is not. Fixed 2026-08-16; `game.sh` now waits for
+  the LGMP magic in `/dev/shm/looking-glass` and leaves a non-attaching VM running.
+- **The LGMP magic in the shm survives a VM shutdown.** Any readiness check must zero the first 16
+  bytes before boot, or last session's header reads as "guest is ready" instantly.
+- **qemu segfaults on teardown, intermittently.** Seen on 2026-08-16 at 15:37 and 16:07 (`SEGV_ACCERR`,
+  `ip` == fault address) but not on every shutdown. It happens *after* the shutdown request, so it
+  costs nothing but a coredump — don't mistake it for the guest failing.
+- **A dirty NTFS volume blocks host-side inspection.** After a guest bugcheck, `ntfs-3g` refuses rw
+  ("Metadata kept in Windows cache"). `sudo ntfsfix /dev/nvme0n1p3` resets the journal and schedules
+  a chkdsk on the next Windows boot; prefer it over `ntfsfix -d`, which just clears the dirty flag
+  and skips the verification. The VM must be off and `02:00.0` back on the `nvme` driver first.
 - **`hyprctl keyword` is disabled with the Lua config parser** (*"keyword can't work with
   non-legacy parsers. Use eval."*) and there is no runtime `eval`. So options can only be set at
   config-load time (`hyprctl reload` after editing the `.lua`). A per-session VFR toggle from a
