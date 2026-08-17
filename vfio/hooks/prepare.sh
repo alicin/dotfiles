@@ -69,8 +69,8 @@ modprobe vfio-pci 2>/dev/null || true
 bind_vfio "$NVME"
 [ "$(driver_of "$NVME")" = "vfio-pci" ] || die "NVMe $NVME did not bind to vfio-pci"
 
-# 4) Memory: THP (=always) backs the guest RAM with 2M pages; no explicit hugepage pool (20GiB
-#    isn't reliably allocatable as 2M at runtime). Just compact to help THP form big pages.
+# 4) Memory: THP (=always) backs the guest RAM with 2M pages; no explicit hugepage pool (the guest
+#    RAM isn't reliably allocatable as 2M at runtime). Just compact to help THP form big pages.
 echo 1 > /proc/sys/vm/compact_memory 2>/dev/null || true
 
 # 5) Confine host tasks to E/LP-E cores so the 6 P-cores are jitter-free for the guest.

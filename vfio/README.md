@@ -58,7 +58,7 @@ normal dotfiles symlink. See [setup-host.sh details](#host-setup-script-setup-ho
 | **Guest display** | **MTT Virtual Display Driver** @ **2560×1600@240**, captured by the LG host (DXGI + D3D12) | Emulated `<video vga>` is kept as the OVMF/boot console; the VDD is the surface LG captures. NvFBC is impossible on GeForce. |
 | **Input** | virtio mouse + keyboard (through the LG client) | evdev passthrough (Razer Naga + keyboard, Ctrl+Ctrl grab) is present-but-commented in `win11.xml` for later. |
 | **CPU** | 6 vCPUs pinned 1:1 → P-cores 0–5; emulator/iothread → E-cores 6–7; `host-passthrough`+`invtsc` | host dynamically confined to CPUs 6–15 while the VM runs (not `isolcpus`). |
-| **Memory** | 20 GiB, **THP-backed** (`nosharepages` + `allocation immediate`) | no explicit 2M hugepage pool (20 GiB isn't reliably allocatable as 2M at runtime on 30 GiB). |
+| **Memory** | 16 GiB, **THP-backed** (`nosharepages` + `allocation immediate`) | no explicit 2M hugepage pool (not reliably allocatable as 2M at runtime on 30 GiB). Was 20 GiB — see the OOM note in [Recovery](#recovery). |
 | **Disk** | whole Samsung NVMe **controller** `02:00.0` via PCI `<hostdev>` | native NVMe driver in-guest; boots bare-metal Windows directly. `/mnt/fat` (same disk) is unmounted for the session. |
 | **`maxphysaddr`** | **`limit=39`** | the RTX 5070's 8 GiB BAR + ivshmem must fit where vfio can DMA-map. 39 works; 42 crashed on start (`vfio_container_dma_map = -22`). **Don't raise without re-testing a cold start.** |
 | **Firmware** | q35 + OVMF secboot + swtpm TPM 2.0 (CRB) | Secure Boot on; MS keys not enrolled (guest works without). |
@@ -247,6 +247,14 @@ service, disable VBS/HVCI/Memory-Integrity + Fullscreen Optimizations.
   is resident before supergfxd's switch, so its `ids=` never applied. Usually a kernel upgrade rebuilt
   the initramfs with vfio_pci front-loaded. Fix: `grep MODULES= /etc/mkinitcpio.conf` should be `MODULES=()`
   (re-run `setup-host.sh` to strip + rebuild), then reboot. Verify with `lsinitcpio /boot/initramfs-linux-zen.img | grep vfio.*\.ko` (should be empty).
+- **VM won't start, `QEMU unexpectedly closed the monitor`, ~15–20 s after `virsh start`** → the guest was
+  **OOM-killed during preallocation**, not a passthrough failure. Confirm with
+  `journalctl -k --since '10 min ago' | grep 'Out of memory'` — you'll see
+  `Killed process … (qemu-system-x86) anon-rss:~<guest RAM>kB`. `<allocation mode='immediate'/>` is doing
+  its job (fail fast rather than OOM mid-game). Check `free -m`: you need **guest RAM + ~1.5 GiB** of
+  *available*, and watch zram — if `Swap` is near-full there is no headroom left to squeeze. Free memory
+  (browser, dev servers) and retry, or lower `<memory>`/`<currentMemory>`. Hit three times on 2026-08-16
+  at 20 GiB, which is why the guest is now 16 GiB.
 - **dGPU wedged / won't power down** → `supergfxctl -m Integrated`; if that fails, **reboot** (Blackwell reset bug).
 - **`/mnt/fat` missing after a crash** → `sudo /etc/libvirt/hooks/vfio/release.sh` re-runs the rebind + remount.
 - **Looking Glass shows a black/stale frame** → relaunch `looking-glass-client`; ensure the guest MTT VDD is active (2560×1600@240).
