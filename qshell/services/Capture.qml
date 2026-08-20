@@ -384,8 +384,19 @@ Singleton {
     // capture starts — which doesn't kill its slurp child, so the orphan stays
     // up stealing clicks from the new one. The EXIT trap is what reports back
     // instead.
+    //
+    // The `env -u` is load-bearing, not tidiness. A crashed quickshell re-execs
+    // itself in place with __QUICKSHELL_CRASH_INFO_FD/_DUMP_PID/_SIGNAL set in
+    // its own environment and never clears them, so everything it spawns after
+    // that inherits them — and `qs` checks them before parsing argv. The
+    // `qs ipc call capture done|region` in the scripts below would then launch a
+    // second shell instead of talking to this one, which is exactly what
+    // happened: a segfault two days earlier, and from then on every screenshot
+    // left another bar behind and no corner thumbnail. The capture scripts
+    // unset the same three (scripts/lib/capture.sh); this covers the inline
+    // ones, which source nothing.
     function run(script: string): void {
-        Quickshell.execDetached(["sh", "-c", script]);
+        Quickshell.execDetached(["env", "-u", "__QUICKSHELL_CRASH_INFO_FD", "-u", "__QUICKSHELL_CRASH_DUMP_PID", "-u", "__QUICKSHELL_CRASH_SIGNAL", "sh", "-c", script]);
         deadman.restart();
     }
 

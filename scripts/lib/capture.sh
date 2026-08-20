@@ -1,6 +1,18 @@
 # Shared bits for the capture scripts (screenshot.sh, screen_record.sh).
 # Sourced, not executed.
 
+# Scrub quickshell's crash-restart markers before anything here shells out to
+# `qs`. When quickshell segfaults it re-execs itself in place with
+# __QUICKSHELL_CRASH_INFO_FD/_DUMP_PID/_SIGNAL set in its *own* environment and
+# never clears them, so every child it spawns from then on inherits them — and
+# `qs` reads those before it parses argv. A `qs ipc call` carrying them never
+# reaches the running shell: it takes the "Quickshell has been restarted" branch
+# and launches a whole second shell. That is how one segfault turned every
+# screenshot into another bar with no corner thumbnail, silently, for two days.
+# The scripts that source this are all spawned by the shell, so this is the
+# choke point. See also run() in qshell/services/Capture.qml.
+unset __QUICKSHELL_CRASH_INFO_FD __QUICKSHELL_CRASH_DUMP_PID __QUICKSHELL_CRASH_SIGNAL
+
 # Post a capture notification whose buttons actually work.
 #
 # The actions are carried out by qshell (services/Notifs.qml, runAction) rather
