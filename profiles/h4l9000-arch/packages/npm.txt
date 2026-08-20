@@ -1,14 +1,16 @@
 # Global JS tooling. Installed with `pnpm add -g` (see profile-install.sh).
 #
-# This file previously contained pasted `pnpm ls -g` output -- the tree-drawing
-# characters and a stray count, not package names -- which made the npm stage
-# fail on every run. Regenerated from what is actually installed globally.
-@github/copilot
-@google/gemini-cli
-@steipete/oracle
+# Names only, no versions. genpkg writes this via dump_npm_names(); an earlier
+# parse (`awk '{print $1}'` / `awk -F@`) wrote box-drawing glyphs and a stray
+# count instead of names, because scoped packages carry their own '@'.
+
 clawhub
 firebase-tools
+@github/copilot
+@google/gemini-cli
 mcporter
 pm2
 serve
+@steipete/oracle
+supabase
 yarn

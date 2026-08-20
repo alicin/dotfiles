@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# win11 — start the passthrough VM and attach Looking Glass in X11 mode.
+#
+# Unsetting WAYLAND_DISPLAY makes the LG client fall back to XWayland (the
+# native Wayland backend misbehaves here). Everything else — boot, LGMP wait,
+# shutdown-on-client-exit — is game.sh's job; args pass straight through.
+here="$(dirname "$(readlink -f "$0")")"
+exec env -u WAYLAND_DISPLAY "$here/../vfio/scripts/game.sh" "$@"

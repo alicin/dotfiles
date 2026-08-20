@@ -31,7 +31,9 @@ user_abort=0
 
 # The LGMP header magic is the first 4 bytes of the shared buffer. It PERSISTS across runs, so it
 # must be zeroed before boot — otherwise last session's magic reads as "guest is ready" instantly.
-shm_magic(){ head -c 4 "$SHM" 2>/dev/null; }
+# tr strips NUL bytes: a zeroed shm would otherwise make bash warn "ignored null
+# byte in input" on every poll of the wait loop below.
+shm_magic(){ head -c 4 "$SHM" 2>/dev/null | tr -d '\0'; }
 shm_clear(){
   [ -w "$SHM" ] || return 0
   dd if=/dev/zero of="$SHM" bs=16 count=1 conv=notrunc status=none 2>/dev/null || true
@@ -69,13 +71,20 @@ $VIRSH dominfo "$VM" >/dev/null 2>&1 || { echo "domain $VM not defined → virsh
 
 # The guest owns the whole NVMe controller at 02:00.0. A host-side mount of any partition on it
 # while the guest is writing is the one way to actually corrupt Windows, so refuse to start.
-for part in $(lsblk -ln -o NAME /dev/nvme0n1 2>/dev/null | tail -n +2); do
-  if findmnt -S "/dev/$part" >/dev/null 2>&1; then
-    echo "[game] REFUSING TO START: /dev/$part is mounted on the host."
-    echo "[game] That disk is passed through to the guest — unmount it first:  sudo umount /dev/$part"
-    exit 1
-  fi
-done
+# nvme device names are NOT stable (the disk re-enumerates on every vfio detach/reattach, so the
+# Samsung can come back as nvme1n1 while the Linux disk sits on nvme0n1) — resolve the name from
+# the PCI address instead. No nvme dir under the PCI device = already vfio-bound = nothing mounted.
+WIN_NVME_PCI="${WIN_NVME_PCI:-0000:02:00.0}"
+windisk="$(basename "$(ls -d /sys/bus/pci/devices/$WIN_NVME_PCI/nvme/nvme*/nvme*n1 2>/dev/null | head -1)" 2>/dev/null)"
+if [ -n "$windisk" ]; then
+  for part in $(lsblk -ln -o NAME "/dev/$windisk" 2>/dev/null | tail -n +2); do
+    if findmnt -S "/dev/$part" >/dev/null 2>&1; then
+      echo "[game] REFUSING TO START: /dev/$part is mounted on the host."
+      echo "[game] That disk is passed through to the guest — unmount it first:  sudo umount /dev/$part"
+      exit 1
+    fi
+  done
+fi
 
 if [ "$($VIRSH domstate "$VM" 2>/dev/null)" = "running" ]; then
   echo "[game] $VM already running — attaching client only"

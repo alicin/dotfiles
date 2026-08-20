@@ -233,6 +233,12 @@
     <channel type="spicevmc">
       <target type="virtio" name="com.redhat.spice.0"/>
     </channel>
+    <!-- qemu-ga channel: lets the host run commands/queries in the guest without a login
+         (virsh qemu-agent-command / guest-exec). The Windows qemu-ga service ships with the
+         virtio-win guest tools and picks the port up via PnP. -->
+    <channel type="unix">
+      <target type="virtio" name="org.qemu.guest_agent.0"/>
+    </channel>
 
     <!-- ===================== TPM ===================== -->
     <tpm model="tpm-crb">

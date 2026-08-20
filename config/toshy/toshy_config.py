@@ -620,7 +620,19 @@ remotes = [
     "qemu-system-.*",
     "qemu",
     "Spicy",
-    "Virt-manager",
+    # ALI: "Virt-manager" removed 2026-08-18. Stock Toshy lists it so keystrokes
+    # reach an embedded SPICE/VNC console untranslated, but this machine's guest
+    # display is Looking Glass (see vfio/README.md) -- virt-manager is only a
+    # control panel here, so the blanket exclusion killed the whole macOS layer
+    # (Cmd+Q, Super passthrough, Option-nav) in a window with no guest to feed.
+    # If the built-in console ever gets used, make hmp_is_remote title-aware
+    # instead (exclude only "<vm> on QEMU/KVM", not "Virtual Machine Manager").
+    # ALI: looking-glass-client is deliberately NOT listed here. It is the win11
+    # guest surface, so the "pass keys through raw" reflex applies -- but ali
+    # wants the macOS layer live inside the guest: Cmd+C/Cmd+V (physical Alt)
+    # translate to Ctrl+C/Ctrl+V, which is exactly what Windows expects. Cost of
+    # that choice: physical Alt is Cmd there, so guest Alt+Tab must come from the
+    # RIGHT Win key (the one input-side Alt). Do not "fix" this by adding it.
     "VirtualBox",
     "VirtualBox Machine",
     "xfreerdp",
@@ -642,7 +654,10 @@ remotes_lod = [
     {clas: "^qemu-system-.*$"                },
     {clas: "^qemu$"                          },
     {clas: "^Spicy$"                         },
-    {clas: "^Virt-manager$"                  },
+    # ALI: no looking-glass-client entry here either -- see the note in `remotes`
+    # above. (This table is DEPRECATED/unused; hmp_is_remote matches on
+    # `remoteStr` from the simple list. Kept in sync so reviving it cannot
+    # silently change behavior.)
     {clas: "^VirtualBox$"                    },
     {clas: "^VirtualBox Machine$"            },
     {clas: "^xfreerdp$"                      },
@@ -1917,6 +1932,17 @@ modmap("Cond modmap - Media Arrows Fix",{
 )
 
 
+# ALI: h4l9000's firmware emits KEY_SLEEP for the plain F11 key; logind watches
+# the XWayKeyz output device (power-switch tag) and suspends on it. Remap to a
+# real F11 so the key types F11 and logind never sees a suspend key. Deliberate
+# suspend lives in the Hyprland power submap. Unconditional on purpose: even
+# with focus on a remote screen, a passed-through KEY_SLEEP would suspend the
+# LOCAL machine.
+modmap("Cond modmap - ALI - Sleep key is F11",{
+    Key.SLEEP:                  Key.F11,
+}, when = lambda ctx: True )
+
+
 ###################################################################################################
 ###  SLICE_MARK_START: exclude_kpad_devs  ###  EDITS OUTSIDE THESE MARKS WILL BE LOST ON UPGRADE
 
@@ -2376,7 +2402,7 @@ modmap("Cond modmap - GUI - Cbk kbd", {
 modmap("Cond modmap - GUI - Win kbd - multi_lang OFF", {
     # - Default Mac/Win
     # - Default Win
-    Key.RIGHT_ALT:              Key.RIGHT_CTRL,                 # WinMac - Multi-language (Remove)
+    Key.RIGHT_ALT:              Key.RIGHT_ALT,                  # ALI: Right-Alt stays a REAL Alt (was ->RIGHT_CTRL, i.e. a 2nd Cmd). The RIGHT_META line below is stock Toshy's only other Alt, and h4l9000 (ROG G16) has neither a Right-Win nor a Menu key (altgr_on_menu_key) -- so Alt was unreachable there and ALT+Tab (overview) was dead. Safe: optspec_layout is Disabled, so Alt+letter is not eaten by the macOS Option-character keymaps.
     Key.RIGHT_META:             Key.RIGHT_ALT,                  # WinMac - Multi-language (Remove)
     Key.RIGHT_CTRL:             Key.LEFT_CTRL,                  # ALI: Right-Ctrl native, like Left-Ctrl (was ->RIGHT_META, the OLD scheme's Ctrl-is-Super — it made Right-Ctrl+C launch VS Code in GUI apps while staying Ctrl in terminals). Same output the Terms block below already uses.
 }, when = lambda ctx:
@@ -2486,7 +2512,7 @@ modmap("Cond modmap - Terms - Cbk kbd", {
 modmap("Cond modmap - Terms - Win kbd - multi_lang OFF", {
     # - Default Mac/Win
     # - Default Win
-    Key.RIGHT_ALT:              Key.RIGHT_CTRL,                 # WinMac - Multi-language (Remove)
+    Key.RIGHT_ALT:              Key.RIGHT_ALT,                  # ALI: Right-Alt stays a REAL Alt (was ->RIGHT_CTRL, i.e. a 2nd Cmd). The RIGHT_META line below is stock Toshy's only other Alt, and h4l9000 (ROG G16) has neither a Right-Win nor a Menu key (altgr_on_menu_key) -- so Alt was unreachable there and ALT+Tab (overview) was dead. Safe: optspec_layout is Disabled, so Alt+letter is not eaten by the macOS Option-character keymaps.
     Key.RIGHT_META:             Key.RIGHT_ALT,                  # WinMac - Multi-language (Remove)
     Key.RIGHT_CTRL:             Key.LEFT_CTRL,                  # WinMac - Multi-language (Remove)
 }, when = lambda ctx:
@@ -4179,15 +4205,20 @@ keymap("ALI - Super = Option key (arrows nav/select, Enter)", {
     cnfg.screen_has_focus and
     not ctx_app_is_remote )
 
-# Address bar: physical Alt is Cmd, so Alt+Enter reaches the browser as Ctrl+Enter -- which
-# is Chrome's "add www. and .com, open in the CURRENT tab", not "open in a new tab". Restate
-# it as the combo Chrome/Firefox actually document for a new tab. The Shift variant is left
-# alone on purpose: it already arrives as Ctrl+Shift+Enter, which opens a new window.
-# TRADE-OFF: this claims Cmd+Enter browser-wide, so it no longer arrives as Ctrl+Enter in
-# page content -- the submit combo on GitHub comments, Gmail, Linear, Jira. Delete the line
-# below to get that back (at the cost of Alt+Enter in the address bar).
-keymap("ALI - browsers: Alt+Enter opens a new tab", {
-    C("RC-Enter"):              C("Alt-Enter"),                 # Cmd+Enter -> open in new tab
+# Address bar "open in a new tab", moved off plain Cmd+Enter 2026-08-18.
+#
+# It used to live on C("RC-Enter") -> C("Alt-Enter"), which claimed Cmd+Enter across the
+# whole browser: page content stopped seeing Ctrl+Enter, killing the submit combo on GitHub
+# comments, Gmail, Linear, Jira and any web app that wants it. Scoping the old binding to
+# "only while the address bar has focus" is NOT possible -- xwaykeyz matches on window class
+# and title from the compositor and has no idea which widget inside the window has focus.
+#
+# So it moves to the Shift variant instead. Cmd+Shift+Enter used to pass through as
+# Ctrl+Shift+Enter ("open in a new window"); that is deliberately given up -- new-window is
+# still on Cmd+N -- and the combo now does new-tab. Plain Cmd+Enter is left unmapped, so it
+# arrives as Ctrl+Enter again and page content keeps it.
+keymap("ALI - browsers: Alt+Shift+Enter opens a new tab", {
+    C("Shift-RC-Enter"):        C("Alt-Enter"),                 # Cmd+Shift+Enter -> open in new tab
 }, when = lambda ctx:
     cnfg.screen_has_focus and
     ctx_ovl_browser_shortcuts and
@@ -6274,7 +6305,7 @@ keymap("General GUI", {
     C("RC-F3"):                 C("Super-d"),                   # Default SL - Show Desktop (gnome/kde,elementary)
     C("RC-Super-f"):            C("Alt-F10"),                   # Default SL - Maximize app (gnome/kde)
     C("RC-Q"):                  C("Alt-F4"),                    # Default SL - not-popos
-    C("Alt-Tab"):               C("Alt-Tab"),                   # ALI: pass through (was ignore_combo) — physical Right-Win is the only input-side Alt, and swallowing it made Right-Win+Tab do nothing; through, it reaches Hyprland's ALT+Tab overview bind.
+    C("Alt-Tab"):               C("Alt-Tab"),                   # ALI: pass through (was ignore_combo) — swallowing Alt+Tab made it do nothing; through, it reaches Hyprland's ALT+Tab overview bind. Alt now comes from physical Right-Alt (and Right-Win where that key exists) — see the RIGHT_ALT self-map in the Win-kbd modmaps.
 
     C("RC-Tab"):            [iEF2NT(),bind, C("Alt-Tab")],           # Default - Cmd Tab - App Switching Default
     C("Shift-RC-Tab"):      [iEF2NT(),bind, C("Alt-Shift-Tab")],     # Default - Cmd Tab - App Switching Default

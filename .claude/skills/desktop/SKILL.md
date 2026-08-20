@@ -31,7 +31,8 @@ pre-2026-07-05 scheme — physical Ctrl→Super, Super→Alt — which is now wr
 | Left Super/Win | **Super** (native)      | **Super** (native)   | Hyprland's WM key |
 | Left Alt       | **Cmd** (internally Right_Ctrl, "RC" in keymaps) | same | macOS Command |
 | Right Ctrl     | **Ctrl** (native)       | **Ctrl** (native)    | plain Ctrl |
-| Right Win      | Alt                     | Alt                  | the only input-side Alt |
+| Right Alt      | **Alt** (native)        | **Alt** (native)     | real Alt (self-mapped 2026-08-18; stock Toshy made it a 2nd Cmd) |
+| Right Win      | Alt                     | Alt                  | also Alt — but h4l9000 (ROG G16) has no such key |
 | Shift, Caps    | unchanged               | unchanged            | |
 
 - **WM binds live on `SUPER`** in `config/hypr/lua/binds.lua` and are hit
@@ -160,7 +161,9 @@ are the truth.
 **The upgrade trap (it already fired once, 2026-08-05):** the entire native-
 Super scheme is in-place edits of stock blocks *outside* the `SLICE_MARK`
 blocks (`# ALI:` comments at the LEFT_CTRL/LEFT_META self-maps, the
-`.*floating_shell.*` terminals entry, the `getattr()` guards). A Toshy
+`.*floating_shell.*` terminals entry, the `getattr()` guards, and the
+"Sleep key is F11" modmap — h4l9000's firmware emits KEY_SLEEP for plain
+F11 and logind suspends on it via the XWayKeyz power-switch tag). A Toshy
 install/upgrade regenerates the file — the 2026-08-05 run reset even the
 `user_apps` slice; only re-symlinking the repo copy restored it. After ANY
 Toshy upgrade:

@@ -36,10 +36,6 @@ id = "io.dbeaver.DBeaver.desktop"
 
 [[items]]
 kind = "app"
-id = "com.usebottles.bottles.desktop"
-
-[[items]]
-kind = "app"
 id = "org.gnome.DiskUtility.desktop"
 
 [[items]]
@@ -60,15 +56,7 @@ id = "appimagelaunchersettings.desktop"
 
 [[items]]
 kind = "app"
-id = "pacsea.desktop"
-
-[[items]]
-kind = "app"
 id = "btop.desktop"
-
-[[items]]
-kind = "app"
-id = "proton.vpn.app.gtk.desktop"
 
 [[items]]
 kind = "app"
@@ -96,19 +84,11 @@ id = "battlenet.desktop"
 
 [[items]]
 kind = "app"
-id = "blueberry.desktop"
-
-[[items]]
-kind = "app"
 id = "com.moonlight_stream.Moonlight.desktop"
 
 [[items]]
 kind = "app"
 id = "com.github.tchx84.Flatseal.desktop"
-
-[[items]]
-kind = "app"
-id = "com.raspberrypi.rpi-imager.desktop"
 
 [[items]]
 kind = "app"
@@ -145,10 +125,6 @@ id = "nm-connection-editor.desktop"
 [[items]]
 kind = "app"
 id = "nvtop.desktop"
-
-[[items]]
-kind = "app"
-id = "opera.desktop"
 
 [[items]]
 kind = "app"
@@ -300,10 +276,6 @@ id = "virt-manager.desktop"
 
 [[items]]
 kind = "app"
-id = "winboat.desktop"
-
-[[items]]
-kind = "app"
 id = "winetricks.desktop"
 
 [[items]]
@@ -352,10 +324,6 @@ id = "bvnc.desktop"
 
 [[items]]
 kind = "app"
-id = "chrome-gnalgpeikcokngnkcmgnkeoedmhmcjoc-Default.desktop"
-
-[[items]]
-kind = "app"
 id = "cmake-gui.desktop"
 
 [[items]]
@@ -364,27 +332,11 @@ id = "curseforge.desktop"
 
 [[items]]
 kind = "app"
-id = "dolphin-emu.desktop"
-
-[[items]]
-kind = "app"
-id = "faugus-launcher.desktop"
-
-[[items]]
-kind = "app"
-id = "org.deskflow.deskflow.desktop"
-
-[[items]]
-kind = "app"
-id = "de.feschber.LanMouse.desktop"
+id = "io.github.Faugus.faugus-launcher.desktop"
 
 [[items]]
 kind = "app"
 id = "com.mitchellh.ghostty.desktop"
-
-[[items]]
-kind = "app"
-id = "net.lutris.Lutris.desktop"
 
 [[items]]
 kind = "app"

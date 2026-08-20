@@ -20,6 +20,10 @@
     "npm": {
       "enabled": true,
       "file": "npm.txt"
+    },
+    "homebrew": {
+      "enabled": true,
+      "file": "Brewfile"
     }
   },
   "configs": [
@@ -50,7 +54,6 @@
     "ali",
     "nvtop",
     "openrazer",
-    "pacsea",
     "polychromatic",
     "rog",
     "looking-glass",
