@@ -110,12 +110,10 @@ dotfiles/
 │   ├── permissions.sh          # File permissions
 │   ├── services.sh             # System services
 │   ├── finalize.sh             # Post-installation cleanup
-│   ├── minisforum-finalize.sh  # Mini PC specific setup
-│   └── python_venv.sh          # Python virtual environment
+│   └── minisforum-finalize.sh  # Mini PC specific setup
 ├── config/                     # Configuration files organized by application
 │   ├── zsh/                    # ZSH configuration
 │   ├── hypr/                   # Hyprland window manager
-│   ├── waybar/                 # Status bar for Wayland
 │   ├── kitty/                  # Terminal emulator
 │   ├── yabai/                  # macOS window manager
 │   ├── sketchybar/             # macOS status bar
@@ -125,20 +123,20 @@ dotfiles/
 │   ├── btop/                   # System monitor
 │   ├── bat/                    # Cat alternative
 │   ├── borders/                # Window borders (macOS)
-│   ├── dunst/                  # Notification daemon
 │   ├── wofi/                   # Application launcher
-│   ├── sway/                   # Wayland compositor
-│   ├── swaylock/               # Screen locker
 │   ├── gtk-3.0/                # GTK 3 theming
 │   ├── gtk-4.0/                # GTK 4 theming
 │   ├── atuin/                  # Shell history
 │   ├── posting/                # HTTP client
-│   ├── vscode/                 # VS Code themes
-│   └── virt-manager/           # Virtual machine manager
+│   └── vscode/                 # VS Code themes
 ├── dotfiles/                   # Dotfiles to be linked to home directory
 ├── themes/                     # Themes and visual assets
 │   ├── fonts/                  # Font files
 │   └── wallpapers/             # Desktop wallpapers
+├── qshell/                     # The Quickshell desktop shell (bar, launcher, OSD,
+│                               #   notifications, clipboard, control centre) — QML
+├── vfio/                       # Windows passthrough VM: libvirt domain, hooks,
+│                               #   host provisioner, Looking Glass config
 ├── bin/                        # Utility scripts and binaries
 ├── lib/                        # Utility libraries for the installer
 │   ├── bootstrap.sh            # Minimal installer prerequisites
@@ -182,7 +180,7 @@ Each profile is defined by a `profile.json` file with the following structure:
       "file": "flatpak.txt"
     }
   },
-  "configs": ["zsh", "git", "hypr", "waybar"],
+  "configs": ["zsh", "git", "hypr", "quickshell"],
   "dotfiles": [".zshrc", ".gitconfig", ".editorconfig"],
   "themes": ["fonts", "wallpapers"],
   "scripts": {
@@ -214,7 +212,7 @@ The system supports multiple package managers per profile:
 Configurations are organized in three categories:
 
 1. **Dotfiles**: Files linked to `~/.*` (e.g., `.zshrc`, `.gitconfig`)
-2. **Configs**: Directories linked to `~/.config/*` (e.g., `hypr`, `waybar`, `kitty`)
+2. **Configs**: Directories linked to `~/.config/*` (e.g., `hypr`, `quickshell`, `kitty`)
 3. **Themes**: Asset directories like fonts and wallpapers
 
 ## Scripts
@@ -230,7 +228,6 @@ Profile scripts are stored in the main `scripts/` directory and can be shared ac
 - **services.sh** - Enable and configure system services
 - **finalize.sh** - Post-installation cleanup and finalization
 - **minisforum-finalize.sh** - Mini PC specific setup and configuration
-- **python_venv.sh** - Python virtual environment setup
 
 Scripts run at different stages:
 

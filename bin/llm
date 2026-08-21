@@ -1,2 +1,0 @@
-#!/bin/bash
-/home/ali/.venv/bin/open-webui serve & /usr/bin/ollama serve

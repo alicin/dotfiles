@@ -163,7 +163,7 @@ xclip
 
 # ── Tablet: pen, rotation ───────────────────────────────────────────────────
 # No squeekboard / on-screen keyboard: it popped up over a normal desktop
-# session. hosts/k3v1n.lua no longer autostarts it and scripts/osk.sh is out of
+# session. hosts/k3v1n.lua no longer autostarts it and the GNOME-OSK udev rule is out of
 # post_install, so nothing puts a keyboard on screen.
 iio-sensor-proxy
 libwacom
