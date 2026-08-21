@@ -42,7 +42,7 @@ geom=""
 want_system=""
 want_mic=""
 
-checkRecording() { pgrep -x wf-recorder >/dev/null; }
+checkRecording() { pidof wf-recorder >/dev/null; }   # same pid set as pgrep -x, a third of the CPU
 checkPaused() { [ -f "$session/paused" ]; }
 
 parseOpts() {
@@ -181,7 +181,7 @@ resumeRecording() {
     loadOpts
     startSegment
     # Marker last, and only once wf-recorder is really up. The shell's probe
-    # tests pgrep *before* the marker, so an overlap harmlessly reads "rec";
+    # tests liveness *before* the marker, so an overlap harmlessly reads "rec";
     # clearing it any earlier leaves a window where the probe sees neither and
     # concludes the take ended — which zeroes the elapsed clock and unmaps the
     # region overlay for the rest of the recording.

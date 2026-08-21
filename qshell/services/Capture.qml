@@ -452,11 +452,23 @@ Singleton {
 
     // wf-recorder is launched detached, so its liveness is the source of truth
     // for `recording` — including when it's stopped from outside the shell.
+    //
+    // The rate is what a *take* costs, not what idling costs. Every tick walks
+    // /proc, which on a 650-process session is milliseconds of CPU, and a flat
+    // 1s spends that around the clock to ask a question whose answer is "no"
+    // all day — MEASURED at ~2.4% of a core continuously before this, none of
+    // it visible in the shell's own CPU time because it is spent in children.
+    // So: 1s only while something is live or coming up, 5s otherwise. Every
+    // transition the shell itself drives calls poll.restart() (see
+    // startRecording / stopRecording / togglePause) and triggeredOnStart makes
+    // that an immediate probe, so nothing the UI drives waits on the interval.
+    // The only thing that lags is a recording started from a terminal, by up
+    // to 5s — and until it is noticed there is no UI claiming otherwise.
     Timer {
         id: poll
 
         running: true
-        interval: 1000
+        interval: root.recording || root.paused || root.startPending ? 1000 : 5000
         repeat: true
         triggeredOnStart: true
         onTriggered: probe.running = true
@@ -478,8 +490,12 @@ Singleton {
 
         // wf-recorder's liveness is still the source of truth for "writing
         // right now"; the marker file distinguishes a pause from an ending.
+        //
+        // pidof, not pgrep -x: same pid set, same exit status, same procps-ng
+        // package — and a third of the CPU, because pgrep also reads cmdline
+        // for every process it walks past. Verified equal on this session.
         command: ["sh", "-c", `
-            if pgrep -x wf-recorder >/dev/null; then echo rec;
+            if pidof wf-recorder >/dev/null; then echo rec;
             elif [ -f "\${XDG_RUNTIME_DIR:-/tmp}/qshell-record/paused" ]; then echo paused;
             else echo no; fi
         `]
