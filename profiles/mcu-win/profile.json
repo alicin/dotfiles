@@ -14,12 +14,12 @@
       "file": "scoop.txt"
     }
   },
-  "configs": ["git", "vscode", "powershell", "gogcli", "rclone"],
-  "dotfiles": ["gitconfig"],
+  "configs": ["vscode"],
+  "dotfiles": [".gitconfig"],
   "themes": ["fonts"],
   "scripts": {
-    "pre_install": ["setup_windows_features.ps1"],
-    "post_install": ["setup_windows_defaults.ps1", "setup_wsl.ps1"]
+    "pre_install": [],
+    "post_install": []
   },
   "environment": {
     "BROWSER": "msedge",

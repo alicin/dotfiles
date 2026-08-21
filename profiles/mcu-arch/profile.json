@@ -27,8 +27,6 @@
     "input-remapper-2",
     "ghostty",
     "kitty",
-    "gogcli",
-    "rclone",
     "code-flags.conf",
     "electron-flags.conf",
     "electron13-flags.conf",

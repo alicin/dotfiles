@@ -22,9 +22,7 @@
     "kitty",
     "yazi",
     "btop",
-    "borders",
-    "gogcli",
-    "rclone"
+    "borders"
   ],
   "dotfiles": [".zshrc", ".gitconfig", ".editorconfig"],
   "themes": [],
