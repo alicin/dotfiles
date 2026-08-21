@@ -8,3 +8,7 @@ if [ -f '/home/ali/Downloads/gcloud/google-cloud-sdk/path.zsh.inc' ]; then . '/h
 
 # The next line enables shell command completion for gcloud.
 if [ -f '/home/ali/Downloads/gcloud/google-cloud-sdk/completion.zsh.inc' ]; then . '/home/ali/Downloads/gcloud/google-cloud-sdk/completion.zsh.inc'; fi
+
+
+# Added by Antigravity CLI installer
+export PATH="/home/ali/.local/bin:$PATH"

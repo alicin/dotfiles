@@ -47,6 +47,7 @@ x-scheme-handler/slack=slack.desktop
 x-scheme-handler/jetbrains=jetbrainsd.desktop
 text/x-python=org.gnome.TextEditor.desktop
 x-scheme-handler/claude=com.anthropic.Claude.desktop
+x-scheme-handler/antigravity=antigravity.desktop
 
 [Added Associations]
 application/json=org.gnome.TextEditor.desktop;
