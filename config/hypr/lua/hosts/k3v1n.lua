@@ -71,9 +71,10 @@ hl.on("monitor.removed", follow_dock_state)
 -- ── Autostart ───────────────────────────────────────────────────────────────
 -- No squeekboard. It used to be launched here as the on-screen keyboard, but it
 -- puts a keyboard on screen in a normal desktop session -- not wanted even on a
--- convertible. The other half of that feature (scripts/osk.sh, which installed a
--- udev rule flipping GNOME's a11y screen-keyboard on whenever a keyboard was
--- unplugged) is gone from this profile's post_install for the same reason.
+-- convertible. The other half of that feature (an installer for a udev rule that
+-- flipped GNOME's a11y screen-keyboard on whenever a keyboard was unplugged) went
+-- with it -- out of post_install for the same reason, and now out of the repo.
+-- The on-screen keyboard here is the shell's own (qshell/services/Osk.qml).
 hl.on("hyprland.start", function()
   hl.exec_cmd("corectrl --minimize-systray")
   -- The touchscreen->touchpad bridge: grabs the digitiser and replays
@@ -84,7 +85,7 @@ hl.on("hyprland.start", function()
   -- Ordinary 1-2 finger touches pass through a touchscreen clone unchanged.
   -- Host autostart rather than lua/startup.lua because this is the only
   -- machine with a touchscreen.
-  hl.exec_cmd("/home/ali/labs/dotfiles/bin/touch-gestures")
+  hl.exec_cmd(apps.repo .. "/bin/touch-gestures")
 end)
 
 -- ── Host-specific binds ─────────────────────────────────────────────────────

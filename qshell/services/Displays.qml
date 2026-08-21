@@ -7,7 +7,7 @@ import Quickshell.Hyprland
 
 // Monitors, for the Control Center's Display page. The layout presets and the
 // eDP toggle have been keybind-only (Super+Ctrl+M/E/L, and a bare
-// toggle-edp.sh) — invisible, unlabelled, and one of them has a known way to
+// `disp toggle`) — invisible, unlabelled, and one of them has a known way to
 // leave you with a black laptop panel and no obvious way back.
 //
 // Reads hyprctl rather than Quickshell.screens because it needs what the
@@ -149,7 +149,7 @@ Singleton {
     }
 
     function toggleEdp(): void {
-        Quickshell.execDetached([`${root.binDir}/toggle-edp.sh`]);
+        Quickshell.execDetached([`${root.binDir}/disp`, "toggle"]);
         settle.restart();
     }
 

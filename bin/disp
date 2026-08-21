@@ -1,0 +1,160 @@
+#!/usr/bin/env bash
+# disp — the display verbs, in one place.
+#
+#   disp toggle  [MON]   turn the panel off, or bring it back
+#   disp refresh [MON]   flip between 60Hz and the panel's fastest mode
+#   disp relight         panic recovery for a stuck / blank panel
+#   disp status          what every connected output is currently doing
+#
+# MON defaults to eDP-1 (override once for a whole session with DISP_MONITOR).
+# Named `disp`, not `display`: /usr/bin/display is ImageMagick's, and bin/ is
+# *prepended* to PATH, so a script called `display` would shadow it everywhere.
+#
+# Rotation is not here — it lives in the shell (`qs ipc call display rotate`),
+# because it has to move the touch matrix and the OSK with the screen.
+set -uo pipefail
+
+MONITOR="${DISP_MONITOR:-eDP-1}"
+LOW_REFRESH="60"
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles"
+STATE_FILE="$STATE_DIR/toggle-edp.json"
+
+# Reach the running compositor even if launched without its env (e.g. over SSH).
+[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] || \
+  export HYPRLAND_INSTANCE_SIGNATURE="$(ls -t "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/hypr" 2>/dev/null | head -1)"
+
+note(){ hyprctl notify "$1" "$2" "$3" "$4" >/dev/null 2>&1; }
+
+# ── relight ─────────────────────────────────────────────────────────────────
+# Forces Hyprland to re-apply its monitor config, which does a full modeset and
+# relights a panel that got stuck off — e.g. after an s2idle lid-resume that
+# left the panel dark, or a one-way `disp toggle` disable that couldn't
+# re-enable (in this Hyprland/aquamarine version `hl.monitor({disabled=false})`
+# returns "ok" but never re-adds a disabled connector; `hyprctl reload` does).
+#
+# Safe to run anytime: `hyprctl reload` re-applies monitors/binds/rules but does
+# NOT re-run startup apps — those fire on hyprland.start (see lua/startup.lua).
+cmd_relight(){
+  hyprctl reload >/dev/null 2>&1
+  hyprctl dispatch 'hl.dsp.dpms({ action = "enable" })' >/dev/null 2>&1
+
+  # If the backlight got driven near zero (e.g. hypridle dimming), bring it back.
+  if cur=$(brightnessctl -c backlight g 2>/dev/null) && max=$(brightnessctl -c backlight m 2>/dev/null); then
+    if [ -n "$cur" ] && [ -n "$max" ] && [ "$cur" -lt $((max / 20)) ]; then
+      brightnessctl -c backlight set 40% >/dev/null 2>&1
+    fi
+  fi
+}
+
+# ── toggle ──────────────────────────────────────────────────────────────────
+save_monitor_state(){
+  local state
+  state=$(hyprctl -j monitors | jq --arg monitor "$MONITOR" '
+      .[]
+      | select(.name == $monitor)
+      | {
+          mode: "\(.width)x\(.height)@\(.refreshRate)",
+          position: "\(.x)x\(.y)",
+          scale: .scale
+      }
+  ')
+  if [ -n "$state" ]; then
+    mkdir -p "$STATE_DIR"
+    printf '%s\n' "$state" > "$STATE_FILE"
+  fi
+}
+
+cmd_toggle(){
+  if hyprctl monitors | grep -q "^Monitor $MONITOR"; then
+    save_monitor_state
+    hyprctl -r eval "hl.monitor({ output = \"$MONITOR\", disabled = true })"
+  else
+    # Off → on. `hl.monitor({ disabled = false, ... })` returns "ok" but does
+    # NOT re-add a disabled connector in the current Hyprland/aquamarine — the
+    # panel stays dark. So recover via relight, which re-applies the host
+    # monitor config (canonical mode/position/scale) and forces a real modeset.
+    cmd_relight
+  fi
+}
+
+# ── refresh ─────────────────────────────────────────────────────────────────
+# The high rate is read from availableModes, not hardcoded: a fixed 240 was
+# h4l9000's panel, and on k3v1n (120Hz) the toggle asked for a mode that
+# doesn't exist. This is shared bin/ — it must know only what the machine it
+# runs on reports.
+cmd_refresh(){
+  local monitor_state disabled width height refresh_rate x y scale modes high_refresh target_refresh mode position
+
+  monitor_state=$(hyprctl -j monitors all | jq --arg monitor "$MONITOR" -r '
+      .[]
+      | select(.name == $monitor)
+      | [ .disabled, .width, .height, .refreshRate, .x, .y, .scale,
+          ((.availableModes // []) | join(" ")) ]
+      | @tsv
+  ')
+
+  if [ -z "$monitor_state" ]; then
+    note 3 4000 "rgb(ff5f5f)" "Monitor $MONITOR not found"; return 1
+  fi
+
+  IFS=$'\t' read -r disabled width height refresh_rate x y scale modes <<< "$monitor_state"
+
+  if [ "$disabled" = "true" ]; then
+    note 2 4000 "rgb(ffc857)" "Monitor $MONITOR is disabled"; return 1
+  fi
+
+  # Fastest refresh offered at the CURRENT resolution ("2560x1600@120.00Hz" ...).
+  high_refresh=$(tr ' ' '\n' <<< "$modes" | grep -F "${width}x${height}@" \
+    | sed -E 's/.*@([0-9]+).*/\1/' | sort -n | tail -1)
+  if [ -z "$high_refresh" ] || [ "$high_refresh" -le "$LOW_REFRESH" ]; then
+    note 2 4000 "rgb(ffc857)" "$MONITOR has no mode above ${LOW_REFRESH}Hz"; return 1
+  fi
+
+  if [ "${refresh_rate%.*}" -gt "$LOW_REFRESH" ]; then
+    target_refresh="$LOW_REFRESH"
+  else
+    target_refresh="$high_refresh"
+  fi
+
+  mode="${width}x${height}@${target_refresh}"
+  position="${x}x${y}"
+
+  hyprctl -r eval "hl.monitor({ output = \"$MONITOR\", mode = \"$mode\", position = \"$position\", scale = $scale })"
+  note 1 2500 "rgb(8aadf4)" "$MONITOR refresh: ${target_refresh}Hz"
+}
+
+# ── status ──────────────────────────────────────────────────────────────────
+# `monitors all` rather than `monitors`, so an output this script just disabled
+# still shows up — otherwise a dark panel simply vanishes from the list, which
+# is the least helpful thing status could do.
+cmd_status(){
+  hyprctl -j monitors all | jq -r '
+    .[] | "  \(.name)  \(if .disabled then "DISABLED" else "\(.width)x\(.height)@\(.refreshRate | floor)Hz  at \(.x)x\(.y)  scale \(.scale)\(if .focused then "  [focused]" else "" end)" end)"
+  '
+}
+
+usage(){
+  cat <<'EOF'
+disp — display verbs for Hyprland.
+
+  disp toggle  [MON]   turn the panel off, or bring it back
+  disp refresh [MON]   flip between 60Hz and the panel's fastest mode
+  disp relight         panic recovery for a stuck / blank panel
+  disp status          what every connected output is currently doing
+
+MON defaults to eDP-1; DISP_MONITOR overrides it for a whole session.
+Rotation lives in the shell: qs ipc call display rotate
+EOF
+}
+
+cmd="${1:-status}"
+[ $# -gt 1 ] && MONITOR="$2"
+
+case "$cmd" in
+  toggle)         cmd_toggle ;;
+  refresh)        cmd_refresh ;;
+  relight)        cmd_relight ;;
+  status)         cmd_status ;;
+  -h|--help|help) usage ;;
+  *)              echo "disp: unknown command '$cmd'" >&2; echo >&2; usage >&2; exit 2 ;;
+esac

@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/../lib/os-detection.sh"
 
 if is_macos; then
-    rm -rf '/Users/ali/Library/Application Support/com.mitchellh.ghostty/config'
+    rm -rf "$HOME/Library/Application Support/com.mitchellh.ghostty/config"
 fi
 
 if is_linux; then

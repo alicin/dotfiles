@@ -28,14 +28,14 @@ hl.on("hyprland.start", function()
   -- Points at the repo copy, not ~/.local/bin: that path is gitignored, so on a
   -- freshly provisioned machine the script simply would not be there and GTK
   -- apps would silently fall back to the Adwaita default.
-  hl.exec_cmd("/home/ali/labs/dotfiles/bin/sync-gnome-tweaks-to-gtk")
+  hl.exec_cmd(apps.repo .. "/bin/sync-gnome-tweaks-to-gtk")
 
   -- Anything this machine still has to do by hand after a pull (notes/<host>.md
   -- — install a package, restart a service, verify hardware). Notifies only
   -- when something is open, and prunes done entries a week after their
   -- done-date, so the checklists cannot rot the way the todo files they
   -- replaced did.
-  hl.exec_cmd("/home/ali/labs/dotfiles/bin/host-notes --notify")
+  hl.exec_cmd(apps.repo .. "/bin/host-notes --notify")
 
   -- Daemons / one-shots.
   hl.exec_cmd(apps.idle)
@@ -53,10 +53,13 @@ hl.on("hyprland.start", function()
   -- when the copy happened — the one thing a clipboard history needs beyond
   -- the content, and the one thing that cannot be reconstructed afterwards.
   -- The picker degrades to showing no source if the side file is missing.
-  hl.exec_cmd("wl-paste --type text  --watch /home/ali/labs/dotfiles/scripts/clip-store.sh")
-  hl.exec_cmd("wl-paste --type image --watch /home/ali/labs/dotfiles/scripts/clip-store.sh")
+  hl.exec_cmd("wl-paste --type text  --watch " .. apps.repo .. "/scripts/clip-store.sh")
+  hl.exec_cmd("wl-paste --type image --watch " .. apps.repo .. "/scripts/clip-store.sh")
 
-  hl.exec_cmd("nm-applet")
+  -- No nm-applet: qshell owns the radios now. services/Net.qml is a thin view
+  -- over Quickshell.Networking for wifi, and modules/control/BluetoothPage.qml
+  -- drives Quickshell.Bluetooth (the adapter toggle is on the Control Center home
+  -- row too), so the applet was drawing a tray icon nothing needed.
   hl.exec_cmd("pidof kdeconnectd || /usr/bin/kdeconnectd")
   hl.exec_cmd("/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1")
   -- hl.exec_cmd("qs -c overview")

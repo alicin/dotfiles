@@ -13,7 +13,7 @@ local edp = "eDP-1"
 -- by-path name (pci-0000:00:02.0-card) is split on its own colons into garbage
 -- -> "Found no gpus" -> crash loop. The colon-free ~/.config/hypr/igpu symlink
 -- chains through the udev by-path link, and survives card0/card1 renumbering.
-hl.env("AQ_DRM_DEVICES", "/home/ali/.config/hypr/igpu")
+hl.env("AQ_DRM_DEVICES", os.getenv("HOME") .. "/.config/hypr/igpu")
 local horizontal = "desc:LG Electronics LG HDR 4K 0x0007807F"
 local vertical = "desc:LG Electronics LG HDR 4K 0x0007FDE4"
 -- ── Monitors ────────────────────────────────────────────────────────────────
@@ -116,7 +116,7 @@ hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd(apps.rog_brightness_down), { lo
 -- Apps only this machine has (moved out of lua/binds.lua, where they were
 -- dead keys on the other two hosts).
 hl.bind("SUPER + SHIFT + D", hl.dsp.exec_cmd("discord --enable-features=UseOzonePlatform,WaylandWindowDecorations --ozone-platform=wayland")) -- Discord
-hl.bind("SUPER + SHIFT + A", hl.dsp.exec_cmd("/home/ali/Games/audiorelay-0.27.5/bin/AudioRelay")) -- AudioRelay
+hl.bind("SUPER + SHIFT + A", hl.dsp.exec_cmd(os.getenv("HOME") .. "/Games/audiorelay-0.27.5/bin/AudioRelay")) -- AudioRelay
 -- No XF86KbdBrightnessUp/Down binds here on purpose. This laptop's keyboard
 -- backlight key never reaches the compositor: no input device declares
 -- KEY_KBDILLUMUP at all (the Asus WMI hotkeys device exposes volume, mic-mute

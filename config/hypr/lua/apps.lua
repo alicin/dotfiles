@@ -3,6 +3,14 @@
 
 local M = {}
 
+-- Every path below is absolute on purpose: Hyprland execs through the session
+-- environment, and bin/ is only on PATH in interactive zsh (config/zsh/path.zsh),
+-- so a bare `disp` or `win11` would not resolve here. Absolute does not have to
+-- mean hardcoded, though — DOTFILESSRC is the same variable zsh uses, and $HOME
+-- covers the rest, so this file no longer contains anybody's username.
+local repo = os.getenv("DOTFILESSRC") or (os.getenv("HOME") .. "/labs/dotfiles")
+M.repo = repo
+
 -- (No wallpaper entry: hyprpaper reads its own conf from ~/.wallpapers/, and
 -- the old M.bg here pointed at a path that didn't exist, with no consumer.)
 
@@ -75,8 +83,8 @@ M.bar = "systemctl --user is-enabled --quiet qshell.service && systemctl --user 
 -- either way.
 M.brightness_up        = "qs ipc -c qshell call brightness up 2>/dev/null || brightnessctl -s set +10%"
 M.brightness_down      = "qs ipc -c qshell call brightness down 2>/dev/null || brightnessctl -s set 10%-"
-M.rog_brightness_up    = "qs ipc -c qshell call brightness up 2>/dev/null || /home/ali/labs/dotfiles/scripts/rog-backlight-control.sh up"
-M.rog_brightness_down  = "qs ipc -c qshell call brightness down 2>/dev/null || /home/ali/labs/dotfiles/scripts/rog-backlight-control.sh down"
+M.rog_brightness_up    = "qs ipc -c qshell call brightness up 2>/dev/null || " .. repo .. "/scripts/rog-backlight-control.sh up"
+M.rog_brightness_down  = "qs ipc -c qshell call brightness down 2>/dev/null || " .. repo .. "/scripts/rog-backlight-control.sh down"
 
 -- Keyboard backlight. Same deal; the ROG light is 0-3 with nothing in between,
 -- so these step rather than scale, and the OSD draws segments not a bar.
@@ -104,29 +112,30 @@ M.clipboard      = "qs ipc -c qshell call clipboard toggle"
 -- M.clipboard     = "cliphist list | " .. M.dmenu .. " | cliphist decode | wl-copy"
 -- M.clipboard_del = "cliphist list | " .. M.dmenu .. " | cliphist delete"
 
--- Monitor / screenshot scripts.
-M.toggle_edp         = "/home/ali/labs/dotfiles/bin/toggle-edp.sh"
-M.toggle_edp_refresh = "/home/ali/labs/dotfiles/bin/toggle-edp-refresh.sh"
-M.relight_displays   = "/home/ali/labs/dotfiles/bin/relight-displays.sh"
+-- Monitor / screenshot scripts. The three separate toggle-edp/-refresh/relight
+-- scripts are one `disp` command now (bin/disp) — same behaviour, one file.
+M.toggle_edp         = repo .. "/bin/disp toggle"
+M.toggle_edp_refresh = repo .. "/bin/disp refresh"
+M.relight_displays   = repo .. "/bin/disp relight"
 -- Capture. Both go through the shell when it's up — only it can pull the bar
 -- and toasts out of the picture first, dim around a recording region, and show
 -- elapsed time — and fall back to the same scripts underneath when it isn't, so
 -- the behaviour is identical either way. (Same idiom as the brightness keys.)
-M.grab               = "qs -c qshell ipc call capture shot area 2>/dev/null || /home/ali/labs/dotfiles/scripts/screenshot.sh area"     -- macOS Cmd+Shift+4 style: area screenshot
+M.grab               = "qs -c qshell ipc call capture shot area 2>/dev/null || " .. repo .. "/scripts/screenshot.sh area"     -- macOS Cmd+Shift+4 style: area screenshot
 -- The mode argument is REQUIRED even though only "full" is special-cased: an
 -- arity mismatch makes `qs ipc call` print an error and exit *0*, so the `||`
 -- fallback never runs and the key silently does nothing at all.
-M.record             = "qs -c qshell ipc call capture record area 2>/dev/null || /home/ali/labs/dotfiles/scripts/screen_record.sh toggle"   -- macOS Cmd+Shift+5 style: area recording toggle
+M.record             = "qs -c qshell ipc call capture record area 2>/dev/null || " .. repo .. "/scripts/screen_record.sh toggle"   -- macOS Cmd+Shift+5 style: area recording toggle
 -- Whole-screen recording. The shell's recordFull() existed with no caller
 -- anywhere; the fallback toggles the same script with no -g, so it records
 -- everything rather than asking for a region.
 M.record_full        = "qs -c qshell ipc call capture record full 2>/dev/null || "
-  .. "{ SR=/home/ali/labs/dotfiles/scripts/screen_record.sh; "
+  .. "{ SR=" .. repo .. "/scripts/screen_record.sh; "
   .. "[ \"$($SR status)\" = 'not recording' ] && $SR start || $SR stop; }"
 -- Pause closes the current segment; stopping concatenates them (wf-recorder
 -- has no pause signal — see screen_record.sh). One key does both directions.
 M.record_pause       = "qs -c qshell ipc call capture pause 2>/dev/null || "
-  .. "{ SR=/home/ali/labs/dotfiles/scripts/screen_record.sh; $SR pause || $SR resume; }"
+  .. "{ SR=" .. repo .. "/scripts/screen_record.sh; $SR pause || $SR resume; }"
 
 -- Shell verbs that were previously mouse-only. Both announce themselves: the
 -- profile change raises the OSD on its own, and DND is visible on the bell.
@@ -156,7 +165,7 @@ M.control_display    = "qs -c qshell ipc call popouts toggle display"
 -- above document — but it exits non-zero when the shell is not running at all,
 -- which is the only case this fallback is for. bin/keycheat still renders the
 -- sheet without the shell.
-M.keycheat           = "qs -c qshell ipc call keycheat toggle 2>/dev/null || /home/ali/labs/dotfiles/bin/keycheat"
+M.keycheat           = "qs -c qshell ipc call keycheat toggle 2>/dev/null || " .. repo .. "/bin/keycheat"
 
 -- Region OCR and QR decode. Shell-only, like M.menu and M.clipboard: both end
 -- in a notification, and with the shell down there is no notification daemon to
