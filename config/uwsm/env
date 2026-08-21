@@ -49,12 +49,23 @@ export XCURSOR_SIZE="32"
 # We point it at the colon-free ~/.config/hypr/igpu symlink (-> Intel card via the
 # udev by-path link), which also survives card0/card1 renumbering.
 #
-# Game-GPU policy (chosen 2026-06-25):
-#   Integrated / Vfio  -> dGPU unavailable; force everything onto the Intel iGPU.
-#   Hybrid             -> games default to the nvidia dGPU (PRIME offload);
-#                         compositor and video decode stay on the iGPU.
-#   AsusMuxDgpu        -> nvidia drives the panel directly; everything on nvidia.
-# Per-app override either way: `igpu-run <cmd>` / `dgpu-run <cmd>`.
+# Game-GPU policy (revised 2026-08-21):
+#   The host runs on the Intel iGPU. Always. The nvidia dGPU exists for exactly
+#   one thing -- passthrough to the win11 guest (see vfio/) -- and sits at 0 W
+#   the rest of the time. So there is no mode in which a host process should
+#   land on it, and the old Hybrid arm, which pointed games AT nvidia via PRIME
+#   offload, could only produce games that refuse to start: supergfxd
+#   reactivates the nvidia Vulkan ICD in Hybrid, the loader then advertises a
+#   GPU that is bound to vfio-pci, and vkCreateInstance dies with
+#   ERROR_INCOMPATIBLE_DRIVER ("Found no drivers!"). Integrated, Vfio and Hybrid
+#   are therefore all the same answer now.
+#
+#   AsusMuxDgpu stays as a safety net rather than a mode we use: the MUX routes
+#   the panel to nvidia, so AQ_DRM_DEVICES must NOT point at the Intel node
+#   there or the compositor finds no output at all.
+#
+# Per-app override: `igpu-run <cmd>` (bin/igpu-run, also a Steam launch option:
+# `igpu-run %command%`). There is deliberately no dgpu-run any more.
 #
 # ALL of this is gated on supergfxctl actually being installed, i.e. on a hybrid
 # Intel+nvidia ASUS box. On a single-GPU host (k3v1n: Radeon 780M) supergfxctl
@@ -67,27 +78,50 @@ export XCURSOR_SIZE="32"
 if [ -x /usr/bin/supergfxctl ]; then
 _gfx="$(/usr/bin/supergfxctl -g 2>/dev/null)"
 case "$_gfx" in
-  Integrated|Vfio)
-    export AQ_DRM_DEVICES="$HOME/.config/hypr/igpu"
-    export MESA_VK_DEVICE_SELECT="8086:7d51!"     # Vulkan (DXVK/vkd3d) -> Intel
-    export __GLX_VENDOR_LIBRARY_NAME="mesa"        # GLX -> Intel
-    export DRI_PRIME=0
-    export LIBVA_DRIVER_NAME="iHD"                 # VA-API video -> Intel
-    unset __NV_PRIME_RENDER_OFFLOAD __VK_LAYER_NV_optimus
-    ;;
   AsusMuxDgpu)
     unset AQ_DRM_DEVICES                           # nvidia drives the panel (MUX)
     export __GLX_VENDOR_LIBRARY_NAME="nvidia"
     export LIBVA_DRIVER_NAME="nvidia"
-    unset MESA_VK_DEVICE_SELECT DRI_PRIME __NV_PRIME_RENDER_OFFLOAD __VK_LAYER_NV_optimus
+    unset VK_DRIVER_FILES VK_ICD_FILENAMES __EGL_VENDOR_LIBRARY_FILENAMES \
+          MESA_VK_DEVICE_SELECT DRI_PRIME __NV_PRIME_RENDER_OFFLOAD __VK_LAYER_NV_optimus
     ;;
-  *)  # Hybrid (and any unrecognized mode): compositor on iGPU, games on dGPU
+  *)  # Integrated / Vfio / Hybrid: the iGPU, whatever supergfxd thinks.
     export AQ_DRM_DEVICES="$HOME/.config/hypr/igpu"
-    export __NV_PRIME_RENDER_OFFLOAD=1
-    export __GLX_VENDOR_LIBRARY_NAME="nvidia"       # GLX games -> nvidia
-    export __VK_LAYER_NV_optimus="NVIDIA_only"      # Vulkan games -> nvidia only
-    export LIBVA_DRIVER_NAME="iHD"                  # keep video decode on the iGPU
-    unset MESA_VK_DEVICE_SELECT DRI_PRIME
+    export __GLX_VENDOR_LIBRARY_NAME="mesa"        # GLX -> Intel
+    export LIBVA_DRIVER_NAME="iHD"                 # VA-API video -> Intel
+
+    # Vulkan: stop the nvidia ICD being loaded at all, rather than filtering it
+    # out after the fact. MESA_VK_DEVICE_SELECT (what this used to do) runs as
+    # an implicit layer and picks a device once the loader has already
+    # initialised every ICD it found -- and initialising nvidia's against a GPU
+    # that is bound to vfio-pci is the step that fails, with "Found no drivers!"
+    # / ERROR_INCOMPATIBLE_DRIVER. It also hardcoded 8086:7d51, which is this
+    # laptop and nothing else. Pinning the ICD is the same intent stated
+    # generically and one layer earlier. Built from a glob and only exported if
+    # it matched, so a renamed ICD degrades to the loader's own default rather
+    # than to no Vulkan at all.
+    # (MEASURED: a non-matching MESA_VK_DEVICE_SELECT does *not* empty the
+    # device list -- it falls back -- so that part was never the danger.)
+    _icd=""
+    for _f in /usr/share/vulkan/icd.d/intel_icd*.json; do
+      [ -e "$_f" ] && _icd="${_icd:+$_icd:}$_f"
+    done
+    if [ -n "$_icd" ]; then
+      export VK_DRIVER_FILES="$_icd"               # loader >= 1.3.207
+      export VK_ICD_FILENAMES="$_icd"              # older loaders; ignored above
+    fi
+    unset _icd _f
+
+    # EGL the same way: glvnd reads 10_nvidia.json before 50_mesa.json, so
+    # every EGL app tries the nvidia vendor library first and only falls through
+    # to Mesa once loading it fails against a dGPU that is on vfio-pci.
+    [ -e /usr/share/glvnd/egl_vendor.d/50_mesa.json ] && \
+      export __EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/50_mesa.json
+
+    # DRI_PRIME is NOT set: Mesa reads it as an offload-device selector and
+    # rejects 0 outright ("Invalid value (0) for DRI_PRIME. Should be > 0"),
+    # which it printed into every GL client on the system for nothing.
+    unset MESA_VK_DEVICE_SELECT DRI_PRIME __NV_PRIME_RENDER_OFFLOAD __VK_LAYER_NV_optimus
     ;;
 esac
 unset _gfx

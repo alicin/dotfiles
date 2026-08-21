@@ -1,0 +1,47 @@
+#!/bin/sh
+# Force one command onto the Intel iGPU, whatever the session happens to export.
+#
+#   igpu-run <command> [args...]
+#   Steam launch options:  igpu-run %command%
+#
+# The session already pins the iGPU (config/uwsm/env), because the dGPU on this
+# machine exists only to be passed through to the win11 guest. This is for the
+# cases that sidestep the session environment anyway: something launched from a
+# stale env, a .desktop file with its own Exec, or a login that happened while
+# supergfxd was in AsusMuxDgpu.
+#
+# It pins the Vulkan ICD and the EGL vendor rather than setting
+# MESA_VK_DEVICE_SELECT, for the reasons in config/uwsm/env: device selection
+# happens after the loader has initialised every ICD, and it is initialising
+# nvidia's against a vfio-bound GPU that fails. Each pin is skipped if its file
+# is missing, so the worst case is the loader's normal behaviour rather than an
+# app with no GPU at all.
+#
+# There is deliberately no dgpu-run counterpart: on this host the dGPU is not a
+# render target, it is the guest's.
+set -u
+
+[ $# -gt 0 ] || { echo "usage: igpu-run <command> [args...]" >&2; exit 2; }
+
+icd=""
+for f in /usr/share/vulkan/icd.d/intel_icd*.json; do
+    [ -e "$f" ] && icd="${icd:+$icd:}$f"
+done
+if [ -n "$icd" ]; then
+    VK_DRIVER_FILES="$icd"      # loader >= 1.3.207
+    VK_ICD_FILENAMES="$icd"     # older loaders; ignored when the above is set
+    export VK_DRIVER_FILES VK_ICD_FILENAMES
+fi
+
+if [ -e /usr/share/glvnd/egl_vendor.d/50_mesa.json ]; then
+    __EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/50_mesa.json
+    export __EGL_VENDOR_LIBRARY_FILENAMES
+fi
+
+__GLX_VENDOR_LIBRARY_NAME=mesa
+LIBVA_DRIVER_NAME=iHD
+export __GLX_VENDOR_LIBRARY_NAME LIBVA_DRIVER_NAME
+
+unset __NV_PRIME_RENDER_OFFLOAD __VK_LAYER_NV_optimus DRI_PRIME MESA_VK_DEVICE_SELECT
+
+exec "$@"
