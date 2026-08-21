@@ -49,3 +49,10 @@ themes/fonts/SFSymbolsQS.otf
 
 # Claude Code agent worktrees (transient, one git repo each)
 .claude/worktrees/
+
+# systemd enablement is machine state, not configuration. ~/.config/systemd is a
+# symlink into this repo on h4l9000, so every `systemctl --user enable` used to
+# write a symlink straight into the working tree -- and commit one machine's
+# Sunshine/telemetry units into everyone else's checkout. The unit *files* stay
+# tracked; which of them a given host enables is scripts/services.sh's job.
+config/systemd/user/*.target.wants/

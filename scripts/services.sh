@@ -54,6 +54,38 @@ if is_linux; then
         if [[ -e "$qshell_dst" ]]; then
             systemctl --user enable qshell.service
         fi
+
+        # Everything else this repo ships a user unit for. Enablement lives here
+        # rather than in committed *.target.wants/ symlinks for the reason above:
+        # on h4l9000 that directory IS the repo, so `systemctl --user enable`
+        # wrote into the working tree, and whatever one machine happened to
+        # enable arrived in every other checkout. The symlinks are gitignored now
+        # and this list is the source of truth.
+        #
+        # Each is guarded on the unit actually existing, because the set differs
+        # per machine and per install order: the toshy-* units arrive with
+        # toshy-install.sh (which runs before this script), appimagelauncherd
+        # comes from a package, and a host without either should skip them
+        # quietly rather than fail.
+        #
+        # Deliberately NOT here: h4l9000-sys.service (laptop telemetry for one
+        # dashboard) and Sunshine. Those are one machine's business; they stay
+        # enabled on that machine and out of everyone else's session.
+        for unit in \
+            toshy-config.service \
+            toshy-session-monitor.service \
+            toshy-cosmic-dbus.service \
+            toshy-kwin-dbus.service \
+            toshy-wlroots-dbus.service \
+            rclone-gdrive.service \
+            appimagelauncherd.service
+        do
+            if systemctl --user cat "$unit" >/dev/null 2>&1; then
+                systemctl --user enable "$unit" >/dev/null 2>&1 \
+                    && echo "  enabled $unit" \
+                    || echo "  WARN: could not enable $unit"
+            fi
+        done
     fi
 
     # Virtualization services (if available, cross-distro)
