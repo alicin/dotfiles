@@ -1,8 +1,303 @@
 #!/usr/bin/env bash
-# win11 — start the passthrough VM and attach Looking Glass in X11 mode.
+# win11 — the passthrough VM's front door. Everything you do to the Windows guest by
+# hand goes through here, so there is one place that knows the PCI addresses and one
+# place that knows the safety rules.
 #
-# Unsetting WAYLAND_DISPLAY makes the LG client fall back to XWayland (the
-# native Wayland backend misbehaves here). Everything else — boot, LGMP wait,
-# shutdown-on-client-exit — is game.sh's job; args pass straight through.
-here="$(dirname "$(readlink -f "$0")")"
-exec env -u WAYLAND_DISPLAY "$here/../vfio/scripts/game.sh" "$@"
+#   win11              boot the guest, wait for it, attach Looking Glass, shut down on exit
+#   win11 start        the same thing, spelled out
+#   win11 attach       attach the client to an already-running guest and LEAVE IT RUNNING
+#   win11 stop         graceful shutdown, forced off if it won't go
+#   win11 status       what the guest, the dGPU, the NVMe and the shm are actually doing
+#   win11 bind         manually park the dGPU on vfio-pci   (escape hatch — see below)
+#   win11 unbind       manually give the dGPU back to nvidia (escape hatch — see below)
+#
+# The normal path never needs bind/unbind: libvirt's hook drives supergfxd, which owns
+# the vfio-pci module lifecycle on this machine. They exist for the case where
+# supergfxd is broken or absent and you need the card moved anyway. They touch the dGPU
+# only — the NVMe stays with the host — so they are not a way to start the guest.
+#
+# Env overrides: LG_INI, LG_SHM, LG_WAIT, LG_STRICT, WIN_GPU_PCI, WIN_AUDIO_PCI,
+# WIN_NVME_PCI.
+#
+# Keep a second (USB) keyboard or an SSH session handy the first few times, in case the
+# Ctrl+Ctrl grab toggle misbehaves.
+set -uo pipefail
+
+VM="win11"
+VIRSH="virsh -c qemu:///system"
+GPU="${WIN_GPU_PCI:-0000:01:00.0}"     # NVIDIA dGPU (Blackwell)
+AUDIO="${WIN_AUDIO_PCI:-0000:01:00.1}" # its HDMI/DP audio function
+NVME="${WIN_NVME_PCI:-0000:02:00.0}"   # Samsung controller, passed through whole
+LG_INI="${LG_INI:-$HOME/.config/looking-glass/client.ini}"
+SHM="${LG_SHM:-/dev/shm/looking-glass}"
+LG_WAIT="${LG_WAIT:-180}"              # seconds to wait for the guest host app
+LG_STRICT="${LG_STRICT:-0}"            # 1 = always shut down on exit, even if LG never attached
+
+say(){ echo "[win11] $*"; }
+die(){ echo "[win11] $*" >&2; exit 1; }
+
+driver_of(){ [ -L "/sys/bus/pci/devices/$1/driver" ] && basename "$(readlink "/sys/bus/pci/devices/$1/driver")" || echo "(none)"; }
+pstate(){ cat "/sys/bus/pci/devices/$1/power_state" 2>/dev/null || echo "removed"; }
+domstate(){ $VIRSH domstate "$VM" 2>/dev/null; }
+
+# The guest owns the WHOLE NVMe controller, so device names are useless here: the disk
+# re-enumerates on every vfio detach/reattach and the Samsung can come back as nvme1n1
+# while the Linux disk sits on nvme0n1. Resolve it from the PCI address instead. Empty
+# means no nvme node under that device, i.e. it is already vfio-bound and nothing of
+# ours can be mounted on it. Same resolution the libvirt prepare hook uses.
+passthrough_disk(){
+  local d
+  d="$(ls -d /sys/bus/pci/devices/$NVME/nvme/nvme*/nvme*n1 2>/dev/null | head -1)"
+  [ -n "$d" ] && basename "$d"
+}
+
+# Every host mountpoint currently living on that disk, one per line.
+host_mounts_on_guest_disk(){
+  local disk part
+  disk="$(passthrough_disk)" || return 0
+  [ -n "$disk" ] || return 0
+  for part in $(lsblk -ln -o NAME "/dev/$disk" 2>/dev/null | tail -n +2); do
+    findmnt -rn -o TARGET -S "/dev/$part" 2>/dev/null
+  done
+}
+
+# The LGMP header magic is the first 4 bytes of the shared buffer. It PERSISTS across
+# runs, so it must be zeroed before boot — otherwise last session's magic reads as
+# "guest is ready" instantly. tr strips NULs: a zeroed shm would otherwise make bash
+# warn "ignored null byte in input" on every poll of the wait loop.
+shm_magic(){ head -c 4 "$SHM" 2>/dev/null | tr -d '\0'; }
+shm_clear(){
+  [ -w "$SHM" ] || return 0
+  dd if=/dev/zero of="$SHM" bs=16 count=1 conv=notrunc status=none 2>/dev/null || true
+}
+
+# A host-side mount of any partition on the passthrough disk while the guest is writing
+# is the one way to actually corrupt Windows. The libvirt hook enforces this too — it
+# has to, because `virsh start win11` never comes through here — but catching it up
+# front gives a better error than a hook that aborts the domain start.
+assert_disk_free(){
+  local mounts
+  mounts="$(host_mounts_on_guest_disk)"
+  [ -n "$mounts" ] || return 0
+  say "REFUSING TO START — these are mounted on the host, on the disk the guest owns:"
+  printf '           %s\n' $mounts
+  say "unmount them first:  $(printf 'sudo umount %s; ' $mounts)"
+  exit 1
+}
+
+# Graceful, then not. Used by `stop` and by start's exit path.
+shutdown_vm(){
+  say "shutting down $VM ..."
+  $VIRSH shutdown "$VM" 2>/dev/null || true
+  for _ in $(seq 1 90); do
+    [ "$(domstate)" = "shut off" ] && break
+    sleep 2
+  done
+  if [ "$(domstate)" != "shut off" ]; then
+    say "guest didn't shut down in time — forcing off"
+    $VIRSH destroy "$VM" 2>/dev/null || true
+  fi
+  say "done. dGPU: $(supergfxctl -S 2>/dev/null || echo '?')"
+}
+
+# XWayland, not native Wayland: the LG client's Wayland backend misbehaves here.
+run_client(){
+  say "launching Looking Glass — Ctrl+Ctrl toggles input grab"
+  env -u WAYLAND_DISPLAY looking-glass-client -C "$LG_INI" || true
+}
+
+# ── start ───────────────────────────────────────────────────────────────────────────
+#
+# Why the wait exists: an older version launched the client immediately after `virsh
+# start`, and its cleanup fired on ANY client exit. A client that quit because the guest
+# was still booting would therefore shut the VM down ~30 s in — which reads exactly like
+# the guest crashing, and cost a long debugging detour on 2026-08-16. The client is now
+# only started once the guest is actually publishing frames, and a VM that never got
+# that far is LEFT RUNNING so it can be inspected.
+started_vm=0
+attached=0
+user_abort=0
+
+cmd_start(){
+  command -v looking-glass-client >/dev/null 2>&1 || die "looking-glass-client not installed → yay -S looking-glass"
+  $VIRSH dominfo "$VM" >/dev/null 2>&1 || die "domain $VM not defined → virsh define vfio/win11.xml"
+  assert_disk_free
+
+  on_signal(){ user_abort=1; exit 130; }
+  trap on_signal INT TERM
+  trap start_cleanup EXIT
+
+  if [ "$(domstate)" = "running" ]; then
+    say "$VM already running — attaching client only"
+    attached=1
+  else
+    say "clearing stale LGMP session in $SHM"
+    shm_clear
+    say "starting $VM (hook powers up the dGPU + releases the host's mounts) ..."
+    $VIRSH start "$VM" || exit 1
+    started_vm=1
+
+    echo -n "[win11] waiting up to ${LG_WAIT}s for the guest Looking Glass host app "
+    for _ in $(seq 1 "$LG_WAIT"); do
+      if [ "$(shm_magic)" = "LGMP" ]; then attached=1; break; fi
+      if [ "$(domstate)" = "shut off" ]; then
+        echo; say "the guest powered off on its own while booting — check:"
+        say "  sudo tail -40 /var/log/libvirt/qemu/win11.log"
+        exit 1
+      fi
+      echo -n "."; sleep 1
+    done
+    echo
+
+    [ "$attached" -eq 1 ] || die "no LGMP session after ${LG_WAIT}s — the guest host app never started."
+    say "guest session is live"
+  fi
+
+  run_client
+  # client exit → start_cleanup shuts the VM down
+}
+
+start_cleanup(){
+  # Nothing to shut down, and nothing to leave running — the guest already went. (The
+  # old launcher printed "LEAVING it running" here, at a domain that was shut off.)
+  if [ "$(domstate)" = "shut off" ]; then
+    say "$VM is shut off"
+    return
+  fi
+  if [ "$started_vm" -eq 1 ] && [ "$attached" -eq 0 ] && [ "$user_abort" -eq 0 ] && [ "$LG_STRICT" != "1" ]; then
+    echo
+    say "Looking Glass never attached — LEAVING $VM running so you can inspect it."
+    say "  the dGPU's HDMI head is live, so a connected monitor shows the guest directly"
+    say "  retry client : win11 attach"
+    say "  guest log    : C:\\ProgramData\\Looking Glass (host)\\looking-glass-host.txt"
+    say "  shut down    : win11 stop"
+    say "  (set LG_STRICT=1 to always shut down instead)"
+    return
+  fi
+  shutdown_vm
+}
+
+# ── attach ──────────────────────────────────────────────────────────────────────────
+# The deliberate opposite of start's tail: look at the guest, leave it running. This is
+# what you want when the guest is mid-something and you just closed the window.
+cmd_attach(){
+  command -v looking-glass-client >/dev/null 2>&1 || die "looking-glass-client not installed → yay -S looking-glass"
+  [ "$(domstate)" = "running" ] || die "$VM is not running (state: $(domstate || echo 'not defined')) — use: win11 start"
+  [ "$(shm_magic)" = "LGMP" ] || say "no LGMP magic in $SHM yet — the client may not find a session"
+  run_client
+  say "client exited; $VM left running (win11 stop to shut it down)"
+}
+
+# ── stop ────────────────────────────────────────────────────────────────────────────
+cmd_stop(){
+  case "$(domstate)" in
+    "shut off") say "$VM is already shut off"; return 0 ;;
+    "")         die "domain $VM not defined" ;;
+  esac
+  shutdown_vm
+}
+
+# ── status ──────────────────────────────────────────────────────────────────────────
+cmd_status(){
+  local disk mounts magic
+  echo "  domain      $VM: $(domstate || echo 'not defined')"
+  echo "  gfx mode    $(supergfxctl -g 2>/dev/null || echo '(supergfxctl absent)')"
+  echo "  dGPU        $GPU  driver=$(driver_of "$GPU")  power=$(pstate "$GPU")"
+  echo "  dGPU audio  $AUDIO  driver=$(driver_of "$AUDIO")"
+  echo "  NVMe        $NVME  driver=$(driver_of "$NVME")"
+
+  disk="$(passthrough_disk)"
+  if [ -n "$disk" ]; then
+    mounts="$(host_mounts_on_guest_disk)"
+    if [ -n "$mounts" ]; then
+      echo "  guest disk  /dev/$disk — MOUNTED ON HOST: $(echo $mounts | tr '\n' ' ')"
+      echo "              a start would be refused until these are unmounted"
+    else
+      echo "  guest disk  /dev/$disk — no host mounts (clear to start)"
+    fi
+  else
+    echo "  guest disk  no nvme node under $NVME (vfio-bound — the guest has it)"
+  fi
+
+  magic="$(shm_magic)"
+  echo "  shm         $SHM: ${magic:-(empty)}$([ "$magic" = "LGMP" ] && echo '  — a session is published')"
+
+  # Left behind only when a release hook could not put a mount back; normally absent.
+  [ -s /run/vfio-win11.mounts ] && echo "  UNRESTORED  /run/vfio-win11.mounts: $(tr '\n' ' ' < /run/vfio-win11.mounts)"
+  return 0
+}
+
+# ── bind / unbind ───────────────────────────────────────────────────────────────────
+# Escape hatch only. supergfxd normally owns this, and it modprobes/rmmods vfio-pci per
+# mode switch — so if supergfxd IS working, use it (`supergfxctl -m Vfio`) rather than
+# these, which can leave the module refcount and supergfxd's idea of the mode disagreeing.
+cmd_bind(){
+  say "manual dGPU → vfio-pci. The supported path is 'supergfxctl -m Vfio'."
+  lspci -nnk -s "${GPU#0000:}"
+  lspci -nnk -s "${AUDIO#0000:}"
+  nvidia-smi 2>/dev/null || true
+
+  say "unloading the nvidia stack"
+  sudo modprobe -r nvidia_drm nvidia_modeset nvidia_uvm nvidia || true
+
+  say "unbinding from current drivers"
+  for d in "$GPU" "$AUDIO"; do
+    [ -e "/sys/bus/pci/devices/$d/driver/unbind" ] && echo "$d" | sudo tee "/sys/bus/pci/devices/$d/driver/unbind" >/dev/null
+  done
+
+  say "binding to vfio-pci"
+  sudo modprobe vfio-pci
+  for d in "$GPU" "$AUDIO"; do
+    echo vfio-pci | sudo tee "/sys/bus/pci/devices/$d/driver_override" >/dev/null
+    echo "$d"     | sudo tee /sys/bus/pci/drivers_probe >/dev/null
+  done
+
+  say "result: dGPU=$(driver_of "$GPU")  audio=$(driver_of "$AUDIO")"
+}
+
+cmd_unbind(){
+  say "manual dGPU → nvidia. The supported path is 'supergfxctl -m Integrated'."
+  say "detaching from vfio-pci and clearing the override"
+  for d in "$GPU" "$AUDIO"; do
+    [ -e "/sys/bus/pci/devices/$d/driver/unbind" ] && echo "$d" | sudo tee "/sys/bus/pci/devices/$d/driver/unbind" >/dev/null
+    echo '' | sudo tee "/sys/bus/pci/devices/$d/driver_override" >/dev/null
+  done
+
+  say "reloading host drivers"
+  sudo modprobe snd_hda_intel
+  sudo modprobe nvidia nvidia_uvm nvidia_modeset nvidia_drm
+
+  say "rebinding to the host"
+  for d in "$GPU" "$AUDIO"; do echo "$d" | sudo tee /sys/bus/pci/drivers_probe >/dev/null; done
+
+  say "result: dGPU=$(driver_of "$GPU")  audio=$(driver_of "$AUDIO")"
+  nvidia-smi 2>/dev/null || true
+}
+
+usage(){
+  cat <<'EOF'
+win11 — front door for the Windows passthrough VM.
+
+  win11            boot the guest, wait for it, attach Looking Glass, shut down on exit
+  win11 start      the same thing, spelled out
+  win11 attach     attach the client to an already-running guest and LEAVE IT RUNNING
+  win11 stop       graceful shutdown, forced off if it won't go
+  win11 status     what the guest, the dGPU, the NVMe and the shm are actually doing
+  win11 bind       manually park the dGPU on vfio-pci    (escape hatch, dGPU only)
+  win11 unbind     manually give the dGPU back to nvidia (escape hatch, dGPU only)
+
+bind/unbind are for a broken or absent supergfxd only; the normal path drives it
+through the libvirt hook. Env: LG_INI LG_SHM LG_WAIT LG_STRICT WIN_{GPU,AUDIO,NVME}_PCI.
+EOF
+}
+
+case "${1:-start}" in
+  start)          cmd_start ;;
+  attach)         cmd_attach ;;
+  stop|shutdown)  cmd_stop ;;
+  status)         cmd_status ;;
+  bind)           cmd_bind ;;
+  unbind)         cmd_unbind ;;
+  -h|--help|help) usage ;;
+  *)              echo "win11: unknown command '$1'" >&2; echo >&2; usage >&2; exit 2 ;;
+esac

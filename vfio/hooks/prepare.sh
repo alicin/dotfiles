@@ -7,13 +7,23 @@ set -uo pipefail
 GPU="0000:01:00.0"        # NVIDIA dGPU (Blackwell)
 AUDIO="0000:01:00.1"      # dGPU HDMI/DP audio function
 NVME="0000:02:00.0"       # Samsung 970 EVO Plus controller (whole-disk passthrough)
-FAT_MNT="/mnt/fat"        # ext4 partition (nvme0n1p5) living on the SAME disk we pass through
+MOUNT_STATE="/run/vfio-win11.mounts"  # host mountpoints released below; release.sh replays this
 HOST_CPUS="6-15"          # confine the host here while the VM owns P-cores 0-5
 BIND_TIMEOUT=60           # seconds to wait for the dGPU on vfio-pci (first cold switch can take >25s)
 
 log(){ echo "[vfio-prepare] $*" | systemd-cat -t vfio-hook -p info; echo "[vfio-prepare] $*" >&2; }
 die(){ echo "[vfio-prepare] FATAL: $*" | systemd-cat -t vfio-hook -p err; echo "[vfio-prepare] FATAL: $*" >&2; exit 1; }
 driver_of(){ [ -L "/sys/bus/pci/devices/$1/driver" ] && basename "$(readlink "/sys/bus/pci/devices/$1/driver")" || echo "(none)"; }
+
+# The guest owns the WHOLE NVMe controller, so nothing on it may stay mounted here. Device names
+# are NOT stable — the disk re-enumerates on every vfio detach/reattach, so the Samsung can come
+# back as nvme1n1 while the Linux disk sits on nvme0n1. Resolve the disk from the PCI address,
+# never from a fixed /dev name. Empty = no nvme node under that device = already vfio-bound.
+passthrough_disk(){
+  local d
+  d="$(ls -d /sys/bus/pci/devices/$NVME/nvme/nvme*/nvme*n1 2>/dev/null | head -1)"
+  [ -n "$d" ] && basename "$d"
+}
 
 bind_vfio(){  # $1 = pci addr
   local d="$1"
@@ -56,31 +66,45 @@ while :; do
   sleep 0.5
 done
 
-# 2) NVMe SECOND. Release the Samsung NVMe from the host (it carries /mnt/fat AND the Windows
-#    install) and bind it to the now-loaded vfio-pci. Refuse to continue if /mnt/fat can't be
-#    freed (two kernels writing one disk = corruption).
-if mountpoint -q "$FAT_MNT"; then
-  log "unmounting $FAT_MNT"
-  sync
-  umount "$FAT_MNT" || die "could not unmount $FAT_MNT (in use). Close anything using it, then retry."
+# 2) NVMe SECOND. Release the Samsung NVMe from the host (it carries the Windows install) and bind
+#    it to the now-loaded vfio-pci. EVERY host mount on that disk has to go first — two kernels
+#    writing one disk is the one way to actually corrupt the guest — so walk the partitions the
+#    controller currently exposes rather than a hardcoded list (the layout changes; the PCI address
+#    does not). Record what we took so release.sh can put it back. Refuse to continue if one is
+#    busy: a half-released disk is worse than a VM that didn't start. `win11` runs the same check
+#    up front, but `virsh start win11` reaches us directly, so it has to live here too.
+: > "$MOUNT_STATE"
+windisk="$(passthrough_disk)"
+if [ -n "$windisk" ]; then
+  for part in $(lsblk -ln -o NAME "/dev/$windisk" 2>/dev/null | tail -n +2); do
+    # reverse order so a nested mount is released before the one it sits inside
+    for mp in $(findmnt -rn -o TARGET -S "/dev/$part" 2>/dev/null | sort -r); do
+      log "unmounting $mp (/dev/$part is on the passthrough disk)"
+      sync
+      umount "$mp" || die "could not unmount $mp (in use). Close anything using it, then retry."
+      printf '%s\n' "$mp" >> "$MOUNT_STATE"
+    done
+  done
+else
+  log "no nvme node under $NVME — already vfio-bound, nothing to unmount"
 fi
 log "binding NVMe $NVME -> vfio-pci"
 modprobe vfio-pci 2>/dev/null || true
 bind_vfio "$NVME"
 [ "$(driver_of "$NVME")" = "vfio-pci" ] || die "NVMe $NVME did not bind to vfio-pci"
 
-# 4) Memory: THP (=always) backs the guest RAM with 2M pages; no explicit hugepage pool (the guest
+# 3) Memory: THP (=always) backs the guest RAM with 2M pages; no explicit hugepage pool (the guest
 #    RAM isn't reliably allocatable as 2M at runtime). Just compact to help THP form big pages.
 echo 1 > /proc/sys/vm/compact_memory 2>/dev/null || true
 
-# 5) Confine host tasks to E/LP-E cores so the 6 P-cores are jitter-free for the guest.
+# 4) Confine host tasks to E/LP-E cores so the 6 P-cores are jitter-free for the guest.
 #    Per-slice (init.scope rejects AllowedCPUs); non-fatal.
 log "confining host to CPUs $HOST_CPUS"
 for slice in system.slice user.slice; do
   systemctl set-property --runtime "$slice" "AllowedCPUs=$HOST_CPUS" 2>/dev/null || log "WARN: AllowedCPUs on $slice failed"
 done
 
-# 6) Performance governor for the run.
+# 5) Performance governor for the run.
 command -v cpupower >/dev/null 2>&1 && cpupower frequency-set -g performance >/dev/null 2>&1 || true
 
 log "=== prepare complete ==="

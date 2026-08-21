@@ -23,7 +23,7 @@ fresh Arch install, rebuilding the host side is one script:
 ```bash
 ./vfio/scripts/setup-host.sh        # idempotent; --dry-run to preview; asks for sudo once
 # reboot IF it says so (only when it had to change the IOMMU cmdline / strip vfio from the initramfs)
-./vfio/scripts/game.sh              # launch
+win11                               # launch  (bin/win11, on PATH)
 ```
 
 That installs packages, sets the IOMMU kernel cmdline, keeps vfio_pci out of the initramfs (so
@@ -38,14 +38,20 @@ normal dotfiles symlink. See [setup-host.sh details](#host-setup-script-setup-ho
 ## Daily use
 
 ```bash
-./vfio/scripts/game.sh
+win11            # boot, wait for the guest, attach Looking Glass, shut down on client exit
+win11 attach     # client only, against an already-running guest — leaves it running
+win11 stop       # graceful shutdown, forced off if it won't go
+win11 status     # domain, gfx mode, dGPU/NVMe drivers, host mounts on the guest disk, shm
+win11 bind       # manual dGPU → vfio-pci    (escape hatch: broken/absent supergfxd only)
+win11 unbind     # manual dGPU → nvidia      (same)
 ```
 1. `virsh start win11` → the libvirt **prepare hook** runs: `supergfxctl -m Vfio` powers the dGPU up
-   and binds `01:00.0`+`01:00.1` to `vfio-pci`, unmounts `/mnt/fat`, binds the NVMe `02:00.0`, and
+   and binds `01:00.0`+`01:00.1` to `vfio-pci`, unmounts every host mount on the Samsung, binds the
+   NVMe `02:00.0`, and
    confines the host to CPUs 6–15 so the guest owns P-cores 0–5.
 2. Launches `looking-glass-client` (fullscreen on eDP-1).
-3. On client exit it `virsh shutdown win11` → the **release hook** rebinds the NVMe, remounts
-   `/mnt/fat`, restores CPUs, and `supergfxctl -m Integrated` powers the dGPU back to **0 W**.
+3. On client exit it `virsh shutdown win11` → the **release hook** rebinds the NVMe, remounts what
+   it took, restores CPUs, and `supergfxctl -m Integrated` powers the dGPU back to **0 W**.
 
 ---
 
@@ -59,7 +65,7 @@ normal dotfiles symlink. See [setup-host.sh details](#host-setup-script-setup-ho
 | **Input** | virtio mouse + keyboard (through the LG client) | evdev passthrough (Razer Naga + keyboard, Ctrl+Ctrl grab) is present-but-commented in `win11.xml` for later. |
 | **CPU** | 6 vCPUs pinned 1:1 → P-cores 0–5; emulator/iothread → E-cores 6–7; `host-passthrough`+`invtsc` | host dynamically confined to CPUs 6–15 while the VM runs (not `isolcpus`). |
 | **Memory** | 16 GiB, **THP-backed** (`nosharepages` + `allocation immediate`) | no explicit 2M hugepage pool (not reliably allocatable as 2M at runtime on 30 GiB). Was 20 GiB — see the OOM note in [Recovery](#recovery). |
-| **Disk** | whole Samsung NVMe **controller** `02:00.0` via PCI `<hostdev>` | native NVMe driver in-guest; boots bare-metal Windows directly. `/mnt/fat` (same disk) is unmounted for the session. |
+| **Disk** | whole Samsung NVMe **controller** `02:00.0` via PCI `<hostdev>` | native NVMe driver in-guest; boots bare-metal Windows directly. Any host mount on that disk (today `/mnt/ntfs2t`) is unmounted for the session. |
 | **`maxphysaddr`** | **`limit=39`** | the RTX 5070's 8 GiB BAR + ivshmem must fit where vfio can DMA-map. 39 works; 42 crashed on start (`vfio_container_dma_map = -22`). **Don't raise without re-testing a cold start.** |
 | **Firmware** | q35 + OVMF secboot + swtpm TPM 2.0 (CRB) | Secure Boot on; MS keys not enrolled (guest works without). |
 | **SMBIOS** | spoofed to a real ROG G16 (generic serials committed) | `scripts/spoof-smbios.sh` writes the machine's *real* serials into libvirt's private copy only. |
@@ -110,11 +116,11 @@ All three moved out of the global `options.lua`/`rules.lua` into the h4l9000 hos
   known-working state; pinning it to `NVIDIA GeForce RTX 5070 Laptop GPU` and locking one mode was
   tried on 2026-08-16 and is unproven (it was rolled back together with the `video=none` change, so
   which of the two broke the headless boot was never isolated).
-- **A VM that dies ~30 s in is probably `game.sh`, not a crash.** The old launcher started the
+- **A VM that dies ~30 s in is probably the launcher, not a crash.** An old version started the
   client immediately after `virsh start` and shut the VM down on *any* client exit — so "LG showed
   nothing and then it crashed" was really "the client quit while the guest was still booting, and
   the trap powered it off". Tell them apart from the qemu log: `reason=shutdown` is a graceful ACPI
-  request (i.e. us), `reason=crashed`/`destroyed` is not. Fixed 2026-08-16; `game.sh` now waits for
+  request (i.e. us), `reason=crashed`/`destroyed` is not. Fixed 2026-08-16; `win11` now waits for
   the LGMP magic in `/dev/shm/looking-glass` and leaves a non-attaching VM running.
 - **The LGMP magic in the shm survives a VM shutdown.** Any readiness check must zero the first 16
   bytes before boot, or last session's header reads as "guest is ready" instantly.
@@ -129,7 +135,7 @@ All three moved out of the global `options.lua`/`rules.lua` into the h4l9000 hos
   non-legacy parsers. Use eval."*) and there is no runtime `eval`. So options can only be set at
   config-load time (`hyprctl reload` after editing the `.lua`). A per-session VFR toggle from a
   script is therefore **not possible** — `debug:vfr=false` must live in the always-on config, not
-  in `game.sh`.
+  in the launcher.
 - **HyprPanel was a red herring.** Its bar composites over the fullscreen window, but stopping it
   did *not* fix the stutter; `jitRender=no` did. (If you ever do want to stop it: it's an
   astal/`gjs` app, so `pkill hyprpanel` misses it — use `/usr/bin/hyprpanel quit`.)
@@ -159,8 +165,8 @@ back onto `/dev/kvmfr0`, and point `client.ini` at `shmFile=/dev/kvmfr0`.
 |---|---|
 | `win11.xml` | libvirt domain — mirrors the working live domain (q35+OVMF secboot+swtpm, 6 P-core pin, hyperv, `maxphysaddr=39`, native `<shmem>`, dGPU+NVMe hostdevs, virtio input; evdev + anti-cheat hardening commented for later). |
 | `scripts/setup-host.sh` | **One-shot host provisioner** — packages, IOMMU cmdline, initramfs, `/etc` files, hooks, `client.ini`, services, `virsh define`. Idempotent, `--dry-run`. |
-| `scripts/game.sh` | Launcher: start VM → Looking Glass → shut down cleanly on client exit. |
-| `hooks/qemu`, `hooks/prepare.sh`, `hooks/release.sh` | libvirt hook: hot-plug dGPU + NVMe, unmount/remount `/mnt/fat`, THP compaction, CPU isolation. |
+| `../bin/win11` | The one entry point: `start` / `attach` / `stop` / `status` / `bind` / `unbind`. Lives in `bin/` because that is on `PATH`; it is the only thing here you run by hand day to day. |
+| `hooks/qemu`, `hooks/prepare.sh`, `hooks/release.sh` | libvirt hook: hot-plug dGPU + NVMe, release/restore the host's mounts on that disk, THP compaction, CPU isolation. |
 | `client.ini` | Host Looking Glass client config (`jitRender=no`, `vsync=no`, EGL) → `~/.config/looking-glass/`. |
 | `etc/tmpfiles.d/looking-glass.conf` | Creates `/dev/shm/looking-glass` `0660 ali:kvm` each boot (so QEMU writes / the client reads). |
 | `etc/supergfxd.conf` | `vfio_enable=true`, `vfio_save=false`, `no_logind=true`. |
@@ -223,9 +229,11 @@ service, disable VBS/HVCI/Memory-Integrity + Fullscreen Optimizations.
   hardware-tied. **Test each title on a throwaway account.** The hyperv `vendor_id` spoof and
   `<kvm><hidden>` are commented in `win11.xml` — enable only if needed. Honest fallback for
   Vanguard-class titles: boot Windows bare-metal (the `windows.conf` systemd-boot entry exists).
-- **`/mnt/fat` is on the passed-through disk.** While the VM runs it is unmounted and the whole NVMe
-  belongs to Windows. The prepare hook **refuses to start** if it can't unmount it (two kernels
-  writing one disk = corruption).
+- **Host mounts on the passed-through disk.** The guest owns the whole controller, so `prepare.sh`
+  walks the partitions it exposes and unmounts every one that is mounted here (today that's
+  `/mnt/ntfs2t`), recording them in `/run/vfio-win11.mounts` for `release.sh` to put back. It
+  **refuses to start** if one is busy (two kernels writing one disk = corruption). Partition layouts
+  change; the check is by PCI address, so it keeps working when they do.
 
 ### Building from scratch (phased)
 1. **De-risk:** `setup-host.sh` then `sudo preflight.sh` (Vfio↔Integrated round-trip, clean IOMMU
@@ -256,7 +264,10 @@ service, disable VBS/HVCI/Memory-Integrity + Fullscreen Optimizations.
   (browser, dev servers) and retry, or lower `<memory>`/`<currentMemory>`. Hit three times on 2026-08-16
   at 20 GiB, which is why the guest is now 16 GiB.
 - **dGPU wedged / won't power down** → `supergfxctl -m Integrated`; if that fails, **reboot** (Blackwell reset bug).
-- **`/mnt/fat` missing after a crash** → `sudo /etc/libvirt/hooks/vfio/release.sh` re-runs the rebind + remount.
+- **A mount on the Samsung missing after a crash** → `sudo /etc/libvirt/hooks/vfio/release.sh` re-runs
+  the rebind + remount. Anything that fails to remount stays listed in `/run/vfio-win11.mounts`, so a
+  second run retries exactly those.
 - **Looking Glass shows a black/stale frame** → relaunch `looking-glass-client`; ensure the guest MTT VDD is active (2560×1600@240).
 - **Stutter is back after a config change** → confirm `client.ini` has `jitRender=no`, and `hyprctl getoption debug:vfr` / `general:allow_tearing` are `false` / `true` (reload Hyprland if not).
-- **Manual dGPU bind (no supergfxctl)** → `bin/vfio-bind.sh` / `bin/vfio-unbind.sh` at the repo root.
+- **Manual dGPU bind (no supergfxctl)** → `win11 bind` / `win11 unbind`. dGPU only; the NVMe stays
+  with the host, so these do not start the guest — they exist for a broken or absent supergfxd.

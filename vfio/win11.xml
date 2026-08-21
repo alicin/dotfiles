@@ -7,7 +7,7 @@
   Viewed through Looking Glass over ivshmem-plain (host file /dev/shm/looking-glass).
 
   DEFINE:  virsh define vfio/win11.xml            (or run vfio/scripts/setup-host.sh)
-  START:   vfio/scripts/game.sh                   (launches Looking Glass, shuts VM down on exit)
+  START:   win11                                  (launches Looking Glass, shuts VM down on exit)
 
   hostdevs are managed='no' — the hook (prepare.sh) binds them to vfio-pci before QEMU opens them.
   Guest PCI addresses are intentionally omitted so libvirt auto-builds the PCIe topology.
@@ -261,7 +261,7 @@
       </source>
     </hostdev>
     <!-- Whole Samsung NVMe controller (02:00.0) = native disk, boots bare-metal Windows.
-         managed='no' — the hook binds it to vfio-pci AFTER unmounting /mnt/fat. -->
+         managed='no' — the hook binds it to vfio-pci AFTER releasing the host's mounts on it. -->
     <hostdev mode="subsystem" type="pci" managed="no">
       <source>
         <address domain="0x0000" bus="0x02" slot="0x00" function="0x0"/>

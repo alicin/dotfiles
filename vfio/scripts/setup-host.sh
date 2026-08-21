@@ -24,7 +24,7 @@
 #   * initramfs: keep vfio_pci OUT of mkinitcpio MODULES (supergfxd inserts it per switch)
 #   * /etc/supergfxd.conf  (Vfio hot-plug: no_logind, vfio_save=false)
 #   * /etc/tmpfiles.d/looking-glass.conf   (/dev/shm/looking-glass 0660 ali:kvm)
-#   * libvirt hooks (dGPU hot-plug, NVMe bind, /mnt/fat unmount, CPU isolation)
+#   * libvirt hooks (dGPU hot-plug, NVMe bind, host mounts released, CPU isolation)
 #   * qemu.conf runs QEMU as root (needed for the raw PCI passthrough)
 #   * ~/.config/looking-glass/client.ini   (the low-latency client config)
 #   * enable libvirtd + supergfxd + the default NAT network
@@ -159,7 +159,7 @@ run "sudo install -Dm644 '$VFIO_DIR/etc/tmpfiles.d/looking-glass.conf' /etc/tmpf
 [ "$TARGET_USER" = ali ] || run "sudo sed -i 's/ ali kvm / $TARGET_USER kvm /' /etc/tmpfiles.d/looking-glass.conf"
 run "sudo systemd-tmpfiles --create /etc/tmpfiles.d/looking-glass.conf"
 
-say "libvirt hooks (dGPU hot-plug, NVMe bind, /mnt/fat unmount, CPU isolation)"
+say "libvirt hooks (dGPU hot-plug, NVMe bind, host mounts released, CPU isolation)"
 run "sudo install -Dm755 '$VFIO_DIR/hooks/qemu'       /etc/libvirt/hooks/qemu"
 run "sudo install -Dm755 '$VFIO_DIR/hooks/prepare.sh' /etc/libvirt/hooks/vfio/prepare.sh"
 run "sudo install -Dm755 '$VFIO_DIR/hooks/release.sh' /etc/libvirt/hooks/vfio/release.sh"
@@ -222,7 +222,7 @@ cat <<EOF
 
     Next:
       1. ${RB}re-login (for the new groups) if this was a fresh install.
-      2. Launch:   ./vfio/scripts/game.sh
+      2. Launch:   win11
                    (starts win11 -> hook hot-plugs the dGPU + releases the NVMe,
                     then opens the Looking Glass client; shuts the VM down on exit)
       3. Optional de-risk check:  sudo ./vfio/scripts/preflight.sh
