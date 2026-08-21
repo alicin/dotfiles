@@ -28,6 +28,10 @@ Scope {
     // and never mapped again: the launcher and the clipboard picker both
     // silently stopped opening, with working IPC, until the shell restarted.
     // A name outlives the object, and the binding re-resolves.
+    //
+    // Resolving the name is Displays.screenFor's job — read its comment before
+    // touching win.screen or win.visible, because a name alone was not enough:
+    // when the LAST output goes away there is no real screen to re-resolve to.
     property string pinned: ""
 
     readonly property string mode: Search.modeOf(field.text)
@@ -237,7 +241,13 @@ Scope {
     PanelWindow {
         id: win
 
-        screen: Quickshell.screens.find(s => s.name === (root.pinned || Hyprland.focusedMonitor?.name)) ?? Quickshell.screens[0] ?? null
+        readonly property var realScreen: Displays.screenFor(root.pinned)
+
+        // Held in a property, never read back off `screen` (that would be a
+        // binding loop), and gating `visible` so the surface is rebuilt when an
+        // output comes back — Displays.screenFor has the whole story.
+        screen: win.realScreen
+        visible: win.realScreen !== null
         color: "transparent"
         // The strip the on-screen keyboard reserves on this screen, if any.
         // Shared by the bottom margin below and the height cap: the margin

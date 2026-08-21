@@ -2,7 +2,6 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
-import Quickshell.Hyprland
 import qs.config
 import qs.services
 
@@ -81,7 +80,13 @@ Scope {
         PanelWindow {
             id: win
 
-            screen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? Quickshell.screens[0] ?? null
+            readonly property var realScreen: Displays.screenFor("")
+
+            // Held in a property, never read back off `screen` (that would be a
+            // binding loop), and gating `visible` so the surface is rebuilt when an
+            // output comes back — Displays.screenFor has the whole story.
+            screen: win.realScreen
+            visible: win.realScreen !== null
             color: "transparent"
             exclusionMode: ExclusionMode.Ignore
             exclusiveZone: 0

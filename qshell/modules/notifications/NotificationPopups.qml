@@ -41,7 +41,13 @@ Scope {
         // underneath it.
         readonly property bool replying: stack.replyCount > 0
 
-        screen: Quickshell.screens.find(s => s.name === (win.pinned || Hyprland.focusedMonitor?.name)) ?? Quickshell.screens[0] ?? null
+        readonly property var realScreen: Displays.screenFor(win.pinned)
+
+        // Held in a property, never read back off `screen` (that would be a
+        // binding loop), and gating `visible` so the surface is rebuilt when an
+        // output comes back — Displays.screenFor has the whole story.
+        screen: win.realScreen
+        visible: win.realScreen !== null
         color: "transparent"
         implicitWidth: Appearance.s(404)
         implicitHeight: Appearance.s(740)

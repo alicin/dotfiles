@@ -41,6 +41,55 @@ Singleton {
         return `${n} displays`;
     }
 
+    // The screen a pinned panel should map to — by NAME, falling back to the
+    // focused monitor and then to whatever is left — or null when there is no
+    // real output at all.
+    //
+    // Every panel used to inline `Quickshell.screens.find(...) ??
+    // Quickshell.screens[0] ?? null`, and that last fallback is a trap. When
+    // every output goes away — `disp toggle`, a mode change, a lid-resume that
+    // drops the connector — Qt keeps the process alive by fabricating a
+    // PLACEHOLDER screen (`qt.qpa.wayland: There are no outputs - creating
+    // placeholder screen`), and `screens[0]` hands a layer surface straight to
+    // it. Quickshell says so at the time ("Layershell screen does not
+    // correspond to a real screen"), the placeholder is destroyed the moment a
+    // real output returns, and a PanelWindow whose screen died never maps
+    // again. On 2026-08-21 one Super+Shift+M took out the launcher, the
+    // clipboard picker, the OSD, the overview, notification popups and the
+    // capture thumbnail in one go — every IPC call still answered "ok" and set
+    // `open = true`, with no surface on screen to show for it.
+    //
+    // Telling the placeholder apart needs no Hyprland round-trip, so this is
+    // already right on the first frame, before the IPC has answered:
+    // QPlatformPlaceholderScreen overrides neither name() nor geometry(), so it
+    // reports an EMPTY name and a 0x0 size, and a real wl_output can report
+    // neither. Both are checked because one assumption should not be load-
+    // bearing for six panels; either alone is enough to keep it out.
+    //
+    // An empty `name` means "the focused monitor" — that is all the callers
+    // that don't pin (the PiP window, the cheat sheet) ever wanted.
+    //
+    // Returning null is not enough by itself: re-pointing `screen` at a live
+    // output does NOT resurrect a surface the compositor already destroyed, so
+    // the window has to unmap while there is nothing to map to and be rebuilt
+    // when an output comes back. KeyCheat survived the same event for exactly
+    // that reason — its `visible` is gated on `open`, so every open builds a
+    // fresh surface. So every caller holds the answer in a property and gates
+    // on THAT:
+    //
+    //     readonly property var realScreen: Displays.screenFor(root.pinned)
+    //     screen: win.realScreen
+    //     visible: win.realScreen !== null
+    //
+    // Gating on `win.screen` instead is a binding loop, because PanelWindow
+    // reports the backing window's screen while it is visible and null when it
+    // is not. Quickshell prints "Binding loop detected for property visible"
+    // and then picks a side arbitrarily.
+    function screenFor(name: string): var {
+        const real = Quickshell.screens.filter(s => s.name !== "" && s.width > 0 && s.height > 0);
+        return real.find(s => s.name === name) ?? real.find(s => s.name === Hyprland.focusedMonitor?.name) ?? real[0] ?? null;
+    }
+
     readonly property string binDir: `${Quickshell.env("HOME")}/labs/dotfiles/bin`
 
     function refresh(): void {

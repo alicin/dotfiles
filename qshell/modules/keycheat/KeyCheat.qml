@@ -6,6 +6,7 @@ import Quickshell.Wayland
 import Quickshell.Hyprland
 import qs.config
 import qs.components
+import qs.services
 
 // Keyboard-shortcut cheat sheet, generated from the live Hyprland config.
 //
@@ -292,10 +293,15 @@ Scope {
     PanelWindow {
         id: win
 
-        screen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? Quickshell.screens[0] ?? null
+        readonly property var realScreen: Displays.screenFor("")
+
+        // Held in a property, never read back off `screen` (that would be a
+        // binding loop), and gating `visible` so the surface is rebuilt when an
+        // output comes back — Displays.screenFor has the whole story.
+        screen: win.realScreen
         color: "transparent"
         exclusionMode: ExclusionMode.Ignore
-        visible: root.open || backdrop.opacity > 0.01
+        visible: (root.open || backdrop.opacity > 0.01) && win.realScreen !== null
 
         anchors {
             top: true

@@ -198,7 +198,13 @@ Scope {
 
         readonly property int oskLift: Osk.active && Osk.reservedScreen === (win.screen?.name ?? "") ? Osk.reservedPx : 0
 
-        screen: Quickshell.screens.find(s => s.name === (root.pinned || Hyprland.focusedMonitor?.name)) ?? Quickshell.screens[0] ?? null
+        readonly property var realScreen: Displays.screenFor(root.pinned)
+
+        // Held in a property, never read back off `screen` (that would be a
+        // binding loop), and gating `visible` so the surface is rebuilt when an
+        // output comes back — Displays.screenFor has the whole story.
+        screen: win.realScreen
+        visible: win.realScreen !== null
         color: "transparent"
         // Capped like the launcher: lifted over the keyboard, the fixed height
         // has to give, or the strip's top goes past the screen edge.
@@ -777,7 +783,13 @@ Scope {
         PanelWindow {
             id: qrWin
 
-            screen: Quickshell.screens.find(s => s.name === (root.pinned || Hyprland.focusedMonitor?.name)) ?? Quickshell.screens[0] ?? null
+            readonly property var realScreen: Displays.screenFor(root.pinned)
+
+            // Held in a property, never read back off `screen` (that would be a
+            // binding loop), and gating `visible` so the surface is rebuilt when an
+            // output comes back — Displays.screenFor has the whole story.
+            screen: qrWin.realScreen
+            visible: qrWin.realScreen !== null
             color: "transparent"
             exclusionMode: ExclusionMode.Ignore
 
